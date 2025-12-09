@@ -1,0 +1,838 @@
+function OutputFilename=RB_save_S2Pout_and_headers(basedir,ca_type,varargin)
+overwrite_intermediate = false;
+if numel(varargin)>0
+    if strcmpi(varargin{1},'overwrite_intermediate')
+        overwrite_intermediate = varargin{2};
+    end
+end
+
+%Define suite2p directory 
+suite2Pdir=[basedir 'suite2p\'];
+S2Pdirs=dir([suite2Pdir 'plane*']); %look for plane* folder 
+temp=struct2cell(S2Pdirs);
+temp=temp(1,:)';
+temp=cellfun(@(x) str2num(x(6:end)),temp);
+[~,temp]=sort(temp);
+S2Pdirs=S2Pdirs(temp); %reorder directories based on sorted indices 
+
+
+%check for combined and projection data folders 
+combined=any(exist([suite2Pdir '\combined'],'dir'));
+proj=any(exist([suite2Pdir '\proj'],'dir'));
+pathsplit=strsplit(basedir,'\');
+
+%extract animal and recording names from the path
+namesplit=strsplit(pathsplit{end-1},'_');
+AnimalName=namesplit{1};
+RecordingName=pathsplit{end-1};
+%AnimalFolder=['C:\Users\fschmidt\Documents\GitHub\MouseTrainingScripts\AnimalsISTA\' AnimalName '\']
+AnimalFolder = ['Z:\Group Members\Rima\Animals\' AnimalName '\'] % might need to change to the one in git?
+
+%define output paths and filenames 
+OutputDir='Z:\Group Members\Rima\Aggregated\';
+OutputCopyDirs=['C:\Users\rbondare\Aggregated\'];
+OutputFilename=[OutputDir RecordingName '_preprocessed.mat'];
+
+%define directories for stimulus and DLC data 
+StimPath=['Z:\Group Members\Rima\Stimulus\' AnimalName '\' RecordingName '\'];
+DLCdir='Z:\Group Members\Rima\DLCData\';
+
+%intermediate directory processing
+IntermediateDir=['C:\Users\rbondare\IntermediateDir\' AnimalName '\'];if ~exist(IntermediateDir,'dir');mkdir(IntermediateDir);end
+IntermediateFilename=[IntermediateDir RecordingName '_S2Presult.mat'];
+
+%Handle header files (metadata extracted from tiff image files
+files = dir(fullfile(basedir,'*header.mat')); %look for existing header files
+files_tif = dir(fullfile(basedir,'*.tif')); %check for raw .tif files
+
+%this function is designed to handle  suite2p output
+if ~isempty(files_tif)
+    read_filetype='tif';
+    files = dir(fullfile(basedir,['*.',read_filetype]));
+    header=[];
+    while isempty(header)
+        fullname = files(1).name;[folder_name,file_name,ext] = fileparts(fullname);
+        if ~exist(fullfile(basedir,[file_name,'_header.mat']),'file')
+            % [header,~,ImgInfo] = scanimage.util.opentif([basedir fullname],'slice',1,'volume',1);
+            [header,~,ImgInfo] = fast_get_scanimage_header_notMROI([basedir fullname],'slice',1,'volume',1);
+            save(fullfile(basedir,[file_name,'_header.mat']),'header','ImgInfo','-v7.3');  %load header
+        else
+            load( fullfile(basedir,[file_name,'_header.mat']))
+        end
+        if isempty(header)
+            files(1) = [];
+        end
+    end
+else
+    header=[];
+    while isempty(header)
+        fullname = files(1).name;
+        load( fullfile(basedir,fullname))
+        if isempty(header)
+            files(1) = [];
+        end
+    end
+end
+
+%%metadata extraction:
+% -- this part extracts metadata (e.g. imaging paramters) from .tif files
+% or loads pre-generated headers
+% -- locates stimulus .mat files for current experiment 
+% -- populates headers structure with ImageInfo and metadata fields from
+% headers
+
+numFiles = length(files);
+
+
+StimFiles=dir([StimPath 'stim*.mat']); %looks for stimulus files in specified path
+if isempty(StimFiles)
+    StimPath=['D:\Stimulus\' AnimalName '\' RecordingName '*\'];
+    StimFiles=dir([StimPath 'stim*.mat']);
+end
+
+
+Data=matfile(OutputFilename,'Writable',true);
+%checks if intermediate results already exist or need to be overwritten 
+if ~exist(IntermediateFilename,'file') || overwrite_intermediate
+    Headers=struct();
+    %ImageStackInfo=struct();
+    w=waitbar(0,'pull headers');
+    for File=1:numFiles
+        fullname = files(File).name;
+        [folder_name,file_name,ext] = fileparts(fullname);
+        if strcmp(ext,'.tif') %if header file does not exist generate it from .tif metadata 
+            if ~exist(fullfile(basedir,[file_name,'_header.mat']),'file')
+                [header,~,ImgInfo] = fast_get_scanimage_header_notMROI([basedir fullname],'slice',1,'volume',1);
+                %  header = scanimage.util.opentif([basedir fullname]);
+                %ImgInfo = [];
+                save(fullfile(basedir,[file_name,'_header.mat']),'header','ImgInfo','-v7.3');  %load header
+            else
+                load( fullfile(basedir,[file_name,'_header.mat']))
+            end
+        else
+            load( fullfile(basedir,[file_name,'.mat']))
+        end
+        %populate Header structure 
+        Headers(File).ImgInfo=ImgInfo;
+        if ~isempty(header)
+            FN=fieldnames(header);
+            for n=1:size(FN)
+                Headers(File).(FN{n})=header.(FN{n});
+            end
+        end
+        waitbar(File/numFiles,w)
+    end
+    close(w)
+
+    % This part processes header information to finalize imaging metadata
+    % -- extracts and processes SI_Info metadata, including clock start
+    % time and active channels 
+
+    k1=1;if isempty(Headers(k1).SI); k1=2;end
+    SI_Info=Headers(k1).SI; %exctracts relevant ScanImage metadata 
+    SI_Info.Clockstart=datetime(Headers(k1).epoch{1}); %record clock start time
+    Data.SI_Info=SI_Info;
+    %check for multicolor imaging (e.g. dual-channel fluorescence)
+    if numel(SI_Info.hChannels.channelsActive)>1
+        multicolor=true;
+    else
+        multicolor=false;
+    end
+    fprintf('cleaning up headers \n')
+    if ~isfield(Headers(end).ImgInfo,'numVolumes') && Headers(end).SI.hStackManager.numSlices>1
+        % Handle missing volume information 
+        numS=Headers(end-1).ImgInfo.numSlices+SI_Info.hFastZ.numDiscardFlybackFrames;
+        FN=fieldnames(Headers);
+        last=numel(Headers(end).frameNumbers)-rem(numel(Headers(end).frameNumbers),numS);
+        for n=3:numel(FN)
+            Headers(end).(FN{n})=Headers(end).(FN{n})(1:last);
+            %Data.Headers=Headers;
+        end
+
+    end
+
+%% This part integrates Suite2p output into the pipeline
+% -- Loads suite2p outputs (e.g. Fall.mat, iscell.npy, redcell.npy) for analysis
+% -- Combinies outpouts from multiple imaging planes and handles multicolor data
+% -- Intermediate Saving: Saves Fall.mat and Headers data to intermediate file for downstream use
+
+    if isempty(S2Pdirs)
+        Fall=[];
+    else
+        fprintf('pulling S2P data \n')
+        if combined
+            %FallComb=load([S2Pdirs(1).folder '\combined\Fall.mat']);
+            iscellComb=readNPY([S2Pdirs(1).folder '\combined\iscell.npy']);
+            %iscellCombF=FallComb.iscell;
+            if multicolor
+                %redcellComb=FallComb.redcell(:,2);
+                if exist([S2Pdirs(1).folder '\combined\redcell.npy'],'file')
+                    redcellComb = readNPY([S2Pdirs(1).folder '\combined\redcell.npy']);
+                else
+                    redcellComb = [];
+                end
+            end
+        end
+        if proj
+            Fall=load([S2Pdirs(1).folder '\proj\suite2p\plane0\Fall.mat']);
+        else
+            f=1;
+            Fall=load([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat']);
+            %             Fall(f).F = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\F.npy']);
+            %             Fall(f).Fneu = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fneu.npy']);
+            %             Fall(f).spks = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\spks.npy']);
+            %             Fall(f).iscell = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\iscell.npy']);
+            %             if exist([S2Pdirs(f).folder '\' S2Pdirs(f).name '\redcell.npy'],'file')
+            %             Fall(f).redcell = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\redcell.npy']);
+            %             end
+            %             if exist([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat'],'file')
+            %             load([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat'],'ops');
+            %             Fall(f).ops = ops;
+            %             end
+            %             Fall(f).stat = readNPY([S2Pdirs(f).folder '\' S2Pdirs(f).name '\stat.npy']);
+
+        end
+        if combined && ~proj
+            Fall(f).iscell=iscellComb(1:size(Fall(f).iscell,1),:);
+            iscellComb(1:size(Fall(f).iscell,1),:)=[];
+        end
+        if isfield(Fall,'redcell') && combined
+            Fall=rmfield(Fall,'redcell');
+        end
+        if multicolor && combined
+            Fall(f).redcell=redcellComb(1:size(Fall(f).iscell,1),:);
+            redcellComb(1:size(Fall(f).iscell,1),:)=[];
+        end
+        if ~isfield(SI_Info.hFastZ,'numFramesPerVolume')
+            if isfield(SI_Info.hStackManager,'numFramesPerVolumeWithFlyback')
+                SI_Info.hFastZ.numFramesPerVolume=SI_Info.hStackManager.numFramesPerVolumeWithFlyback;
+            else
+                error('plane num not found')
+            end
+        end
+        %     if proj
+        %         SI_Info.hFastZ.numFramesPerVolume=1;
+        %     end
+        %Fall.iscell = readNPY([dirs(1).folder '\' dirs(1).name '\iscell.npy']);
+        if numel(S2Pdirs)>1 && ~proj
+            for f=2:(SI_Info.hFastZ.numFramesPerVolume-SI_Info.hFastZ.numDiscardFlybackFrames)
+                temp=load([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat']);
+                if multicolor && ~isfield(temp,'redcell')
+                    temp.redcell=[];
+                elseif ~multicolor && isfield(temp,'redcell')
+                    temp=rmfield(temp,'redcell');
+                end
+
+                Fall(f)=temp;
+                if combined
+                    Fall(f).iscell=iscellComb(1:size(Fall(f).iscell,1),:);
+                    iscellComb(1:size(Fall(f).iscell,1),:)=[];
+                    if multicolor
+                        Fall(f).redcell=redcellComb(1:size(Fall(f).iscell,1),:);
+                        redcellComb(1:size(Fall(f).iscell,1),:)=[];
+                    end
+                end
+                %Fall(f).iscell = readNPY([dirs(1).folder '\' dirs(f).name '\iscell.npy']);
+
+            end
+        end
+    end
+    %
+
+    fprintf('saving intermediate \n')
+    save(IntermediateFilename,'Fall','Headers','-v7.3');
+    k1=1;if isempty(Headers(k1).SI); k1=2;end
+    if ~exist([AnimalFolder AnimalName '.mat'],'file')
+
+%%The Fall (Suite2p fluorescence data) and Headers (image and metadata) structures are saved into a .mat file named IntermediateFilename 
+               
+        N={'AnimalName';'Genotype';     'PCF_AnimalNumber'; 'Sex';  'DateOfBirth';  'DateOfInjection';  'DateOfImplantation';   'Indicator';    'Expression';                   'Notes'};
+        def={AnimalName;'Ai148/Rorb-IRES2-cre ki';   'xx/xxx';           'm';    '20190101';     '20190101';         '20190101';             'GCamP6f';      '';''};
+        answerE = inputdlg(N,'add animal',1,def);
+        infmt='yyyyMMdd';
+        AnimalInfo=struct();
+        AnimalInfo.AnimalName=answerE{1};
+        AnimalInfo.Genotype=answerE{2};
+        AnimalInfo.PCF_AnimalNumber=answerE{3};
+        AnimalInfo.Sex=answerE{4};
+        AnimalInfo.Notes=answerE{10};
+        AnimalInfo.Dates.Birth=datetime(answerE{5},'InputFormat',infmt);
+        AnimalInfo.Dates.Injection=datetime(answerE{6},'InputFormat',infmt);
+        AnimalInfo.Dates.Implantation=datetime(answerE{7},'InputFormat',infmt);
+        AnimalInfo.Indicator.Type=answerE{8};
+        AnimalInfo.Indicator.Expression=answerE{9};
+
+        AnimalInfo.Dates.Imaging=[];
+
+    else
+        load([AnimalFolder AnimalName '.mat'],'AnimalInfo') % loading existing animal data 
+    end
+
+    AnimalInfo.Dates.Imaging=[AnimalInfo.Dates.Imaging;datetime(Headers(k1).epoch{1})];
+    save([AnimalFolder AnimalName '.mat'],'AnimalInfo')
+    Data.AnimalInfo=AnimalInfo; %saves AnimalInfor into the main file
+
+else
+    fprintf('intermediate found; loading... \n')
+    load(IntermediateFilename,'Fall','Headers');
+    k1=1;if isempty(fieldnames(Headers(k1).ImgInfo)); k1=2;end
+    SI_Info=Headers(k1).SI;
+    SI_Info.Clockstart=datetime(Headers(k1).epoch{1});
+    if ~isfield(SI_Info.hFastZ,'numFramesPerVolume')
+        if isfield(SI_Info.hStackManager,'numFramesPerVolumeWithFlyback')
+            SI_Info.hFastZ.numFramesPerVolume=SI_Info.hStackManager.numFramesPerVolumeWithFlyback;
+        else
+            error('plane num not found')
+        end
+    end
+    Data.SI_Info=SI_Info;
+    load([AnimalFolder AnimalName '.mat'],'AnimalInfo')
+    Data.AnimalInfo=AnimalInfo;
+    if numel(SI_Info.hChannels.channelsActive)>1
+        multicolor=true;
+    else
+        multicolor=false;
+    end
+end
+
+% Timestamp verifications and corrections
+FT=cat(2,Headers(:).frameTimestamps_sec);
+if any(diff(FT)<0) % checks if the timestamps in FT are not monotonically increasing (i.e., if the time for a frame is earlier than the previous one).
+    dt=cellfun(@(x) datetime(x),cat(2,Headers(:).epoch),'UniformOutput',0);
+    dt=cat(2,dt{:});
+    dt=seconds(dt-dt(1));
+    dtA=zeros(size(Headers));
+    stE=datetime(Headers(k1).epoch{1});
+    for h=1:numel(Headers)
+        dtA(h)=seconds(datetime(Headers(h).epoch{1})-stE);
+    end
+    tempf=figure;
+    plot(FT,'k');hold on;
+    FT=FT+dt;
+    plot(FT,'r');hold off;
+    legend('timestamps raw','timestamps corrected')
+    multi=any(input('Frame Timestamps not monotonically increasing, multi-aquisition? 1 for yes/0 for cancel:'));
+    close(tempf)
+    if ~multi;error('cancelling');end
+else
+    multi=false;
+end
+FT=unique(FT,'stable');
+if isfield(Headers(k1).ImgInfo,'numSlices')
+    FT=reshape(FT,Headers(k1).ImgInfo.numSlices+SI_Info.hFastZ.numDiscardFlybackFrames,[]); %removing flyback frames 
+    if SI_Info.hFastZ.numDiscardFlybackFrames>0
+        FT=FT(1:end-SI_Info.hFastZ.numDiscardFlybackFrames,:);
+    end
+end
+if proj
+    FT=FT(floor(size(FT,1)/2),:);
+end
+Data.TimeCa=FT;
+
+if ~isempty(Fall)
+    if ~proj
+        Img_max_proj=cell(SI_Info.hFastZ.numFramesPerVolume-SI_Info.hFastZ.numDiscardFlybackFrames,1);
+        for f=1:min(numel(S2Pdirs),(SI_Info.hFastZ.numFramesPerVolume-SI_Info.hFastZ.numDiscardFlybackFrames))
+
+            Ncell=find(Fall(f).iscell(:,1));
+            S2Presult(f).deconvolved=Fall(f).spks(logical(Fall(f).iscell(:,1)),1:size(FT,2));
+            S2Presult(f).F=Fall(f).F(logical(Fall(f).iscell(:,1)),1:size(FT,2));
+            S2Presult(f).Fneu=Fall(f).Fneu(logical(Fall(f).iscell(:,1)),1:size(FT,2));
+            S2Presult(f).center=nan(numel(Ncell),2);
+            S2Presult(f).cellstats=Fall(f).stat(Ncell)';
+            for n=1:numel(Ncell)
+                S2Presult(f).center(n,:)=Fall(f).stat{Ncell(n)}.med;
+            end
+            if multicolor
+                S2Presult(f).redcell=Fall(f).redcell(Ncell,:);
+            end
+            Img_max_proj{f,1}=Fall(f).ops.max_proj;
+            if multicolor
+                Img_max_proj{f,2}=single(Fall(f).ops.meanImg_chan2);
+            end
+        end
+    else
+        Img_max_proj_indiv=cell(SI_Info.hFastZ.numFramesPerVolume-SI_Info.hFastZ.numDiscardFlybackFrames,1);
+        f=1; opsX=load([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat'],'ops');
+        Img_max_proj_indiv{f}=opsX.ops.max_proj;
+        for f=2:min(numel(S2Pdirs),(SI_Info.hFastZ.numFramesPerVolume-SI_Info.hFastZ.numDiscardFlybackFrames))
+            opsX(f)=load([S2Pdirs(f).folder '\' S2Pdirs(f).name '\Fall.mat'],'ops');
+            Img_max_proj_indiv{f}=opsX(f).ops.max_proj;
+        end
+        Data.Img_max_indiv=Img_max_proj_indiv;
+        Img_max_proj={Fall.ops.max_proj};
+        Ncell=find(Fall.iscell(:,1));
+        S2Presult.deconvolved=Fall.spks(logical(Fall.iscell(:,1)),1:size(FT,2));
+        S2Presult.F=Fall.F(logical(Fall.iscell(:,1)),1:size(FT,2));
+        S2Presult.Fneu=Fall.Fneu(logical(Fall.iscell(:,1)),1:size(FT,2));
+        S2Presult.center=nan(numel(Ncell),2);
+        S2Presult.cellstats=Fall.stat(Ncell)';
+        if multicolor
+            S2Presult.redcell=Fall.redcell(Ncell,:);
+        end
+        for n=1:numel(Ncell)
+            S2Presult.center(n,:)=Fall.stat{Ncell(n)}.med;
+        end
+    end
+    Data.Img_max=Img_max_proj;
+
+    for n=1:numel(S2Presult)
+        S2Presult(n).center(:,end+1)=n;
+        % S2Presult(n).center(:,end+1)=SI_Info.hStackManager.zs(n);
+    end
+
+% Df/f calculations
+
+    fprintf('calculating and saving dFF\n')
+    dFFsettings.window=15; %window defined for background activity
+    dFFsettings.neuropil_factor=.5; % neuropil_factor (0.5): Scaling factor for subtracting the neuropil signal. Neuropil is the background signal surrounding a cell.
+    dFFsettings.medianmode='windowed';
+    dFFsettings.baselinemode='prctile';
+    dFFsettings.prclevel=8;
+    Data.dFFsettings=dFFsettings; %prclevel (8): Percentile level used for baseline calculation.
+
+%Aggregating Fluorescence Data 
+    
+    Ca_F_neuropil=cat(1,S2Presult(:).Fneu);
+    Ca_F=cat(1,S2Presult(:).F);
+    Ca_deconvolved=cat(1,S2Presult(:).deconvolved);
+    Ca_centroid_voxel=cat(1,S2Presult(:).center);
+    Ca_cellstats=cat(1,S2Presult(:).cellstats);
+    Ca_cellstats2=Ca_cellstats{1};
+    for n=1:numel(Ca_cellstats)
+        Ca_cellstats2(n)=Ca_cellstats{n};
+    end
+    Ca_cellstats=Ca_cellstats2;
+    if multicolor
+        Red_cell_prob=cat(1,S2Presult(:).redcell);
+        for n=1:numel(Ca_cellstats)
+            Ca_cellstats(n).redprob=Red_cell_prob(n,end);
+        end
+    end
+
+
+
+
+    [Ca_dFF,Ca_baseline]=estimate_continuous_dff(FT,Ca_F,Ca_F_neuropil,dFFsettings.neuropil_factor,dFFsettings.window,dFFsettings.medianmode,dFFsettings.baselinemode,dFFsettings.prclevel);
+
+    Data.CaTypes={'Raw','di_masks','di'};
+
+    fprintf('loading Ca data \n')
+    for fe=1:3
+        CaData(fe).Ca_dFF=[];
+        CaData(fe).Ca_deconvolved=[];
+        CaData(fe).Ca_centroid_voxel=[];
+        CaData(fe).Ca_F=[];
+        CaData(fe).Ca_F_neuropil=[];
+        CaData(fe).Ca_baseline=[];
+        CaData(fe).Ca_cellstats=[];
+    end
+    if ca_type>0
+        CaData(ca_type).Ca_dFF=Ca_dFF;
+        CaData(ca_type).Ca_deconvolved=Ca_deconvolved;
+        CaData(ca_type).Ca_centroid_voxel=Ca_centroid_voxel;
+        CaData(ca_type).Ca_F=Ca_F;
+        CaData(ca_type).Ca_F_neuropil=Ca_F_neuropil;
+        CaData(ca_type).Ca_baseline=Ca_baseline;
+        CaData(ca_type).Ca_cellstats=Ca_cellstats;
+    end
+    fprintf('saving Ca data \n')
+    Data.CaData=CaData;
+
+else
+    dFFsettings.window=15;
+    dFFsettings.neuropil_factor=.5;
+    dFFsettings.medianmode='windowed';
+    dFFsettings.baselinemode='prctile';
+    dFFsettings.prclevel=8;
+    Data.dFFsettings=dFFsettings;
+    for fe=1:3
+        CaData(fe).Ca_dFF=[];
+        CaData(fe).Ca_deconvolved=[];
+        CaData(fe).Ca_centroid_voxel=[];
+        CaData(fe).Ca_F=[];
+        CaData(fe).Ca_F_neuropil=[];
+        CaData(fe).Ca_baseline=[];
+        CaData(fe).Ca_cellstats=[];
+    end
+    Data.CaData=CaData;
+end
+%%
+
+
+TimingProblems=false;
+Headers=rmfield(Headers,{'SI';'acqTriggerTimestamps_sec';'acquisitionNumbers';'frameNumberAcquisition';'acqTriggerTimestamps_sec';...
+    'nextFileMarkerTimestamps_sec';'endOfAcquisition';'endOfAcquisitionMode';'dcOverVoltage';'I2CData';'epoch'});
+%Data.Headers=Headers;
+
+%Extracting timing triggers from headers
+fprintf('pulling timing triggers \n')
+FrameNum=cat(2,Headers(:).frameNumbers);
+if multi
+    newAcqIdx=[find(diff(FrameNum)<0)+1 numel(FrameNum)+1];
+    for m=1:numel(newAcqIdx)-1
+        FrameNum(newAcqIdx(m):newAcqIdx(m+1)-1)=FrameNum(newAcqIdx(m):newAcqIdx(m+1)-1)+FrameNum(newAcqIdx(m)-1);
+    end
+end
+
+%processes projector triggers 
+[~,ia,~]=unique(FrameNum,'stable');
+PT=cat(2,Headers(:).auxTrigger0);
+if multi;for m=1:numel(PT);PT{m}=PT{m}+dt(m);end;end
+PT=cat(2,PT{ia});
+dPT=[inf diff(PT)];if any(dPT<0);warning('Projector Timestamps not monotonically increasing, check multi Aquisitions?');TimingProblems=true;end
+PT(dPT<1/60)=[];
+Triggers.TimeProjector=PT;
+
+%processes camera triggers (same way)
+
+CT=cat(2,Headers(:).auxTrigger1);
+if multi;for m=1:numel(CT);CT{m}=CT{m}+dt(m);end;end
+CT=cat(2,CT{ia(ia<numel(CT))});
+dCT=[inf diff(CT)];if any(dCT<0);warning('Camera Timestamps not monotonically increasing, check multi Aquisitions?');TimingProblems=true;end
+Triggers.TimeCamera=CT;
+
+%processes ball motion camera 
+
+BT=cat(2,Headers(:).auxTrigger2);
+if multi;for m=1:numel(BT);BT{m}=BT{m}+dt(m);end;end
+BT=cat(2,BT{ia(ia<numel(BT))});
+dBT=[inf diff(BT)];if any(dBT<0);warning('Ball Timestamps not monotonically increasing, check multi Aquisitions?');TimingProblems=true;end
+
+BT=cell(numel(Headers),1);
+for b=1:numel(BT)
+    if ~isempty(Headers(b).auxTrigger2)
+        [~,temp_fn,~]=unique(Headers(b).frameNumbers);
+        BT{b}=cat(2,Headers(b).auxTrigger2{temp_fn});
+        if multi; BT{b}= BT{b}+dtA(b);end
+    end
+end
+Triggers.TimeBall=BT;
+Triggers.TimingProblems=TimingProblems;
+Data.Triggers=Triggers;
+if ~TimingProblems
+    Headers=rmfield(Headers,{'auxTrigger0';'auxTrigger1';'auxTrigger2';'auxTrigger3'});
+end
+
+%% loads stimulus data from files listed in StimFiles, storing options and Stimuli data in separate variables
+fprintf('pulling stimuli \n')
+F=1;
+
+for F=1:size(StimFiles,1)
+    load([StimFiles(F).folder '\' StimFiles(F).name],'options');
+    Stimulusoptions(F)=options;
+    Stimuli(F)=load([StimFiles(F).folder '\' StimFiles(F).name]);
+
+end
+
+
+
+% if ~strcmp(Stimulusoptions(1).type,'training')
+    BallCamData_temp=cat(1,{Stimuli(:).BallCamData})';
+% else
+%     temp1 = cell(1);
+%     temp2 = cell(1);
+%     BallCamData_temp=cat(1,{Stimuli(:).BallCamData})';
+%     for i = 1 : size(BallCamData_temp{1,1},2)
+%         temp1 = BallCamData_temp{1,1}(:,i)';
+%         temp1 =  temp1(~cellfun('isempty',temp1));
+%         temp2{i,1} = temp1;
+%     end
+%     BallCamData_temp = temp2;
+% end
+
+Stimuli=rmfield(Stimuli,{'BallCamData','options'});
+
+% transfers data from Stimuli to Stimulusoptions foe each filed in stimuli 
+Ca_f = fieldnames(Stimuli);
+for i = 1:length(Ca_f)
+    for j=1:size(Stimuli,2)
+        Stimulusoptions(j).(Ca_f{i}) = Stimuli(j).(Ca_f{i});
+    end
+end
+
+%stores the start and stop stamps for each stimulus acquisition, adjusting
+%for multiacquisitions if necessary
+Stimulus_acquisition_start_stop_timestamp=nan(numel(Headers),2);
+for n=1:numel(Headers)
+    Stimulus_acquisition_start_stop_timestamp(n,:)=Headers(n).frameTimestamps_sec([1 end]);
+    if multi;Stimulus_acquisition_start_stop_timestamp(n,:)=Stimulus_acquisition_start_stop_timestamp(n,:)+dtA(n);end
+end
+Headers=rmfield(Headers,{'frameNumbers';'frameTimestamps_sec'});
+Data.Headers=Headers;
+%%
+ClockStimStart=cat(1,Stimulusoptions(:).timestart);%-seconds(cat(1,Stimulusoptions(:).wait_init));
+Stimulusoptions((seconds(ClockStimStart-(seconds(Stimulus_acquisition_start_stop_timestamp(end,2))+SI_Info.Clockstart))>0))=[];
+ClockAcquisitionStart=seconds(Stimulus_acquisition_start_stop_timestamp(:,1))+SI_Info.Clockstart;
+ClockStimStart=cat(1,Stimulusoptions(:).timestart);
+ClockAcquisitionEnd=seconds(Stimulus_acquisition_start_stop_timestamp(:,2))+SI_Info.Clockstart;
+ClockStimEnd=cat(1,Stimulusoptions(:).timeend);%ClockStimEnd=cat(1,Stimulusoptions(:).timestart)-seconds(cat(1,Stimulusoptions(:).wait_init));
+StimAcqNumber=zeros(size(ClockStimEnd));
+for s=1:numel(ClockStimEnd)
+    [~,I]=sort(abs(seconds(ClockAcquisitionEnd-ClockStimEnd(s))));
+    StimAcqNumber(s)=I(1);
+end
+%%
+
+%frame synchronisations (i.e. red frames)
+if ~strcmp(Stimulusoptions(1).type,'training')
+    for Stimnumber=1:numel(Stimulusoptions)
+        Timestamp_Projected_Sync_Frames=PT(PT>=Stimulus_acquisition_start_stop_timestamp(StimAcqNumber(Stimnumber),1) & PT<=Stimulus_acquisition_start_stop_timestamp(StimAcqNumber(Stimnumber),2)+1);
+        Red_frame_number=find(mod(0:sum(~isnan(Stimulusoptions(Stimnumber).Frameinfo.frame_count))-1,Stimulusoptions(Stimnumber).red_sync_nth_frame)==0);
+        if numel(Red_frame_number)==numel(Timestamp_Projected_Sync_Frames)+1 %&& Red_frame_number(end)==sum(~isnan(Stimulusoptions(Stimnumber).Frameinfo.frame_count))
+            Red_frame_number(end)=[];
+        end
+        if numel(Red_frame_number)~=numel(Timestamp_Projected_Sync_Frames)
+            dt=(diff([-inf Timestamp_Projected_Sync_Frames]));
+            tc=Timestamp_Projected_Sync_Frames(dt>.04);
+            if numel(Red_frame_number)==numel(tc)+1 %&& Red_frame_number(end)==sum(~isnan(Stimulusoptions(Stimnumber).Frameinfo.frame_count))
+                Red_frame_number(end)=[];
+            end
+            if numel(Red_frame_number)==numel(tc)
+                Timestamp_Projected_Sync_Frames=tc;
+            end
+        end
+
+        if  numel(Red_frame_number)~=numel(Timestamp_Projected_Sync_Frames)
+            warning('projector sync frames not matching! Using PC Clock Times instead so take timing with a grain of salt')
+            Stimulusoptions(Stimnumber).TimeStimulusFrame=seconds(Stimulusoptions(Stimnumber).Frameinfo.frametime-SI_Info.Clockstart);
+            Stimulusoptions(Stimnumber).RedFrameSynchronized=false;
+        else
+            Stimulusoptions(Stimnumber).TimeStimulusFrame=interp1(Red_frame_number,Timestamp_Projected_Sync_Frames,1:sum(~isnan(Stimulusoptions(Stimnumber).Frameinfo.frame_count)),'linear','extrap');
+            Stimulusoptions(Stimnumber).RedFrameSynchronized=true;
+        end
+        Stimulusoptions(Stimnumber).TimeStimulusFrameVBL=seconds(Stimulusoptions(Stimnumber).Frameinfo.frametime-Stimulusoptions(Stimnumber).Frameinfo.frametime(1))+Stimulusoptions(Stimnumber).TimeStimulusFrame(1);
+        Stimulusoptions(Stimnumber).TimeStimulusFrameVBL=Stimulusoptions(Stimnumber).TimeStimulusFrameVBL(~isnan(Stimulusoptions(Stimnumber).TimeStimulusFrameVBL))';
+    end
+
+    Data.Stimuli=Stimulusoptions;
+
+    BallCamData=struct;
+    if numel(BT)==numel(BallCamData_temp)
+        N=numel(BallCamData_temp);
+    else
+        N=numel(StimAcqNumber);
+    end
+try
+    for n=1:N%numel(BallCamData_temp)
+        %
+        Ca_f=find(cellfun(@numel,BallCamData_temp{n})~=5);
+
+        %     error('check timing issues')
+        if numel(Ca_f)<=0 %changed to zero to account for cases where only one bad reading is there. check if valid in others
+
+            BallCamData(n).Values=cell2mat(BallCamData_temp{n}');
+
+            if numel(BT)==numel(BallCamData_temp)
+                if size(BallCamData(n).Values,1)<numel(BT{n}); BT{n}(Ca_f)=[];end
+                BallCamData(n).Triggers_sec=BT{n}';
+            else
+
+                if StimAcqNumber(n)>1
+                    temp_BT=[BT{StimAcqNumber(n)-1}';BT{StimAcqNumber(n)}'];
+                    if size(BallCamData(n).Values,1)<numel(temp_BT);  temp_BT(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=temp_BT;
+                else
+                    if size(BallCamData(n).Values,1)<numel(BT{StimAcqNumber(n)});  BT{StimAcqNumber(n)}(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=BT{StimAcqNumber(n)}';
+                end
+            end
+            if n==N%numel(BallCamData_temp)
+                Data.LocomotionNonCal=BallCamData;
+                LocomotionCal=transform_locomotion(BallCamData,SI_Info);
+                Data.LocomotionCal=LocomotionCal;
+
+            end
+        else
+            warning('wrong number of values')
+            BallCamData_temp{n}(Ca_f)=[];
+            if numel(BT)==numel(BallCamData_temp)
+                if numel(BallCamData_temp{n})<numel(BT{n}); BT{n}(Ca_f)=[];end
+                BallCamData(n).Triggers_sec=BT{n}';
+            else
+
+                if StimAcqNumber(n)>1
+                    temp_BT=[BT{StimAcqNumber(n)-1}';BT{StimAcqNumber(n)}'];
+                    if numel(BallCamData_temp{n})<numel(temp_BT);  temp_BT(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=temp_BT;
+                else
+                    if numel(BallCamData_temp{n})<numel(BT{StimAcqNumber(n)});  BT{StimAcqNumber(n)}(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=BT{StimAcqNumber(n)}';
+                end
+            end
+            BallCamData(n).Values=nan(numel(BallCamData(n).Triggers_sec),5);
+            BallCamData(n).Values(1:Ca_f(1)-1,:)=cell2mat(BallCamData_temp{n}(1:Ca_f(1)-1)');
+            BallCamData(n).Values((numel(BallCamData(n).Triggers_sec)-numel(BallCamData_temp{n}(Ca_f(end)+2:end))):numel(BallCamData(n).Triggers_sec),:)=cell2mat(BallCamData_temp{n}(Ca_f(end)+1:end)');
+            if n==N%numel(BallCamData_temp)
+                Data.LocomotionNonCal=BallCamData;
+                LocomotionCal=transform_locomotion(BallCamData,SI_Info);
+                Data.LocomotionCal=LocomotionCal;
+
+            end
+            %         BallCamData=BallCamData_temp;
+            %         Data.BallCamData_temp=BallCamData_temp;
+            %         break;
+        end
+    end
+end
+
+
+
+
+
+else
+
+
+    for Stimnumber=1:Stimulusoptions.i
+        Timestamp_Projected_Sync_Frames=PT(PT>=Stimulus_acquisition_start_stop_timestamp(StimAcqNumber(Stimnumber),1) & PT<=Stimulus_acquisition_start_stop_timestamp(StimAcqNumber(Stimnumber),2)+1);
+        Red_frame_number=find(mod(0:sum(~isnan(Stimulusoptions.Frameinfo.frame_count(:,Stimnumber)))-1,Stimulusoptions.red_sync_nth_frame)==0);
+        if numel(Red_frame_number)==numel(Timestamp_Projected_Sync_Frames)+1 %&& Red_frame_number(end)==sum(~isnan(Stimulusoptions.Frameinfo.frame_count(:,Stimnumber)))
+            Red_frame_number(end)=[];
+        end
+        if numel(Red_frame_number)~=numel(Timestamp_Projected_Sync_Frames)
+            dt=(diff([-inf Timestamp_Projected_Sync_Frames]));
+            tc=Timestamp_Projected_Sync_Frames(dt>.04);
+            if numel(Red_frame_number)==numel(tc)+1 %&& Red_frame_number(end)==sum(~isnan(Stimulusoptions(Stimnumber).Frameinfo.frame_count))
+                Red_frame_number(end)=[];
+            end
+            if numel(Red_frame_number)==numel(tc)
+                Timestamp_Projected_Sync_Frames=tc;
+            end
+        end
+    end
+
+
+
+    if numel(Red_frame_number)~=numel(Timestamp_Projected_Sync_Frames)
+        warning('projector sync frames not matching! Using PC Clock Times instead so take timing with a grain of salt')
+        Stimulusoptions.TimeStimulusFrame=seconds(Stimulusoptions.Frameinfo.frametime-SI_Info.Clockstart);
+        Stimulusoptions.RedFrameSynchronized=false;
+    else
+        Stimulusoptions.TimeStimulusFrame=interp1(Red_frame_number,Timestamp_Projected_Sync_Frames,1:sum(~isnan(Stimulusoptions.Frameinfo.frame_count(:,Stimnumber))),'linear','extrap');
+        Stimulusoptions.RedFrameSynchronized=true;
+    end
+    Stimulusoptions.TimeStimulusFrameVBL=seconds(Stimulusoptions.Frameinfo.frametime-Stimulusoptions.Frameinfo.frametime(1))+Stimulusoptions.TimeStimulusFrame(1);
+    Stimulusoptions.TimeStimulusFrameVBL=Stimulusoptions.TimeStimulusFrameVBL(~isnan(Stimulusoptions.TimeStimulusFrameVBL))';
+
+    Data.Stimuli=Stimulusoptions;
+try
+    BallCamData=struct;
+    Ca_f=find(cellfun(@numel,BallCamData_temp{1,1})~=5);
+    
+    BallCamData.allValues = vertcat(BallCamData_temp{1,1}{:});
+    BallCamData.allTriggers = cat(2, BT{:});
+   BTLength = [];
+    for b = 1:numel(BT)
+BTLength = [BTLength; numel(BT{b,:})];
+end
+        N=numel(StimAcqNumber);
+
+
+    for n=1:N;
+        %     error('check timing issues')
+        if numel(Ca_f)<=0 %changed to zero to account for cases where only one bad reading is there. check if valid in others   
+%                 if StimAcqNumber(n)>1
+%                     temp_BT=[BT{StimAcqNumber(n)-1}';BT{StimAcqNumber(n)}'];
+%                     temp_BT1 = [BT{StimAcqNumber(n)}'];
+%                     BallCamData(n).Triggers_sec=temp_BT1;
+%                     BallCamData(n).Values= vertcat(BallCamData_temp{1,1}{sum(BTLength(1:StimAcqNumber(n)-1))+1:sum(BTLength(1:StimAcqNumber(n)-1)) + length(temp_BT1)});
+%                    if size(BallCamData(n).Values,1)<numel(temp_BT);  temp_BT(Ca_f)=[];end
+%                 else
+%                     if size(BallCamData(n).Values,1)<numel(BT{StimAcqNumber(n)});  BT{StimAcqNumber(n)}(Ca_f)=[];end
+%                     BallCamData(n).Triggers_sec=BT{StimAcqNumber(n)}';
+%                 end            
+%             if n==N%numel(BallCamData_temp)
+%                 Data.LocomotionNonCal=BallCamData;
+%                 LocomotionCal=FS_transform_locomotion(BallCamData,SI_Info);
+%                 Data.LocomotionCal=LocomotionCal;
+
+%             end
+        else
+            warning('wrong number of values')
+            BallCamData_temp{n}(Ca_f)=[];
+            if numel(BT)==numel(BallCamData_temp)
+                if numel(BallCamData_temp{n})<numel(BT{n}); BT{n}(Ca_f)=[];end
+                BallCamData(n).Triggers_sec=BT{n}';
+            else
+
+                if StimAcqNumber(n)>1
+                    temp_BT=[BT{StimAcqNumber(n)-1}';BT{StimAcqNumber(n)}'];
+                    if numel(BallCamData_temp{n})<numel(temp_BT);  temp_BT(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=temp_BT;
+                else
+                    if numel(BallCamData_temp{n})<numel(BT{StimAcqNumber(n)});  BT{StimAcqNumber(n)}(Ca_f)=[];end
+                    BallCamData(n).Triggers_sec=BT{StimAcqNumber(n)}';
+                end
+            end
+            BallCamData(n).Values=nan(numel(BallCamData(n).Triggers_sec),5);
+            BallCamData(n).Values(1:Ca_f(1)-1,:)=cell2mat(BallCamData_temp{n}(1:Ca_f(1)-1)');
+            BallCamData(n).Values((numel(BallCamData(n).Triggers_sec)-numel(BallCamData_temp{n}(Ca_f(end)+2:end))):numel(BallCamData(n).Triggers_sec),:)=cell2mat(BallCamData_temp{n}(Ca_f(end)+1:end)');
+            if n==N%numel(BallCamData_temp)
+                Data.LocomotionNonCal=BallCamData;
+                LocomotionCal=transform_locomotion(BallCamData,SI_Info);
+                Data.LocomotionCal=LocomotionCal;
+
+            end
+        
+        end
+    end
+
+end
+end
+
+%% The processed DLCSupportiing, Behav, and VideoParams are stored
+
+if exist([DLCdir RecordingName '_DLC_filtered.mat'],'file')
+    load([DLCdir RecordingName '_DLC_filtered.mat'],'DLCSupporting','Behav','VideoParams','VideoFrameTimes')
+
+    fprintf('correct timing\n')
+
+
+    if isfield(VideoParams,'selected_frameIdx')
+        selected_frameIdx=VideoParams.selected_frameIdx;
+    else
+        [selected_frameIdx,Triggers]=correct_videoFrames_OS(Triggers,VideoFrameTimes,Behav);
+        Data.Triggers=Triggers;
+        VideoParams.selected_frameIdx=selected_frameIdx;
+        save([DLCdir RecordingName '_DLC_filtered.mat'],'VideoParams','-append')
+    end
+
+
+    FN=fieldnames(DLCSupporting.Probability);
+    for fn=1:numel(FN)
+        DLCSupporting.Probability.(FN{fn})=DLCSupporting.Probability.(FN{fn})(selected_frameIdx,:,:);
+    end
+    FN=fieldnames(DLCSupporting.Pupil);
+    for fn=1:numel(FN)
+        DLCSupporting.Pupil.(FN{fn})=DLCSupporting.Pupil.(FN{fn})(selected_frameIdx,:,:);
+    end
+    FN=fieldnames(DLCSupporting.Ball);
+    for fn=1:numel(FN)
+        DLCSupporting.Ball.(FN{fn})=DLCSupporting.Ball.(FN{fn})(selected_frameIdx,:,:);
+    end
+    FN=fieldnames(Behav);
+    for fn=1:numel(FN)
+        Behav.(FN{fn})=Behav.(FN{fn})(selected_frameIdx,:,:);
+    end
+
+    Data.DLCSupporting=DLCSupporting;
+    Data.Behav=Behav;
+    Data.VideoParams=VideoParams;
+end
+
+copyfile(OutputFilename,[OutputCopyDirs RecordingName '_preprocessed.mat']);
+
+% BallCamData=[];
+%
+% for n=1:numel(Ball)
+%     Ca_f=find(cellfun(@numel,BallCamData_temp{n})~=5);
+%     if isempty(Ca_f)
+%         BallCamData=[BallCamData;cell2mat(BallCamData_temp{n}')];
+%     else
+%         warning('wrong number of values')
+%         BallCamData=BallCamData_temp;
+%         break;
+%     end
+% end
+% Data.LocomotionNonCal=BallCamData;
+

@@ -1,0 +1,87 @@
+clear;
+
+RB_import_VideoBehav(); %import DLC data 
+
+%cd('D:\Stimulus\'); 
+cd('\\fs.ista.ac.at\group\joeschgrp\Group Members\Rima\Stimulus'); 
+[status,cmdout] = system('git pull origin','-echo'); %Pulls updates from a Git repository, keeping the codebase for this analysis pipeline up to date.
+%cd('C:\Users\fschmidt\Documents\GitHub\2p-analysis\2p-pre-processing');
+cd('C:\Users\rbondare\2P_scripts\MouseBrainActivity-main\2p Pre-processing'); 
+%maindir ='K:\Florian\DATA_2P\'
+maindir = '\\fs.ista.ac.at\group\joeschgrp\Group Members\Rima\TEST\';
+ca_type=1; 
+
+explist=dir(maindir);
+explist=explist(cat(1,explist.isdir));
+explist=explist(3:end);
+
+%DBpath='D:\Aggregated\';
+%DBpath= '\\fs.ista.ac.at\group\joeschgrp\Rima\Aggregated';
+%DBpathBU='D:\DB_BU\';
+%DBfile='2PRecordingsDatabase.mat';
+
+%load(fullfile(DBpath,DBfile));
+%AnimalFolder='C:\Users\fschmidt\Documents\GitHub\MouseTrainingScripts\AnimalsISTA\';
+AnimalFolder = '\\fs.ista.ac.at\group\joeschgrp\Rima\Animals\' %metadata about the animals used in the experiments 
+e=1;
+parallel.gpu.enableCUDAForwardCompatibility(true); % I have a newer GPU version? 
+params=FS_load_default_settings(); %load settings about colors & display etc
+
+params.Neurons.use_deconvolved=true;
+params.Neurons.activity_type='both';
+% paths_compact={'D:\compact\','B:\fs3-joeschgrp\Toni\2PData\compactDIsplit\'};
+%%
+% while e<numel(explist)
+%     e=e+1;
+%      if ~ismember(explist(e).name,Recording.Properties.RowNames)
+
+    fprintf('importing %s \n',explist(e).name)
+    OutputFilename=RB_save_S2Pout_and_headers([explist(e).folder '\' explist(e).name '\'],ca_type,'overwrite_intermediate',false);
+%    [filep,filen,filee]=fileparts(OutputFilename);
+%    [Animal,Recording]=FS_add_new_rec_to_DB(Animal,Recording,filep,strcat(filen,filee),[AnimalFolder, filen(1:8),'\'],true);
+%     compact_filepath=fullfile(paths_compact{1},[filen(1:end-13) '_compact.mat']);
+%      export_compact_preproc_220705(OutputFilename,compact_filepath,params)
+%      copyfile(compact_filepath,fullfile(paths_compact{2},[filen(1:end-13) '_compact.mat']));
+%      else
+%              fprintf('not importing %s \n',explist(e).name)
+%    end
+% end 
+%copyfile(fullfile(DBpath,DBfile),fullfile(DBpathBU,[DBfile(1:end-4) '_' datestr(now,'yymmdd_HHMM') '.mat']));
+%save(fullfile(DBpath,DBfile),'Animal','Recording');
+%% correct DB
+% all_files=dir([DBpath '\*_preprocessed.mat']);
+% inDB=false(size(Recording,1),1);
+% notinDB=false(size(all_files,1),1);
+% RecN=cat(1,Recording{:,'File'});
+% for n=1:numel(all_files)
+%     fname=all_files(n).name;
+%     n2=find(strcmp(RecN,fname));
+%     inDB(n2)=true;
+%     if isempty(n2)
+%         notinDB(n)=true;
+%     end
+% 
+% end
+
+%%
+% all_files = all_files(notinDB)
+%%
+%
+% w=waitbar(0);
+% for n=1:numel(all_files)
+%     fname=all_files(n).name;
+%  [Animal,Recording]=FS_add_new_rec_to_DB(Animal,Recording,DBpath,fname,AnimalFolder,true);
+% 
+%  waitbar(n/numel(all_files),w)
+% 
+% 
+% 
+% end
+%  close(w)
+%  %
+%  ID =  unique(Recording.AnimalID)
+%  AID=Recording.AnimalID;
+%  for n=1:size(Animal,1)
+%  Animal{n,'RecordingIDs'}={find(ismember(AID, ID(n)) ==1)};
+%  end
+%  %%
