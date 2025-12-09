@@ -1,0 +1,207 @@
+%% 
+
+
+%% calculating reaction time 
+
+% Calculate median reaction time
+react = median(rmmissing(FirstLicks));
+
+%%Calculate First Lick Times within extended window (10s)
+FirstLicks10 = [];
+for t = 1:size(well,1)
+    if well(t,1)~= 0 & well(t,1) < 10
+        FirstLicks10 = [FirstLicks10, well(t,1)];
+    else
+        FirstLicks10 = [FirstLicks10, NaN];
+    end
+end
+
+% Calculate reaction time statistics for extended window
+reactWholeTrial = mean(rmmissing(FirstLicks10));
+%%Create histograms of first lick latencies
+a = tiledlayout(2,1);
+
+% Top histogram (Response window licks)
+nexttile;
+title(a, "First licks trial");
+histogram(FirstLicks,15);
+set(0,'defaultaxesfontname','arial');
+xlabel('Reaction Time in Seconds','FontSize',16,'FontWeight','bold');
+yticks([]);
+h = xline(react, 'r', 'Median');
+title(a, "First licks Stim Window");
+set(h,'LineWidth',5);
+
+% Bottom histogram (Extended window licks)
+nexttile;
+histogram(FirstLicks10,15);
+set(0,'defaultaxesfontname','arial');
+xlabel('Reaction Time in Seconds','FontSize',16,'FontWeight','bold');
+yticks([]);
+h5 = xline(reactWholeTrial, 'r', 'Mean');
+set(h5,'LineWidth',5);
+fprintf('The median reaction time in the stimulus window is: %.2f s\n', react)
+%% Reaction Time Analysis - Opto and Location
+
+% Assuming you have:
+% FirstLicks - vector of first lick times per trial
+% optoTrials - vector where 1=opto ON, 0=opto OFF
+% stimLocations - vector where 6=Right, 7=Left
+
+%% Reaction Time Analysis - Adaptive for Control and Opto Sessions
+
+% Assuming you have:
+% FirstLicks - vector of first lick times per trial
+% optoTrials - vector where 1=opto ON, 0=opto OFF
+% stimLocations - vector where 6=Right, 7=Left
+
+%% Detect session type
+hasOpto = any(optoTrials == 1);
+
+% PLOT 1: Reaction Time by Condition
+if hasOpto
+    plotReactionTimeByOpto(FirstLicks, optoTrials);
+end
+
+% PLOT 2: Reaction Time by Location
+plotReactionTimeByLocation(FirstLicks, stimLocations);
+
+% PLOT 3: Reaction Time by Condition and Location
+if hasOpto
+    plotReactionTimeByOptoAndLocation(FirstLicks, optoTrials, stimLocations);
+end
+
+%%
+
+%% plot ALL reaction times
+LICK_WINDOW_PRE_OPTO = -3;
+LICK_WINDOW_POST_OPTO = 5;
+
+% --- Collect all lick times relative to stimulus ---
+relLicks = [];
+groupTag = [];
+
+for t = 1:nTrials
+    lickTimes = LicksInFrame(:, t);
+    lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+    
+    % Filter to keep only licks between -3s and 5s
+    lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & lickTimes <= LICK_WINDOW_POST_OPTO);
+    
+    % Each lick gets tagged with this trial's opto condition
+    relLicks = [relLicks; lickTimes];
+    groupTag = [groupTag; repmat(optoTrials(t), numel(lickTimes), 1)];
+end
+
+
+% Create group labels for plotting
+groupLabels = cell(size(groupTag));
+groupLabels(groupTag == 0) = {'Opto OFF'};
+groupLabels(groupTag == 1) = {'Opto ON'};
+
+% Plot violin
+figure('Color', 'w');
+hold on;
+
+violinplot(relLicks, groupLabels, 'ShowMean', true, 'ShowData', true);
+
+yLims = [0.5 2.5];
+plot(yLims, [-2 -2], 'r--', 'LineWidth', 2.5, 'DisplayName', 'Opto Onset (-2s)');
+plot(ylims, [0 0])
+ylabel('Lick Time (s)', 'FontSize', 13);
+title('All Lick Times by Optogenetic Condition', 'FontSize', 14, 'FontWeight', 'bold');
+set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+
+
+%% FUNCTIONS
+
+function plotReactionTimeByOpto(FirstLicks, optoTrials)
+    
+    allRT = [];
+    allGroup = [];
+    
+    for opto = 0:1
+        idx = optoTrials == opto;
+        rt = FirstLicks(idx);
+        rt = rt(~isnan(rt));
+        
+        if ~isempty(rt)
+            optoLabel = {'Opto OFF', 'Opto ON'};
+            allRT = [allRT; rt(:)];
+            allGroup = [allGroup; repmat(optoLabel(opto+1), numel(rt), 1)];
+        end
+    end
+    
+    figure('Color', 'w');
+    hold on;
+    
+    violinplot(allRT, allGroup, 'ShowMean', true, 'ShowData', true);
+    
+    ylabel('Reaction Time (s)', 'FontSize', 13);
+    title('Reaction Time by Optogenetic Condition', 'FontSize', 14, 'FontWeight', 'bold');
+    set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+end
+
+function plotReactionTimeByLocation(FirstLicks, stimLocations)
+    
+    locCodes = [6, 7];
+    locLabels = {'Right', 'Left'};
+    
+    allRT = [];
+    allGroup = [];
+    
+    for i = 1:length(locCodes)
+        idx = stimLocations == locCodes(i);
+        rt = FirstLicks(idx);
+        rt = rt(~isnan(rt));
+        
+        if ~isempty(rt)
+            allRT = [allRT; rt(:)];
+            allGroup = [allGroup; repmat(locLabels(i), numel(rt), 1)];
+        end
+    end
+    
+    figure('Color', 'w');
+    hold on;
+    
+    violinplot(allRT, allGroup, 'ShowMean', true, 'ShowData', true);
+    
+    ylabel('Reaction Time (s)', 'FontSize', 13);
+    title('Reaction Time by Stimulus Location', 'FontSize', 14, 'FontWeight', 'bold');
+    set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+end
+
+function plotReactionTimeByOptoAndLocation(FirstLicks, optoTrials, stimLocations)
+    
+    locCodes = [6, 7];
+    locLabels = {'Right', 'Left'};
+    
+    allRT = [];
+    allGroup = [];
+    
+    for opto = 0:1
+        for i = 1:length(locCodes)
+            idx = (optoTrials == opto) & (stimLocations == locCodes(i));
+            rt = FirstLicks(idx);
+            rt = rt(~isnan(rt));
+            
+            if ~isempty(rt)
+                optoLabel = {'OFF', 'ON'};
+                groupLabel = sprintf('%s Opto %s', locLabels{i}, optoLabel{opto+1});
+                
+                allRT = [allRT; rt(:)];
+                allGroup = [allGroup; repmat({groupLabel}, numel(rt), 1)];
+            end
+        end
+    end
+    
+    figure('Color', 'w');
+    hold on;
+    
+    violinplot(allRT, allGroup, 'ShowMean', true, 'ShowData', true);
+    
+    ylabel('Reaction Time (s)', 'FontSize', 13);
+    title('Reaction Time by Location and Optogenetic Condition', 'FontSize', 14, 'FontWeight', 'bold');
+    set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+    xtickangle(45);
+end

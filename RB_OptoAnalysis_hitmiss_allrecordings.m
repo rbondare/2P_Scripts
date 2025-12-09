@@ -1,0 +1,742 @@
+% Unfinished script to count HitMiss Rate for all recordings (loaded into 
+%Matlasb 
+
+%% TO LOOP THROUGH ALL THE RECORDINGS!
+
+% Get all variables in workspace that match pattern 'dataRB*'
+allVars = who('dataRB*');
+nSessions = length(allVars);
+
+fprintf('Found %d sessions to analyze\n', nSessions);
+
+% Initialize aggregated counters
+agg_control = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+
+% Also by location
+agg_control_right = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_control_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_right = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+
+% Determine if sessions are control or opto
+controlSessions = {};
+optoSessions = {};
+
+% Loop through all sessions
+for s = 1:nSessions
+    fprintf('\nProcessing session %d/%d: %s\n', s, nSessions, allVars{s});
+    
+    % Load data
+    data = eval(allVars{s});
+    
+    % Extract parameters
+    StimTime = data.options.Trialtsecbegin;
+    nTrials = data.options.trials * data.options.subsessions;
+    LickTimes = str2double(data.lickData(~cellfun('isempty', data.lickData)));
+    redFrames = data.redFrames(1,:);
+    RedFramesNum = str2double(redFrames) + ((StimTime - data.options.tsecbegin) * 1000)';
+    optoTrials = data.options.opto_trial;
+    stimLocations = data.options.stimLocationHistory;
+    
+    % Extract licks and classify trials
+    [LicksInFrame, discardedTrials] = extractLicksInWindow(LickTimes, RedFramesNum, ...
+        LICK_WINDOW_PRE, LICK_WINDOW_POST, TIME_BEFORE_STIM, TIME_AFTER_STIM, nTrials);
+    
+    [LicksHit, LicksMiss, FirstLicks] = classifyTrials(LicksInFrame, discardedTrials, ...
+        HIT_THRESHOLD, MISS_THRESHOLD);
+    
+    isHit = ~isnan(LicksHit);
+    isMiss = ~isnan(LicksMiss);
+    isUnattended = ~isHit & ~isMiss;
+    
+    % Determine session type
+    hasOpto = any(optoTrials == 1);
+    if hasOpto
+        optoSessions{end+1} = allVars{s};
+    else
+        controlSessions{end+1} = allVars{s};
+    end
+    
+    % Aggregate by condition
+    idxControl = optoTrials == 0;
+    idxOpto = optoTrials == 1;
+    
+    agg_control.Hit = agg_control.Hit + sum(isHit(idxControl));
+    agg_control.Miss = agg_control.Miss + sum(isMiss(idxControl));
+    agg_control.Unattended = agg_control.Unattended + sum(isUnattended(idxControl));
+    agg_control.Total = agg_control.Total + sum(idxControl);
+    
+    if hasOpto
+        agg_opto.Hit = agg_opto.Hit + sum(isHit(idxOpto));
+        agg_opto.Miss = agg_opto.Miss + sum(isMiss(idxOpto));
+        agg_opto.Unattended = agg_opto.Unattended + sum(isUnattended(idxOpto));
+        agg_opto.Total = agg_opto.Total + sum(idxOpto);
+    end
+    
+    % Aggregate by condition AND location
+    % Control Right (location = 6)
+    idx = idxControl & stimLocations == 6;
+    agg_control_right.Hit = agg_control_right.Hit + sum(isHit(idx));
+    agg_control_right.Miss = agg_control_right.Miss + sum(isMiss(idx));
+    agg_control_right.Unattended = agg_control_right.Unattended + sum(isUnattended(idx));
+    agg_control_right.Total = agg_control_right.Total + sum(idx);
+    
+    % Control Left (location = 7)
+    idx = idxControl & stimLocations == 7;
+    agg_control_left.Hit = agg_control_left.Hit + sum(isHit(idx));
+    agg_control_left.Miss = agg_control_left.Miss + sum(isMiss(idx));
+    agg_control_left.Unattended = agg_control_left.Unattended + sum(isUnattended(idx));
+    agg_control_left.Total = agg_control_left.Total + sum(idx);
+    
+    if hasOpto
+        % Opto Right
+        idx = idxOpto & stimLocations == 6;
+        agg_opto_right.Hit = agg_opto_right.Hit + sum(isHit(idx));
+        agg_opto_right.Miss = agg_opto_right.Miss + sum(isMiss(idx));
+        agg_opto_right.Unattended = agg_opto_right.Unattended + sum(isUnattended(idx));
+        agg_opto_right.Total = agg_opto_right.Total + sum(idx);
+        
+        % Opto Left
+        idx = idxOpto & stimLocations == 7;
+        agg_opto_left.Hit = agg_opto_left.Hit + sum(isHit(idx));
+        agg_opto_left.Miss = agg_opto_left.Miss + sum(isMiss(idx));
+        agg_opto_left.Unattended = agg_opto_left.Unattended + sum(isUnattended(idx));
+        agg_opto_left.Total = agg_opto_left.Total + sum(idx);
+    end
+end
+
+%Plot Aggregated Results - By Condition
+figure('Color', 'w');
+hold on;
+
+propControl = [agg_control.Hit, agg_control.Miss, agg_control.Unattended] / agg_control.Total;
+propOpto = [agg_opto.Hit, agg_opto.Miss, agg_opto.Unattended] / agg_opto.Total;
+combined = [propControl; propOpto];
+
+colors = [0.3 0.75 0.4; 1.0 0.6 0.2; 0.75 0.75 0.75];
+b = bar(combined, 'stacked', 'BarWidth', 0.6, 'EdgeColor', 'none');
+for i = 1:3
+    b(i).FaceColor = colors(i,:);
+end
+
+set(gca, 'XTick', 1:2, 'XTickLabel', {'Control', 'Opto'}, ...
+    'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off');
+ylabel('Proportion of Trials', 'FontSize', 13);
+ylim([0 1]);
+yticks(0:0.2:1);
+grid on;
+set(gca, 'GridAlpha', 0.2);
+legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+title(sprintf('Aggregated Outcomes (%d sessions)', nSessions), 'FontSize', 14, 'FontWeight', 'bold');
+
+% Plot Aggregated Results - By Condition and Location
+figure('Color', 'w');
+hold on;
+
+propData = zeros(4, 3);
+propData(1,:) = [agg_control_right.Hit, agg_control_right.Miss, agg_control_right.Unattended] / agg_control_right.Total;
+propData(2,:) = [agg_control_left.Hit, agg_control_left.Miss, agg_control_left.Unattended] / agg_control_left.Total;
+propData(3,:) = [agg_opto_right.Hit, agg_opto_right.Miss, agg_opto_right.Unattended] / agg_opto_right.Total;
+propData(4,:) = [agg_opto_left.Hit, agg_opto_left.Miss, agg_opto_left.Unattended] / agg_opto_left.Total;
+
+groups = {'Control Right', 'Control Left', 'Opto Right', 'Opto Left'};
+
+b = bar(propData, 'stacked', 'BarWidth', 0.6, 'EdgeColor', 'none');
+for i = 1:3
+    b(i).FaceColor = colors(i,:);
+end
+
+set(gca, 'XTick', 1:4, 'XTickLabel', groups, 'FontSize', 11, 'LineWidth', 1.2, 'Box', 'off');
+ylabel('Proportion of Trials', 'FontSize', 13);
+ylim([0 1]);
+yticks(0:0.2:1);
+grid on;
+set(gca, 'GridAlpha', 0.2);
+legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+title(sprintf('Aggregated Outcomes by Location (%d sessions)', nSessions), 'FontSize', 14, 'FontWeight', 'bold');
+
+%% claude made this
+
+%% MODIFIED SCRIPT TO HANDLE BASELINE AND OPTO RECORDINGS SEPARATELY
+
+% Get all variables in workspace that match pattern 'dataRB*'
+allVars = who('dataRB*');
+nSessions = length(allVars);
+
+fprintf('Found %d sessions to analyze\n', nSessions);
+
+% Initialize aggregated counters for OPTO sessions (control vs opto trials)
+agg_opto_control = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_opto = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+
+% By location for OPTO sessions
+agg_opto_control_right = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_control_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_opto_right = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_opto_opto_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+
+% Initialize aggregated counters for BASELINE sessions
+agg_baseline = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_baseline_right = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+agg_baseline_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
+
+% Lick data for violin plots
+LICK_WINDOW_PRE_OPTO = -3;
+LICK_WINDOW_POST_OPTO = 5;
+
+% For opto sessions: control vs opto trials
+relLicks_opto_control = [];
+relLicks_opto_opto = [];
+
+% For baseline sessions
+relLicks_baseline = [];
+
+% Session lists
+baselineSessions = {};
+optoSessions = {};
+
+% Loop through all sessions
+for s = 1:nSessions
+    fprintf('\nProcessing session %d/%d: %s\n', s, nSessions, allVars{s});
+    
+    % Load data
+    data = eval(allVars{s});
+    
+    % Extract parameters
+    StimTime = data.options.Trialtsecbegin;
+    nTrials = data.options.trials * data.options.subsessions;
+    LickTimes = str2double(data.lickData(~cellfun('isempty', data.lickData)));
+    redFrames = data.redFrames(1,:);
+    RedFramesNum = str2double(redFrames) + ((StimTime - data.options.tsecbegin) * 1000)';
+    optoTrials = data.options.opto_trial;
+    stimLocations = data.options.stimLocationHistory;
+    
+    % Extract licks and classify trials
+    [LicksInFrame, discardedTrials] = extractLicksInWindow(LickTimes, RedFramesNum, ...
+        LICK_WINDOW_PRE, LICK_WINDOW_POST, TIME_BEFORE_STIM, TIME_AFTER_STIM, nTrials);
+    
+    [LicksHit, LicksMiss, FirstLicks] = classifyTrials(LicksInFrame, discardedTrials, ...
+        HIT_THRESHOLD, MISS_THRESHOLD);
+    
+    isHit = ~isnan(LicksHit);
+    isMiss = ~isnan(LicksMiss);
+    isUnattended = ~isHit & ~isMiss;
+    
+    % Determine session type
+    hasOpto = any(optoTrials == 1);
+    
+    if hasOpto
+        % OPTO SESSION - has both control and opto trials
+        optoSessions{end+1} = allVars{s};
+        
+        idxControl = optoTrials == 0;
+        idxOpto = optoTrials == 1;
+        
+        % Aggregate overall
+        agg_opto_control.Hit = agg_opto_control.Hit + sum(isHit(idxControl));
+        agg_opto_control.Miss = agg_opto_control.Miss + sum(isMiss(idxControl));
+        agg_opto_control.Unattended = agg_opto_control.Unattended + sum(isUnattended(idxControl));
+        agg_opto_control.Total = agg_opto_control.Total + sum(idxControl);
+        
+        agg_opto_opto.Hit = agg_opto_opto.Hit + sum(isHit(idxOpto));
+        agg_opto_opto.Miss = agg_opto_opto.Miss + sum(isMiss(idxOpto));
+        agg_opto_opto.Unattended = agg_opto_opto.Unattended + sum(isUnattended(idxOpto));
+        agg_opto_opto.Total = agg_opto_opto.Total + sum(idxOpto);
+        
+        % Aggregate by location
+        % Control Right (location = 6)
+        idx = idxControl & stimLocations == 6;
+        agg_opto_control_right.Hit = agg_opto_control_right.Hit + sum(isHit(idx));
+        agg_opto_control_right.Miss = agg_opto_control_right.Miss + sum(isMiss(idx));
+        agg_opto_control_right.Unattended = agg_opto_control_right.Unattended + sum(isUnattended(idx));
+        agg_opto_control_right.Total = agg_opto_control_right.Total + sum(idx);
+        
+        % Control Left (location = 7)
+        idx = idxControl & stimLocations == 7;
+        agg_opto_control_left.Hit = agg_opto_control_left.Hit + sum(isHit(idx));
+        agg_opto_control_left.Miss = agg_opto_control_left.Miss + sum(isMiss(idx));
+        agg_opto_control_left.Unattended = agg_opto_control_left.Unattended + sum(isUnattended(idx));
+        agg_opto_control_left.Total = agg_opto_control_left.Total + sum(idx);
+        
+        % Opto Right
+        idx = idxOpto & stimLocations == 6;
+        agg_opto_opto_right.Hit = agg_opto_opto_right.Hit + sum(isHit(idx));
+        agg_opto_opto_right.Miss = agg_opto_opto_right.Miss + sum(isMiss(idx));
+        agg_opto_opto_right.Unattended = agg_opto_opto_right.Unattended + sum(isUnattended(idx));
+        agg_opto_opto_right.Total = agg_opto_opto_right.Total + sum(idx);
+        
+        % Opto Left
+        idx = idxOpto & stimLocations == 7;
+        agg_opto_opto_left.Hit = agg_opto_opto_left.Hit + sum(isHit(idx));
+        agg_opto_opto_left.Miss = agg_opto_opto_left.Miss + sum(isMiss(idx));
+        agg_opto_opto_left.Unattended = agg_opto_opto_left.Unattended + sum(isUnattended(idx));
+        agg_opto_opto_left.Total = agg_opto_opto_left.Total + sum(idx);
+        
+        % Collect lick times for violin plot
+        for t = 1:nTrials
+            lickTimes = LicksInFrame(:, t);
+            lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+            lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & lickTimes <= LICK_WINDOW_POST_OPTO);
+            
+            if optoTrials(t) == 0
+                relLicks_opto_control = [relLicks_opto_control; lickTimes];
+            else
+                relLicks_opto_opto = [relLicks_opto_opto; lickTimes];
+            end
+        end
+        
+    else
+        % BASELINE SESSION - no opto trials
+        baselineSessions{end+1} = allVars{s};
+        
+        % Aggregate overall
+        agg_baseline.Hit = agg_baseline.Hit + sum(isHit);
+        agg_baseline.Miss = agg_baseline.Miss + sum(isMiss);
+        agg_baseline.Unattended = agg_baseline.Unattended + sum(isUnattended);
+        agg_baseline.Total = agg_baseline.Total + nTrials;
+        
+        % Aggregate by location
+        % Right (location = 6)
+        idx = stimLocations == 6;
+        agg_baseline_right.Hit = agg_baseline_right.Hit + sum(isHit(idx));
+        agg_baseline_right.Miss = agg_baseline_right.Miss + sum(isMiss(idx));
+        agg_baseline_right.Unattended = agg_baseline_right.Unattended + sum(isUnattended(idx));
+        agg_baseline_right.Total = agg_baseline_right.Total + sum(idx);
+        
+        % Left (location = 7)
+        idx = stimLocations == 7;
+        agg_baseline_left.Hit = agg_baseline_left.Hit + sum(isHit(idx));
+        agg_baseline_left.Miss = agg_baseline_left.Miss + sum(isMiss(idx));
+        agg_baseline_left.Unattended = agg_baseline_left.Unattended + sum(isUnattended(idx));
+        agg_baseline_left.Total = agg_baseline_left.Total + sum(idx);
+        
+        % Collect lick times for violin plot
+        for t = 1:nTrials
+            lickTimes = LicksInFrame(:, t);
+            lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+            lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & lickTimes <= LICK_WINDOW_POST_OPTO);
+            relLicks_baseline = [relLicks_baseline; lickTimes];
+        end
+    end
+end
+
+fprintf('\n=== SUMMARY ===\n');
+fprintf('Baseline sessions: %d\n', length(baselineSessions));
+fprintf('Opto sessions: %d\n', length(optoSessions));
+
+% Define colors once for all plots
+colors = [0.3 0.75 0.4; 1.0 0.6 0.2; 0.75 0.75 0.75];
+
+%PLOT 1: OPTO SESSIONS - Control vs Opto Trials
+if ~isempty(optoSessions) && agg_opto_control.Total > 0 && agg_opto_opto.Total > 0
+    figure('Color', 'w');
+    hold on;
+    
+    propControl = [agg_opto_control.Hit, agg_opto_control.Miss, agg_opto_control.Unattended] / agg_opto_control.Total;
+    propOpto = [agg_opto_opto.Hit, agg_opto_opto.Miss, agg_opto_opto.Unattended] / agg_opto_opto.Total;
+    combined = [propControl; propOpto];
+    
+    % Check for NaN or Inf values
+    if any(isnan(combined(:))) || any(isinf(combined(:)))
+        warning('NaN or Inf values detected in opto sessions data. Skipping plot 1.');
+    else
+        b = bar(combined, 'stacked', 'BarWidth', 0.6, 'EdgeColor', 'none');
+        for i = 1:length(b)
+            b(i).FaceColor = colors(i,:);
+        end
+        
+        set(gca, 'XTick', 1:2, 'XTickLabel', {'Control', 'Opto'}, ...
+            'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off');
+        ylabel('Proportion of Trials', 'FontSize', 13);
+        ylim([0 1]);
+        yticks(0:0.2:1);
+        grid on;
+        set(gca, 'GridAlpha', 0.2);
+        legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+        title(sprintf('Opto Sessions: Control vs Opto (%d sessions)', length(optoSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    end
+else
+    fprintf('Skipping Plot 1: No opto session data available\n');
+end
+
+%PLOT 2: OPTO SESSIONS - By Location
+if ~isempty(optoSessions) && agg_opto_control_right.Total > 0
+    figure('Color', 'w');
+    hold on;
+    
+    % Handle division by zero
+    propData = zeros(4, 3);
+    if agg_opto_control_right.Total > 0
+        propData(1,:) = [agg_opto_control_right.Hit, agg_opto_control_right.Miss, agg_opto_control_right.Unattended] / agg_opto_control_right.Total;
+    end
+    if agg_opto_control_left.Total > 0
+        propData(2,:) = [agg_opto_control_left.Hit, agg_opto_control_left.Miss, agg_opto_control_left.Unattended] / agg_opto_control_left.Total;
+    end
+    if agg_opto_opto_right.Total > 0
+        propData(3,:) = [agg_opto_opto_right.Hit, agg_opto_opto_right.Miss, agg_opto_opto_right.Unattended] / agg_opto_opto_right.Total;
+    end
+    if agg_opto_opto_left.Total > 0
+        propData(4,:) = [agg_opto_opto_left.Hit, agg_opto_opto_left.Miss, agg_opto_opto_left.Unattended] / agg_opto_opto_left.Total;
+    end
+    
+    groups = {'Control Right', 'Control Left', 'Opto Right', 'Opto Left'};
+    
+    % Check for NaN or Inf values
+    if any(isnan(propData(:))) || any(isinf(propData(:)))
+        warning('NaN or Inf values detected in opto location data. Skipping plot 2.');
+    else
+        b = bar(propData, 'stacked', 'BarWidth', 0.6, 'EdgeColor', 'none');
+        for i = 1:length(b)
+            b(i).FaceColor = colors(i,:);
+        end
+        
+        set(gca, 'XTick', 1:4, 'XTickLabel', groups, 'FontSize', 11, 'LineWidth', 1.2, 'Box', 'off');
+        ylabel('Proportion of Trials', 'FontSize', 13);
+        ylim([0 1]);
+        yticks(0:0.2:1);
+        grid on;
+        set(gca, 'GridAlpha', 0.2);
+        legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+        title(sprintf('Opto Sessions by Location (%d sessions)', length(optoSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    end
+else
+    fprintf('Skipping Plot 2: No opto location data available\n');
+end
+
+%PLOT 3: BASELINE SESSIONS
+if ~isempty(baselineSessions) && agg_baseline.Total > 0
+    figure('Color', 'w');
+    hold on;
+    
+    propBaseline = [agg_baseline.Hit, agg_baseline.Miss, agg_baseline.Unattended] / agg_baseline.Total;
+    
+    % Check for NaN or Inf values
+    if any(isnan(propBaseline)) || any(isinf(propBaseline))
+        warning('NaN or Inf values detected in baseline data. Skipping plot 3.');
+    else
+        b = bar(propBaseline, 'stacked', 'BarWidth', 0.4, 'EdgeColor', 'none');
+        for i = 1:length(b)
+            b(i).FaceColor = colors(i,:);
+        end
+        
+        set(gca, 'XTick', 1, 'XTickLabel', {'Baseline'}, ...
+            'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off');
+        ylabel('Proportion of Trials', 'FontSize', 13);
+        ylim([0 1]);
+        yticks(0:0.2:1);
+        xlim([0.5 1.5]);
+        grid on;
+        set(gca, 'GridAlpha', 0.2);
+        legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+        title(sprintf('Baseline Sessions (%d sessions)', length(baselineSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    end
+else
+    fprintf('Skipping Plot 3: No baseline session data available\n');
+end
+
+%PLOT 4: BASELINE SESSIONS - By Location
+if ~isempty(baselineSessions) && agg_baseline_right.Total > 0
+    figure('Color', 'w');
+    hold on;
+    
+    propData = zeros(2, 3);
+    if agg_baseline_right.Total > 0
+        propData(1,:) = [agg_baseline_right.Hit, agg_baseline_right.Miss, agg_baseline_right.Unattended] / agg_baseline_right.Total;
+    end
+    if agg_baseline_left.Total > 0
+        propData(2,:) = [agg_baseline_left.Hit, agg_baseline_left.Miss, agg_baseline_left.Unattended] / agg_baseline_left.Total;
+    end
+    
+    groups = {'Baseline Right', 'Baseline Left'};
+    
+    % Check for NaN or Inf values
+    if any(isnan(propData(:))) || any(isinf(propData(:)))
+        warning('NaN or Inf values detected in baseline location data. Skipping plot 4.');
+    else
+        b = bar(propData, 'stacked', 'BarWidth', 0.6, 'EdgeColor', 'none');
+        for i = 1:length(b)
+            b(i).FaceColor = colors(i,:);
+        end
+        
+        set(gca, 'XTick', 1:2, 'XTickLabel', groups, 'FontSize', 11, 'LineWidth', 1.2, 'Box', 'off');
+        ylabel('Proportion of Trials', 'FontSize', 13);
+        ylim([0 1]);
+        yticks(0:0.2:1);
+        grid on;
+        set(gca, 'GridAlpha', 0.2);
+        legend({'Hit', 'Miss', 'Unattended'}, 'Location', 'northeastoutside', 'FontSize', 11, 'Box', 'off');
+        title(sprintf('Baseline Sessions by Location (%d sessions)', length(baselineSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    end
+else
+    fprintf('Skipping Plot 4: No baseline location data available\n');
+end
+
+%PLOT 5: VIOLIN PLOT - OPTO SESSIONS (Control vs Opto)
+if ~isempty(optoSessions) && ~isempty(relLicks_opto_control) && ~isempty(relLicks_opto_opto)
+    % Combine data
+    relLicks = [relLicks_opto_control; relLicks_opto_opto];
+    groupLabels = [repmat({'Control'}, length(relLicks_opto_control), 1); ...
+                   repmat({'Opto'}, length(relLicks_opto_opto), 1)];
+    
+    figure('Color', 'w', 'Position', [100 100 500 600]);
+    hold on;
+    
+    % Reference lines
+    plot([0.5 2.5], [-2 -2], 'Color', [0.8 0.2 0.2], 'LineWidth', 2, 'LineStyle', '--');
+    plot([0.5 2.5], [0 0], 'Color', [0.2 0.2 0.2], 'LineWidth', 2, 'LineStyle', '-');
+    
+    % Violin plot with custom colors
+    colors_violin = [0.7 0.7 0.7; 0.4 0.6 1];
+    vp = violinplot(relLicks, groupLabels, 'ShowMean', true, 'ShowData', true, ...
+        'ViolinColor', colors_violin);
+    
+    % Enhance mean lines
+    for i = 1:length(vp)
+        if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
+            set(vp(i).MeanPlot, 'LineWidth', 3, 'Color', [0 0 0]);
+        end
+        if isfield(vp(i), 'ScatterPlot') && ~isempty(vp(i).ScatterPlot)
+            set(vp(i).ScatterPlot, 'SizeData', 15, 'MarkerFaceAlpha', 0.4);
+        end
+    end
+    
+    ylabel('Time from stimulus onset (s)', 'FontSize', 14);
+    set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+    ylim([LICK_WINDOW_PRE_OPTO LICK_WINDOW_POST_OPTO]);
+    
+    text(2.6, -2, 'Opto', 'FontSize', 9, 'Color', [0.8 0.2 0.2]);
+    text(2.6, 0, 'Stim', 'FontSize', 9, 'Color', [0.2 0.2 0.2]);
+    
+    title(sprintf('Lick Times - Opto Sessions (%d sessions)', length(optoSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    
+    % Calculate and display median for opto trials between -2 and 0
+    opto_licks_window = relLicks_opto_opto(relLicks_opto_opto >= -2 & relLicks_opto_opto <= 0);
+    if ~isempty(opto_licks_window)
+        median_opto_window = median(opto_licks_window);
+        fprintf('\n=== OPTO SESSIONS ===\n');
+        fprintf('Median lick time for Opto trials (between -2 and 0s): %.3f s\n', median_opto_window);
+        fprintf('Absolute median (from trial start): %.3f s\n', 2 + median_opto_window);
+    end
+    
+    control_licks_window = relLicks_opto_control(relLicks_opto_control >= -2 & relLicks_opto_control <= 0);
+    if ~isempty(control_licks_window)
+        median_control_window = median(control_licks_window);
+        fprintf('Median lick time for Control trials (between -2 and 0s): %.3f s\n', median_control_window);
+        fprintf('Absolute median (from trial start): %.3f s\n', 2 + median_control_window);
+    end
+else
+    fprintf('Skipping Plot 5: Insufficient lick data for opto sessions\n');
+end
+
+%PLOT 6: VIOLIN PLOT - BASELINE SESSIONS
+if ~isempty(baselineSessions) && ~isempty(relLicks_baseline)
+    groupLabels_baseline = repmat({'Baseline'}, length(relLicks_baseline), 1);
+    
+    figure('Color', 'w', 'Position', [100 100 400 600]);
+    hold on;
+    
+    % Reference line
+    plot([0.5 1.5], [0 0], 'Color', [0.2 0.2 0.2], 'LineWidth', 2, 'LineStyle', '-');
+    
+    % Violin plot
+    colors_violin_baseline = [0.5 0.8 0.5];
+    vp = violinplot(relLicks_baseline, groupLabels_baseline, 'ShowMean', true, 'ShowData', true, ...
+        'ViolinColor', colors_violin_baseline);
+    
+    % Enhance mean lines
+    if isfield(vp, 'MeanPlot') && ~isempty(vp.MeanPlot)
+        set(vp.MeanPlot, 'LineWidth', 3, 'Color', [0 0 0]);
+    end
+    if isfield(vp, 'ScatterPlot') && ~isempty(vp.ScatterPlot)
+        set(vp.ScatterPlot, 'SizeData', 15, 'MarkerFaceAlpha', 0.4);
+    end
+    
+    ylabel('Time from stimulus onset (s)', 'FontSize', 14);
+    set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+    ylim([LICK_WINDOW_PRE_OPTO LICK_WINDOW_POST_OPTO]);
+    
+    text(1.6, 0, 'Stim', 'FontSize', 9, 'Color', [0.2 0.2 0.2]);
+    
+    title(sprintf('Lick Times - Baseline Sessions (%d sessions)', length(baselineSessions)), 'FontSize', 14, 'FontWeight', 'bold');
+    
+    % Calculate median
+    baseline_licks_window = relLicks_baseline(relLicks_baseline >= -2 & relLicks_baseline <= 0);
+    if ~isempty(baseline_licks_window)
+        median_baseline_window = median(baseline_licks_window);
+        fprintf('\n=== BASELINE SESSIONS ===\n');
+        fprintf('Median lick time (between -2 and 0s): %.3f s\n', median_baseline_window);
+        fprintf('Absolute median (from trial start): %.3f s\n', 2 + median_baseline_window);
+    end
+else
+    fprintf('Skipping Plot 6: No lick data for baseline sessions\n');
+end
+
+
+%% PLOTTING ALL VIOLIN PLOTS OF REACTION TIME ACROSS SESSIONS
+% Loops through all dataRB* variables and creates one violin plot
+
+% Variable naming: dataRB##_MMDD_opto or dataRB##_MMDD_baseline
+% Gray/Blue = Control/Opto in opto sessions
+% Green = Baseline sessions
+
+
+%PARAMETERS
+LICK_WINDOW_PRE = -3;
+LICK_WINDOW_POST = 5;
+
+%FIND ALL SESSIONS
+allVars = who('dataRB14*');
+allVars = sort(allVars);  % Natural sort works with MMDD format!
+
+nSessions = length(allVars);
+fprintf('Found %d sessions (sorted):\n', nSessions);
+for i = 1:length(allVars)
+    fprintf('  %d. %s\n', i, allVars{i});
+end
+
+%COLLECT DATA
+allLicks = [];
+allLabels = [];
+
+for s = 1:nSessions
+    fprintf('\nProcessing %s...\n', allVars{s});
+    
+    try
+        data = eval(allVars{s});
+        
+        % Determine session type from variable name
+        isBaselineSession = contains(allVars{s}, 'baseline');
+        
+        % Extract data
+        nTrials = data.i;
+        StimTime = data.options.Trialtsecbegin;
+        LickTimes = str2double(data.lickData(~cellfun('isempty', data.lickData)));
+        redFrames = data.redFrames(1, :);
+        RedFramesNum = str2double(redFrames) + ((StimTime - data.options.tsecbegin) * 1000)';
+        optoTrials = data.options.opto_trial(1:nTrials);
+        
+        % Get licks relative to stimulus
+        relLicks_control = [];  % For control trials (opto=0)
+        relLicks_opto = [];     % For opto trials (opto=1)
+        
+        for t = 1:min(nTrials, length(RedFramesNum))
+            limMin = RedFramesNum(t) + LICK_WINDOW_PRE * 1000;
+            limMax = RedFramesNum(t) + LICK_WINDOW_POST * 1000;
+            
+            licksInWindow = LickTimes(LickTimes > limMin & LickTimes < limMax);
+            if ~isempty(licksInWindow)
+                licksRel = (licksInWindow - RedFramesNum(t)) / 1000;
+                
+                % Separate by opto condition
+                if optoTrials(t) == 0
+                    relLicks_control = [relLicks_control; licksRel];
+                else
+                    relLicks_opto = [relLicks_opto; licksRel];
+                end
+            end
+        end
+        
+        % Extract date (MMDD format -> display as MM/DD)
+        dateParts = regexp(allVars{s}, 'dataRB\d+_(\d{2})(\d{2})', 'tokens');
+        if ~isempty(dateParts)
+            month = dateParts{1}{1};
+            day = dateParts{1}{2};
+            sessionLabel = sprintf('%s/%s', month, day);
+        else
+            sessionLabel = sprintf('S%d', s);
+        end
+        
+        % Create labels based on session type
+        if isBaselineSession
+            % BASELINE SESSION → 1 GREEN VIOLIN (all trials)
+            allLicks = [allLicks; relLicks_control];
+            allLabels = [allLabels; repmat({[sessionLabel ' Base']}, length(relLicks_control), 1)];
+            fprintf('  -> Baseline: %d licks in 1 violin (green)\n', length(relLicks_control));
+        else
+            % OPTO SESSION → 2 VIOLINS (gray for opto=0, blue for opto=1)
+            % Add control trials (gray)
+            if ~isempty(relLicks_control)
+                allLicks = [allLicks; relLicks_control];
+                allLabels = [allLabels; repmat({[sessionLabel ' C']}, length(relLicks_control), 1)];
+            end
+            % Add opto trials (blue)
+            if ~isempty(relLicks_opto)
+                allLicks = [allLicks; relLicks_opto];
+                allLabels = [allLabels; repmat({[sessionLabel ' O']}, length(relLicks_opto), 1)];
+            end
+            fprintf('  -> Opto: %d control licks (gray) + %d opto licks (blue)\n', ...
+                length(relLicks_control), length(relLicks_opto));
+        end
+        
+    catch ME
+        fprintf('  ERROR: %s\n', ME.message);
+    end
+end
+
+% PLOT
+if ~isempty(allLicks)
+    uniqueLabels = unique(allLabels, 'stable');
+    nGroups = length(uniqueLabels);
+    
+    fprintf('\nPlotting %d violins:\n', nGroups);
+    for i = 1:nGroups
+        fprintf('  %d. %s\n', i, uniqueLabels{i});
+    end
+    
+    figure('Color', 'w', 'Position', [50 50 max(900, 80*nGroups) 600]);
+    hold on;
+    
+    % Reference lines
+    plot([0.5 nGroups+0.5], [-2 -2], 'Color', [0.8 0.2 0.2], 'LineWidth', 2, 'LineStyle', '--');
+    plot([0.5 nGroups+0.5], [0 0], 'Color', [0.2 0.2 0.2], 'LineWidth', 2, 'LineStyle', '-');
+    
+    % Assign colors based on label
+    colors = zeros(nGroups, 3);
+    for i = 1:nGroups
+        if contains(uniqueLabels{i}, ' C')
+            colors(i, :) = [0.7 0.7 0.7];  % Gray - Control trials in opto session
+        elseif contains(uniqueLabels{i}, ' O')
+            colors(i, :) = [0.4 0.6 1];     % Blue - Opto trials
+        elseif contains(uniqueLabels{i}, ' Base')
+            colors(i, :) = [0.5 0.8 0.5];   % Green - Baseline session
+        end
+    end
+    
+    % Violin plot
+    vp = violinplot(allLicks, allLabels, 'ShowMean', true, 'ShowData', true, ...
+        'ViolinColor', colors);
+    
+    % Enhance aesthetics
+    for i = 1:length(vp)
+        if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
+            set(vp(i).MeanPlot, 'LineWidth', 3, 'Color', [0 0 0]);
+        end
+        if isfield(vp(i), 'ScatterPlot') && ~isempty(vp(i).ScatterPlot)
+            set(vp(i).ScatterPlot, 'SizeData', 15, 'MarkerFaceAlpha', 0.4);
+        end
+    end
+    
+    ylabel('Time from stimulus onset (s)', 'FontSize', 14);
+    xlabel('Session (Month/Day)', 'FontSize', 14);
+    title('Lick Time Progression Across Sessions', 'FontSize', 16, 'FontWeight', 'bold');
+    ylim([LICK_WINDOW_PRE LICK_WINDOW_POST]);
+    %ylim([-0.5 0.8]);
+    set(gca, 'FontSize', 11, 'LineWidth', 1.5, 'Box', 'off');
+    xtickangle(45);
+    grid on;
+    set(gca, 'GridAlpha', 0.2);
+    
+    % Legend
+    h_gray = patch(NaN, NaN, [0.7 0.7 0.7]);
+    h_blue = patch(NaN, NaN, [0.4 0.6 1]);
+    h_green = patch(NaN, NaN, [0.5 0.8 0.5]);
+    legend([h_gray h_blue h_green], {'Control', 'Opto', 'Baseline session'}, ...
+        'Location', 'northeast', 'FontSize', 10);
+    
+    % Reference line labels
+    text(nGroups+0.8, -1, 'Opto', 'FontSize', 9, 'Color', [0.8 0.2 0.2]);
+    text(nGroups+0.8, 0, 'Stim', 'FontSize', 9, 'Color', [0.2 0.2 0.2]);
+    
+    hold off;
+end

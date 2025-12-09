@@ -1,0 +1,107 @@
+MouseID = {'RB12'; 'RB12'; 'RB14'; 'RB14'; 'RB15'; 'RB15'};
+Date = {'20251029'; '20251029'; '20251029'; '20251029'; '20251029'; '20251029'};
+Time = {'131557'; '135141'; '113842'; '124521'; '145402'; '161137'};
+Condition = {'control'; 'control'; 'control'; 'control'; 'control'; 'control'};
+
+% Automatically generate session name
+SessionName = cellfun(@(d,t) sprintf('stim_001__training_%s_%s', d, t), ...
+    Date, Time, 'UniformOutput', false);
+
+RB_Opto_Database = table(MouseID, Date, Time, SessionName, Condition);
+
+%%
+%% --- Configuration ---
+rootDir = 'Z:\Group Members\Rima\Stimulus';  % main Stimulus directory
+saveFile = fullfile(rootDir, 'RB_Opto_Database.mat');  % output file
+
+% --- Initialize empty table ---
+DB = table('Size', [0 9], ...
+    'VariableTypes', {'string','string','string','string','string','double','double','double','string'}, ...
+    'VariableNames', {'MouseID','Date','SessionName','Condition','LocationMode','Level','waitperiod','trials','FilePath'});
+
+%% --- Loop through each animal folder ---
+mice = dir(fullfile(rootDir, 'AnimalRB*')); % all folders starting with RB
+
+for m = 1:numel(mice)
+    mouseID = mice(m).name;
+    trainPath = fullfile(rootDir, mouseID, 'Training');
+
+    if ~isfolder(trainPath)
+        warning('No Training folder found for %s', mouseID);
+        continue;
+    end
+
+    % Find all training session files
+    files = dir(fullfile(trainPath, 'stim_001__training_*.mat'));
+    for f = 1:numel(files)
+        fname = files(f).name;
+        fpath = fullfile(trainPath, fname);
+
+        % --- Extract date and time from file name ---
+        tokens = regexp(fname, 'training_(\d{8})_(\d{6})', 'tokens');
+        if isempty(tokens)
+            warning('Could not parse date/time from %s', fname);
+            continue;
+        end
+        dateStr = tokens{1}{1};
+        timeStr = tokens{1}{2};
+
+        % --- Load stimulus file ---
+        S = load(fpath);
+
+        % --- Determine condition ---
+        if isfield(S, 'options') && isfield(S.options, 'opto_trial')
+            if any(S.options.opto_trial == 1)
+                condition = 'opto';
+            else
+                condition = 'control';
+            end
+        else
+            condition = 'unknown';
+        end
+
+        % --- Extract stimulus type ---
+        if isfield(S, 'locationMode')
+            stimType = string(S.locationMode);
+        elseif isfield(S, 'options') && isfield(S.options, 'locationMode')
+            stimType = string(S.options.params.locationMode);
+        else
+            stimType = "unknown";
+        end
+
+        % --- Extract Level ---
+        if isfield(S, 'level')
+            level = double(S.level);
+        else
+            level = NaN;
+        end
+
+        % --- Extract waitperiod ---
+        if isfield(S, 'options') && isfield(S.options, 'subsessionwait')
+            waitperiod = double(S.options.subsessionwait);
+        else
+            waitperiod = NaN;
+        end
+
+        % --- Extract number of trials ---
+        if isfield(S, 'i')
+            trials = double(S.i);
+        elseif isfield(S, 'options') && isfield(S.options, 'ntrials')
+            trials = double(S.options.ntrials);
+        else
+            trials = NaN;
+        end
+
+        % --- Build session name ---
+        sessionName = sprintf('stim_001__training_%s_%s', dateStr, timeStr);
+
+        % --- Add row to table ---
+        newRow = {string(mouseID), string(dateStr), string(sessionName), ...
+                  string(condition), stimType, level, waitperiod, trials, string(fpath)};
+        DB = [DB; newRow];
+    end
+end
+
+%% --- Save database ---
+save(saveFile, 'DB');
+fprintf('✅ Database built successfully and saved to:\n%s\n', saveFile);
