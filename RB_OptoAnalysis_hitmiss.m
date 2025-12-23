@@ -1,5 +1,24 @@
 %% LOAD DATA
-data = load('Z:\Group Members\Rima\Stimulus\AnimalRB12\Training\stim_001__training_20251208_152752');
+data = load('Z:\Group Members\Rima\Stimulus\AnimalRB15\Training\stim_001__training_20251209_161704');
+
+%% FOR RANDOM OPTO ONLY - TO PLOT WHEN OPTO HAPPENS WHEN AT RANDOM
+TotalTrialWaitTime = zeros(max(size(data.waitTimes,1)), 1);
+TotalTrialWaitTime = sum(data.waitTimes, 2);
+TotalTrialWaitTime = -TotalTrialWaitTime;
+
+opto_trials = data.options.opto_trial(:);          
+parallel_opto_start = data.options.parallel_opto_start(:);   
+TotalTrialWaitTime = TotalTrialWaitTime(:);    
+
+% Find indices of opto trials
+opto_idx = find(opto_trials == 1); 
+
+% Preallocate output vector
+opto_time_relative_to_stim = nan(size(TotalTrialWaitTime)); 
+
+% Subtract opto start times from trial times (only for opto trials)
+opto_time_relative_to_stim(opto_idx) = TotalTrialWaitTime(opto_idx) + parallel_opto_start;
+
 
 %% PARAMETERS
 TIME_BEFORE_STIM = -0.2;
@@ -37,7 +56,7 @@ discardedTrials = [];
 
 %% PLOT RASTER
 plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, optoTrials, ...
-    OPTO_BLOCK_OFF, OPTO_BLOCK_ON);
+    OPTO_BLOCK_OFF, OPTO_BLOCK_ON, LICK_WINDOW_PRE, LICK_WINDOW_POST, opto_time_relative_to_stim);
 
 %% PLOT RASTER WITH CATCH TRIALS
 
@@ -113,7 +132,7 @@ end
 
 
 function plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, ...
-    optoTrials, optoBlockOff, optoBlockOn)
+    optoTrials, optoBlockOff, optoBlockOn, LICK_WINDOW_PRE, LICK_WINDOW_POST, opto_time_relative_to_stim)
 
     [x, y] = convertLicksToXY(LicksInFrame);
 
@@ -134,7 +153,7 @@ function plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, ...
 
     scatter(x, y, 20, c, 'filled');
     ylim([0 nTrials]);
-    xlim([-17, 5]);
+    xlim([LICK_WINDOW_PRE, LICK_WINDOW_POST]);
 
     rectangle('Position', [0, 0, lickWindowMax, nTrials], ...
         'FaceColor', [0.5 0.5 0.5 0.3], 'EdgeColor', 'none');
@@ -149,6 +168,7 @@ function plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, ...
 %         end
 %     end
 
+
         % Color trials based on actual opto state (not blocks)
     if ~isempty(optoTrials)
         for t = 1:nTrials
@@ -158,16 +178,25 @@ function plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, ...
                     [0.6 0.8 1], 'FaceAlpha', 0.2, 'EdgeColor', 'none');
             end
         end
-    end
 
- 
+        
+    if exist('opto_time_relative_to_stim', 'var') && ~isempty(opto_time_relative_to_stim)
+        for t = 1:nTrials
+            if ~isnan(opto_time_relative_to_stim(t))
+                plot(opto_time_relative_to_stim(t), t, 'v', 'MarkerFaceColor', [1 0 0], ...
+                    'MarkerEdgeColor', [1 0 0], 'MarkerSize', 6);
+            end
+        end
+    end
+    end 
+
     xlabel('Time (s)', 'FontSize', 14, 'FontWeight', 'bold');
     ylabel('Trials', 'FontSize', 14, 'FontWeight', 'bold');
     set(gca, 'YAxisLocation', 'right', 'FontSize', 13);
     title('Lick Raster Plot', 'FontSize', 15, 'FontWeight', 'bold');
     hold off;
-end
 
+end
 
 
 function plotRaster_contrast(LicksInFrame, nTrials, lickWindowMax, levelHistory, ...
