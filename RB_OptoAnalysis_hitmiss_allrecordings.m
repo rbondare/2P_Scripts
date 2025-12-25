@@ -23,6 +23,7 @@ agg_opto_left = struct('Hit', 0, 'Miss', 0, 'Unattended', 0, 'Total', 0);
 controlSessions = {};
 optoSessions = {};
 
+
 % Loop through all sessions
 for s = 1:nSessions
     fprintf('\nProcessing session %d/%d: %s\n', s, nSessions, allVars{s});
@@ -161,7 +162,7 @@ title(sprintf('Aggregated Outcomes by Location (%d sessions)', nSessions), 'Font
 %% MODIFIED SCRIPT TO HANDLE BASELINE AND OPTO RECORDINGS SEPARATELY
 
 % Get all variables in workspace that match pattern 'dataRB*'
-allVars = who('dataRB*');
+allVars = who('dataRB12*');
 nSessions = length(allVars);
 
 fprintf('Found %d sessions to analyze\n', nSessions);
@@ -740,3 +741,4 @@ if ~isempty(allLicks)
     
     hold off;
 end
+

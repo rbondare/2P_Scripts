@@ -68,7 +68,7 @@ if hasOpto
     plotReactionTimeByOptoAndLocation(LicksHit, optoTrials, stimLocations);
 end
 
-%%
+%% VIOLIN PLOT OF ALL LICKS 
 LICK_WINDOW_PRE_OPTO = -3;
 LICK_WINDOW_POST_OPTO = 5;
 relLicks = [];
@@ -144,6 +144,54 @@ fprintf('Median lick time for Opto: %.3f s\n', 2 + median_opto_window);
 % median_control_window = median(control_licks_window);
 % fprintf('Median lick time for Control (between -2 and 0s): %.3f s\n', median_control_window);
 
+%% VIOLIN PLOT WITH INTERLICK PERIOD (REACTION TIMES ONLY)
+
+LICK_WINDOW_PRE_OPTO  = -3;
+LICK_WINDOW_POST_OPTO = 2;
+INTERLICK_THRESH = 0.3;  % 300 ms
+
+relLicks = [];
+groupTag = [];
+
+for t = 1:nTrials
+
+    lickTimes = LicksInFrame(:, t);
+    lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+    lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & ...
+                          lickTimes <= LICK_WINDOW_POST_OPTO);
+
+    if isempty(lickTimes)
+        continue
+    end
+
+    lickTimes = sort(lickTimes);
+
+    % Identify bout starts
+    isBoutStart = [true; diff(lickTimes) > INTERLICK_THRESH];
+    boutStartTimes = lickTimes(isBoutStart);
+
+    relLicks = [relLicks; boutStartTimes];
+    groupTag = [groupTag; repmat(optoTrials(t), numel(boutStartTimes), 1)];
+
+end
+
+
+groupLabels = cell(size(groupTag));
+groupLabels(groupTag == 0) = {'Control'};
+groupLabels(groupTag == 1) = {'Opto'};
+
+figure('Color', 'w', 'Position', [100 100 500 600]); hold on;
+
+plot([0.5 2.5], [-2 -2], 'Color', [0.8 0.2 0.2], 'LineWidth', 2, 'LineStyle', '--');
+plot([0.5 2.5], [0 0], 'Color', [0.2 0.2 0.2], 'LineWidth', 2);
+
+colors = [0.7 0.7 0.7; 0.4 0.6 1];
+vp = violinplot(relLicks, groupLabels, ...
+    'ShowMean', true, 'ShowData', true, ...
+    'ViolinColor', colors);
+
+ylabel('Reaction time from stimulus (s)', 'FontSize', 14);
+ylim([LICK_WINDOW_PRE_OPTO LICK_WINDOW_POST_OPTO]);
 
 %% plot ALL reaction times
 % LICK_WINDOW_PRE_OPTO = -3;

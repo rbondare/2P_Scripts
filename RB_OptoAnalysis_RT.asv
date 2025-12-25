@@ -1,6 +1,3 @@
-%% 
-
-
 %% calculating reaction time 
 
 % Calculate median reaction time
@@ -60,24 +57,20 @@ hasOpto = any(optoTrials == 1);
 
 % PLOT 1: Reaction Time by Condition
 if hasOpto
-    plotReactionTimeByOpto(FirstLicks, optoTrials);
+    plotReactionTimeByOpto(LicksHit, optoTrials);
 end
 
 % PLOT 2: Reaction Time by Location
-plotReactionTimeByLocation(FirstLicks, stimLocations);
+plotReactionTimeByLocation(LicksHit, stimLocations);
 
 % PLOT 3: Reaction Time by Condition and Location
 if hasOpto
-    plotReactionTimeByOptoAndLocation(FirstLicks, optoTrials, stimLocations);
+    plotReactionTimeByOptoAndLocation(LicksHit, optoTrials, stimLocations);
 end
 
-%%
-
-%% plot ALL reaction times
+%% VIOLIN PLOT OF ALL LICKS 
 LICK_WINDOW_PRE_OPTO = -3;
 LICK_WINDOW_POST_OPTO = 5;
-
-% --- Collect all lick times relative to stimulus ---
 relLicks = [];
 groupTag = [];
 
@@ -96,22 +89,492 @@ end
 
 % Create group labels for plotting
 groupLabels = cell(size(groupTag));
-groupLabels(groupTag == 0) = {'Opto OFF'};
-groupLabels(groupTag == 1) = {'Opto ON'};
+groupLabels(groupTag == 0) = {'Control'};
+groupLabels(groupTag == 1) = {'Opto'};
 
 % Plot violin
-figure('Color', 'w');
+figure('Color', 'w', 'Position', [100 100 500 600]);
 hold on;
 
-violinplot(relLicks, groupLabels, 'ShowMean', true, 'ShowData', true);
+% Reference lines
+plot([0.5 2.5], [-2 -2], 'Color', [0.8 0.2 0.2], 'LineWidth', 2, 'LineStyle', '--');
+plot([0.5 2.5], [0 0], 'Color', [0.2 0.2 0.2], 'LineWidth', 2, 'LineStyle', '-');
 
-yLims = [0.5 2.5];
-plot(yLims, [-2 -2], 'r--', 'LineWidth', 2.5, 'DisplayName', 'Opto Onset (-2s)');
-plot(ylims, [0 0])
-ylabel('Lick Time (s)', 'FontSize', 13);
-title('All Lick Times by Optogenetic Condition', 'FontSize', 14, 'FontWeight', 'bold');
-set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+% Violin plot with custom colors
+colors = [0.7 0.7 0.7; 0.4 0.6 1];
+vp = violinplot(relLicks, groupLabels, 'ShowMean', true, 'ShowData', true, ...
+    'ViolinColor', colors);
 
+% Enhance mean lines
+for i = 1:length(vp)
+    if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
+        set(vp(i).MeanPlot, 'LineWidth', 3, 'Color', [0 0 0]);
+    end
+    % Make scatter points smaller and more transparent
+    if isfield(vp(i), 'ScatterPlot') && ~isempty(vp(i).ScatterPlot)
+        set(vp(i).ScatterPlot, 'SizeData', 15, 'MarkerFaceAlpha', 0.4);
+    end
+end
+
+% Labels and aesthetics
+ylabel('Time from stimulus onset (s)', 'FontSize', 14);
+set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+ylim([LICK_WINDOW_PRE_OPTO LICK_WINDOW_POST_OPTO]);
+
+% Add text labels for reference lines
+text(2.6, -2, 'Opto', 'FontSize', 9, 'Color', [0.8 0.2 0.2]);
+text(2.6, 0, 'Stim', 'FontSize', 9, 'Color', [0.2 0.2 0.2]);
+
+% Find median for Opto trials between -2 and 0 seconds
+idx_opto = strcmp(groupLabels, 'Opto');  % Find Opto trials
+opto_licks = relLicks(idx_opto);         % Get licks from Opto trials
+
+% Filter to window between -2 and 0 seconds
+opto_licks_window = opto_licks(opto_licks >= -2 & opto_licks <= 0);
+
+% Calculate median
+median_opto_window = median(opto_licks_window);
+
+fprintf('Median lick time for Opto: %.3f s\n', 2 + median_opto_window);
+
+% % for Control
+% idx_control = strcmp(groupLabels, 'Control');
+% control_licks = relLicks(idx_control);
+% control_licks_window = control_licks(control_licks >= -2 & control_licks <= 0);
+% median_control_window = median(control_licks_window);
+% fprintf('Median lick time for Control (between -2 and 0s): %.3f s\n', median_control_window);
+
+%% VIOLIN PLOT WITH INTERLICK PERIOD (REACTION TIMES ONLY)
+
+INTERLICK_THRESH = 0.3;  % 300 ms
+
+LICK_WINDOW_PRE_OPTO  = -3;
+LICK_WINDOW_POST_OPTO = 5;
+INTERLICK_THRESH = 0.3;
+
+relLicks = [];
+groupTag = [];
+
+for t = 1:nTrials
+
+    lickTimes = LicksInFrame(:, t);
+    lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+
+    % Restrict to analysis window
+    lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & ...
+                          lickTimes <= LICK_WINDOW_POST_OPTO);
+
+    if isempty(lickTimes)
+        continue
+    end
+
+    % Sort just in case
+    lickTimes = sort(lickTimes);
+
+    % Identify bout starts
+    isBoutStart = [true; diff(lickTimes) > INTERLICK_THRESH];
+
+    % First lick of each bout
+    boutStartTimes = lickTimes(isBoutStart);
+
+    % ---- CHOOSE ONE OF THESE OPTIONS ---- %
+
+    % OPTION A: first lick after stimulus (reaction time)
+    rt = boutStartTimes(1);
+
+    % OPTION B: first lick after opto onset (for opto trials only)
+    % if optoTrials(t) == 1 && ~isnan(opto_time_relative_to_stim(t))
+    %     idx = boutStartTimes > opto_time_relative_to_stim(t);
+    %     if any(idx)
+    %         rt = boutStartTimes(find(idx,1,'first'));
+    %     else
+    %         continue
+    %     end
+    % else
+    %     continue
+    % end
+
+    % Store
+    relLicks = [relLicks; rt];
+    groupTag = [groupTag; optoTrials(t)];
+
+end
+
+
+
+%% plot ALL reaction times
+% LICK_WINDOW_PRE_OPTO = -3;
+% LICK_WINDOW_POST_OPTO = 5;
+% 
+% % --- Collect all lick times relative to stimulus ---
+% relLicks = [];
+% groupTag = [];
+% 
+% for t = 1:nTrials
+%     lickTimes = LicksInFrame(:, t);
+%     lickTimes = lickTimes(~isnan(lickTimes) & lickTimes ~= 0);
+%     
+%     % Filter to keep only licks between -3s and 5s
+%     lickTimes = lickTimes(lickTimes >= LICK_WINDOW_PRE_OPTO & lickTimes <= LICK_WINDOW_POST_OPTO);
+%     
+%     % Each lick gets tagged with this trial's opto condition
+%     relLicks = [relLicks; lickTimes];
+%     groupTag = [groupTag; repmat(optoTrials(t), numel(lickTimes), 1)];
+% end
+% 
+% 
+% % Create group labels for plotting
+% groupLabels = cell(size(groupTag));
+% groupLabels(groupTag == 0) = {'Opto OFF'};
+% groupLabels(groupTag == 1) = {'Opto ON'};
+% 
+% % Plot violin
+% figure('Color', 'w');
+% hold on;
+% 
+% violinplot(relLicks, groupLabels, 'ShowMean', true, 'ShowData', true);
+% 
+% yLims = [0.5 2.5];
+% plot(yLims, [-2 -2], 'r--', 'LineWidth', 2.5, 'DisplayName', 'Opto Onset');
+% plot(yLims, [0 0], 'b--', 'LineWidth', 2.5, 'DisplayName', 'Stim Onset');
+% ylabel('Lick Time (s)', 'FontSize', 13);
+% title('All Lick Times by Optogenetic Condition', 'FontSize', 14, 'FontWeight', 'bold');
+% set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'on');
+
+
+%% Plot Erroneous Licks Across Trials
+
+errorLicks = data.errorLicks;
+% Count number of erroneous licks per trial (non-zero entries per column)
+nErrorLicks = sum(errorLicks ~= 0 & ~isnan(errorLicks), 2);
+
+% Separate by opto condition
+errorLicks_control = nErrorLicks(optoTrials == 0);
+trials_control     = find(optoTrials == 0);
+
+errorLicks_opto    = nErrorLicks(optoTrials == 1);
+trials_opto        = find(optoTrials == 1);
+
+% Keep only trials with >0 errors
+keep_control = errorLicks_control > 0;
+errorLicks_control = errorLicks_control(keep_control);
+trials_control = trials_control(keep_control);
+
+keep_opto = errorLicks_opto > 0;
+errorLicks_opto = errorLicks_opto(keep_opto);
+trials_opto = trials_opto(keep_opto);
+%Plot 1: Scatter plot showing progression across all trials
+figure('Color', 'w', 'Position', [100 100 800 500]);
+hold on;
+
+% Shade opto blocks in background
+if any(optoTrials == 1)
+    yLims = [0 max(nErrorLicks) + 1];
+    for t = 1:nTrials
+        if optoTrials(t) == 1
+            fill([t-0.5 t+0.5 t+0.5 t-0.5], [yLims(1) yLims(1) yLims(2) yLims(2)], ...
+                [0.4 0.6 1], 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+        end
+    end
+end
+
+% Plot data
+scatter(trials_control, errorLicks_control, 50, [0.5 0.5 0.5], 'filled', ...
+    'MarkerFaceAlpha', 0.6, 'DisplayName', 'Control');
+scatter(trials_opto, errorLicks_opto, 50, [0.4 0.6 1], 'filled', ...
+    'MarkerFaceAlpha', 0.6, 'DisplayName', 'Opto');
+
+% Add smooth trend line
+if length(trials_control) > 3
+    p_control = polyfit(trials_control, errorLicks_control, 1);
+    plot(trials_control, polyval(p_control, trials_control), '-', ...
+        'Color', [0.3 0.3 0.3], 'LineWidth', 2.5);
+end
+if length(trials_opto) > 3
+    p_opto = polyfit(trials_opto, errorLicks_opto, 1);
+    plot(trials_opto, polyval(p_opto, trials_opto), '-', ...
+        'Color', [0.2 0.4 0.8], 'LineWidth', 2.5);
+end
+
+xlabel('Trial Number', 'FontSize', 14);
+ylabel('Number of Timeouts', 'FontSize', 14);
+title('Timeouts', 'FontSize', 15, 'FontWeight', 'bold');
+set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+grid on;
+grid minor;
+
+%% number of trials with timeouts
+
+% Count timeouts (trials with errors) for each condition
+nTimeouts_control = sum(nErrorLicks(optoTrials == 0) > 0);
+nTimeouts_opto = sum(nErrorLicks(optoTrials == 1) > 0);
+
+% Simple bar plot
+figure('Color', 'w', 'Position', [100 100 400 400]);
+bar_data = [nTimeouts_control, nTimeouts_opto];
+b = bar(bar_data);
+b.FaceColor = 'flat';
+b.CData(1,:) = [0.5 0.5 0.5];
+b.CData(2,:) = [0.4 0.6 1];
+
+set(gca, 'XTickLabel', {'Control', 'Opto'}, 'FontSize', 13);
+ylabel('Number of Timeout Trials', 'FontSize', 14);
+title('Timeouts', 'FontSize', 15, 'FontWeight', 'bold');
+
+%%
+% Prepare data for violin plot
+nTimeouts_control_all = nErrorLicks(optoTrials == 0);
+nTimeouts_opto_all = nErrorLicks(optoTrials == 1);
+
+% Create violin plot
+figure('Color', 'w', 'Position', [100 100 400 400]);
+
+% Combine data
+allData = [nTimeouts_control_all; nTimeouts_opto_all];
+groups = [zeros(length(nTimeouts_control_all), 1); ones(length(nTimeouts_opto_all), 1)];
+
+violinplot(allData, groups);
+
+set(gca, 'XTickLabel', {'Control', 'Opto'}, 'FontSize', 13);
+ylabel('Number of Timeouts', 'FontSize', 14);
+title('Timeouts Distribution', 'FontSize', 15, 'FontWeight', 'bold');
+%% Analyze timeouts across opto block positions
+
+% Parameters
+OPTO_BLOCK_OFF = 10;
+OPTO_BLOCK_ON = 5;
+BLOCK_SIZE = OPTO_BLOCK_OFF + OPTO_BLOCK_ON;
+
+% Count timeouts per trial
+nTimeouts = sum(errorLicks ~= 0 & ~isnan(errorLicks), 2);
+
+% Initialize arrays for OPTO ON blocks
+opto_position = [];
+timeout_count = [];
+block_number = [];
+
+% Initialize arrays for OPTO OFF blocks (control)
+control_position = [];
+control_timeout_count = [];
+control_block_number = [];
+
+% Find all blocks and extract timeout data
+blockNum = 1;
+for startBlock = 1 : BLOCK_SIZE : nTrials
+    % OPTO OFF trials (first 10 trials of block)
+    control_start = startBlock;
+    control_end = min(startBlock + OPTO_BLOCK_OFF - 1, nTrials);
+    control_trials = control_start:control_end;
+    control_timeouts = nTimeouts(control_trials);
+    
+    positions = 1:length(control_timeouts);
+    control_position = [control_position; positions(:)];
+    control_timeout_count = [control_timeout_count; control_timeouts(:)];
+    control_block_number = [control_block_number; repmat(blockNum, length(control_timeouts), 1)];
+    
+    % OPTO ON trials (next 5 trials of block)
+    opto_start = startBlock + OPTO_BLOCK_OFF;
+    if opto_start <= nTrials
+        opto_end = min(opto_start + OPTO_BLOCK_ON - 1, nTrials);
+        opto_trials = opto_start:opto_end;
+        opto_timeouts = nTimeouts(opto_trials);
+        
+        positions = 1:length(opto_timeouts);
+        opto_position = [opto_position; positions(:)];
+        timeout_count = [timeout_count; opto_timeouts(:)];
+        block_number = [block_number; repmat(blockNum, length(opto_timeouts), 1)];
+    end
+    
+    blockNum = blockNum + 1;
+end
+
+%Plot: Individual blocks overlaid (Control vs Opto)
+figure('Color', 'w', 'Position', [100 100 900 550]);
+hold on;
+
+nBlocks = max(block_number);
+cmap_control = winter(nBlocks);
+cmap_opto = autumn(nBlocks);
+
+% Plot control blocks (blue tones)
+for b = 1:nBlocks
+    idx = control_block_number == b;
+    pos = control_position(idx);
+    counts = control_timeout_count(idx);
+    plot(pos, counts, '--o', 'Color', cmap_control(b,:), 'LineWidth', 1, ...
+        'MarkerSize', 6, 'MarkerFaceColor', cmap_control(b,:));
+end
+
+% Plot opto blocks (red tones)
+for b = 1:nBlocks
+    idx = block_number == b;
+    pos = opto_position(idx);
+    counts = timeout_count(idx);
+    plot(pos + OPTO_BLOCK_OFF, counts, '-o', 'Color', cmap_opto(b,:), 'LineWidth', 1.5, ...
+        'MarkerSize', 8, 'MarkerFaceColor', cmap_opto(b,:));
+end
+
+% Add mean trend lines
+mean_control = zeros(OPTO_BLOCK_OFF, 1);
+for p = 1:OPTO_BLOCK_OFF
+    mean_control(p) = mean(control_timeout_count(control_position == p));
+end
+plot(1:OPTO_BLOCK_OFF, mean_control, 'b-', 'LineWidth', 4, 'DisplayName', 'Control Mean');
+
+mean_opto = zeros(OPTO_BLOCK_ON, 1);
+for p = 1:OPTO_BLOCK_ON
+    mean_opto(p) = mean(timeout_count(opto_position == p));
+end
+plot((1:OPTO_BLOCK_ON) + OPTO_BLOCK_OFF, mean_opto, 'r-', 'LineWidth', 4, 'DisplayName', 'Opto Mean');
+
+% Add vertical line to separate control and opto
+yl = ylim;
+plot([OPTO_BLOCK_OFF + 0.5, OPTO_BLOCK_OFF + 0.5], yl, 'k--', 'LineWidth', 2, 'DisplayName', 'Opto Onset');
+
+xlabel('Trial Position in Block', 'FontSize', 14);
+ylabel('Number of Timeouts', 'FontSize', 14);
+title('Timeouts Across Block (Control vs Opto)', 'FontSize', 15, 'FontWeight', 'bold');
+set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+xlim([0.5 BLOCK_SIZE + 0.5]);
+xticks([1 5 10 11 12 13 14 15]);
+xticklabels({'1', '5', '10', 'O1', 'O2', 'O3', 'O4', 'O5'});
+grid on;
+legend('Location', 'best', 'Box', 'off');
+
+% Plot: Summary comparison with error bars
+figure('Color', 'w', 'Position', [100 100 900 550]);
+hold on;
+
+% Calculate means and SEMs
+mean_control = zeros(OPTO_BLOCK_OFF, 1);
+sem_control = zeros(OPTO_BLOCK_OFF, 1);
+for p = 1:OPTO_BLOCK_OFF
+    data_points = control_timeout_count(control_position == p);
+    mean_control(p) = mean(data_points);
+    sem_control(p) = std(data_points) / sqrt(length(data_points));
+end
+
+mean_opto = zeros(OPTO_BLOCK_ON, 1);
+sem_opto = zeros(OPTO_BLOCK_ON, 1);
+for p = 1:OPTO_BLOCK_ON
+    data_points = timeout_count(opto_position == p);
+    mean_opto(p) = mean(data_points);
+    sem_opto(p) = std(data_points) / sqrt(length(data_points));
+end
+
+% Plot control with error bars
+errorbar(1:OPTO_BLOCK_OFF, mean_control, sem_control, 'o-', ...
+    'LineWidth', 2.5, 'MarkerSize', 8, 'MarkerFaceColor', [0.5 0.7 0.9], ...
+    'Color', [0.2 0.4 0.7], 'CapSize', 8, 'DisplayName', 'Control');
+
+% Plot opto with error bars
+errorbar((1:OPTO_BLOCK_ON) + OPTO_BLOCK_OFF, mean_opto, sem_opto, 'o-', ...
+    'LineWidth', 2.5, 'MarkerSize', 8, 'MarkerFaceColor', [1 0.6 0.6], ...
+    'Color', [0.8 0.2 0.2], 'CapSize', 8, 'DisplayName', 'Opto');
+
+% Add vertical line
+yl = ylim;
+plot([OPTO_BLOCK_OFF + 0.5, OPTO_BLOCK_OFF + 0.5], yl, 'k--', 'LineWidth', 2);
+
+xlabel('Trial Position in Block', 'FontSize', 14);
+ylabel('Number of Timeouts', 'FontSize', 14);
+title('Mean Timeouts: Control vs Opto Blocks', 'FontSize', 15, 'FontWeight', 'bold');
+set(gca, 'FontSize', 13, 'LineWidth', 1.5, 'Box', 'off');
+xlim([0.5 BLOCK_SIZE + 0.5]);
+xticks([1 5 10 11 12 13 14 15]);
+xticklabels({'1', '5', '10', 'O1', 'O2', 'O3', 'O4', 'O5'});
+grid on;
+legend('Location', 'best', 'Box', 'off');
+
+%% plot reaction times split by OPTO 
+x = [];
+y = [];
+for t = 1 : size(LicksInFrame,2)
+    for o = 1 : size(LicksInFrame,1)
+        if LicksInFrame(o,t) ~= 0
+            x = [x, LicksInFrame(o,t)];
+            y = [y, t];
+        end
+    end
+end
+
+% --- Build matrix of lick times per trial ---
+% FIX: Use nTrials instead of max(y)
+well = zeros(nTrials, 100);  % preallocate with max possible licks
+rownum = min(y);
+colnum = 1;
+
+for i = 1:length(x)
+    if rownum ~= y(i)
+        colnum = 1;
+    end
+    if x(i) > 0.1
+        well(y(i), colnum) = x(i);
+        colnum = colnum + 1;
+    end
+    rownum = y(i);
+end
+
+% --- Get first valid lick per trial ---
+FirstLicks = NaN(nTrials, 1);  % FIX: Use nTrials
+
+for t = 1:nTrials
+    if ~ismember(t, discardedTrials) && well(t,1) ~= 0 && well(t,1) < lickWindowMax
+        FirstLicks(t) = well(t,1);
+    end
+end
+
+% --- Split by opto condition ---
+rt_opto    = FirstLicks(optoTrials == 1);
+rt_nonopto = FirstLicks(optoTrials == 0);
+
+% --- Remove NaNs and zeros ---
+rt_opto    = rt_opto(~isnan(rt_opto) & rt_opto ~= 0);
+rt_nonopto = rt_nonopto(~isnan(rt_nonopto) & rt_nonopto ~= 0);
+
+allRT = [rt_nonopto; rt_opto];
+allGroup = [repmat("Non-opto", numel(rt_nonopto), 1);
+            repmat("Opto",     numel(rt_opto),     1)];
+allGroup = categorical(allGroup, ["Non-opto","Opto"]);
+
+% --- Plot violin plot ---
+figure('Color','w','Position',[200 200 400 500]); hold on;
+colors = [0.7 0.7 0.7; 0.4 0.6 1];  % gray = Non-opto, blue = Opto
+vp = violinplot(allRT, allGroup, ...
+    'ShowMean', true, ...
+    'ViolinColor', colors);
+
+set(gca, 'Box', 'off', 'TickDir', 'out', 'LineWidth', 1.2, ...
+         'FontSize', 11, 'XColor', [0.2 0.2 0.2], 'YColor', [0.2 0.2 0.2]);
+
+ylim([min(allRT)*-0.2, max(allRT)*1.3]);
+xlabel('Condition');
+ylabel('Reaction time (s)');
+box on;
+
+% --- Prepare figure ---
+figure('Color','w','Position',[200 200 500 400]); hold on;
+
+% --- Define bin edges ---
+nbins=10;  % adjust bin width as needed
+
+% --- Plot histograms ---
+h1 = histogram(rt_nonopto, nbins, 'Normalization', 'probability', ...
+    'FaceColor', [0.7 0.7 0.7], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+h2 = histogram(rt_opto, nbins, 'Normalization', 'probability', ...
+    'FaceColor', [0.4 0.6 1], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+
+% --- Format axes ---
+xlabel('Reaction time (s)');
+ylabel('Probability');
+xlim([0 lickWindowMax]);
+ylim([0 max([h1.Values h2.Values])*1.2]);
+
+set(gca, 'Box', 'off', 'TickDir', 'out', 'LineWidth', 1.2, ...
+         'FontSize', 11, 'XColor', [0.2 0.2 0.2], 'YColor', [0.2 0.2 0.2]);
+
+legend({'Non-opto','Opto'}, 'Location', 'northeast');
+title('Reaction time distribution by condition');
 
 %% FUNCTIONS
 
