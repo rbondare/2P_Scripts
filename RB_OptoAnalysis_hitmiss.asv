@@ -1,5 +1,5 @@
 %% LOAD DATA
-data = load('Z:\Group Members\Rima\Stimulus\AnimalRB15\Training\stim_001__training_20251209_161704');
+data = load('Z:\Group Members\Rima\Stimulus\AnimalRB12\Training\stim_001__training_20251112_163054');
 
 %% PARAMETERS
 TIME_BEFORE_STIM = -0.2;
@@ -44,6 +44,9 @@ plotRaster_contrast(LicksInFrame, nTrials, lickWindowMax, levelHistory, optoTria
     OPTO_BLOCK_OFF, OPTO_BLOCK_ON, data.options.contrastHistory(1:nTrials));
 
 %% FOR RANDOM OPTO ONLY - TO PLOT WHEN OPTO HAPPENS WHEN AT RANDOM
+
+% binning of opto is in the 
+% happens between 0-2 seconds, 2-5 etc 
 TotalTrialWaitTime = zeros(max(size(data.waitTimes,1)), 1);
 TotalTrialWaitTime = sum(data.waitTimes, 2);
 TotalTrialWaitTime = -TotalTrialWaitTime;
@@ -311,8 +314,6 @@ function plotRaster_contrast(LicksInFrame, nTrials, lickWindowMax, levelHistory,
     title('Lick Raster Plot', 'FontSize', 15, 'FontWeight', 'bold');
     hold off;
 end
-
-
 
 
 function [LicksHit, LicksMiss, FirstLicks] = classifyTrials(LicksInFrame, ...

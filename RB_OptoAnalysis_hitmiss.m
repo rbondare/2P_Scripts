@@ -44,6 +44,9 @@ plotRaster_contrast(LicksInFrame, nTrials, lickWindowMax, levelHistory, optoTria
     OPTO_BLOCK_OFF, OPTO_BLOCK_ON, data.options.contrastHistory(1:nTrials));
 
 %% FOR RANDOM OPTO ONLY - TO PLOT WHEN OPTO HAPPENS WHEN AT RANDOM
+
+% binning of opto is in the diffCOntrastScript
+% happens between 0-2 seconds, 2-5 etc 
 TotalTrialWaitTime = zeros(max(size(data.waitTimes,1)), 1);
 TotalTrialWaitTime = sum(data.waitTimes, 2);
 TotalTrialWaitTime = -TotalTrialWaitTime;

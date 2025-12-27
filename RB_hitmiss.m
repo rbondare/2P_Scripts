@@ -2,7 +2,7 @@
 
 %can create a loop to process several files here
 % Load your file
-data = load('Z:\Group Members\Rima\Stimulus\AnimalRB15\Training\stim_001__training_20251104_123517');
+data = load('Z:\Group Members\Rima\Stimulus\AnimalRB15\Training\stim_001__training_20251209_161704');
 
 %{ 
 red frames is a windows time, so we substract the trial time start from the stimulus time onset (arduino time) ms * 1000 
