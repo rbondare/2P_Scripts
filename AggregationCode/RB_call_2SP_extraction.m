@@ -1,84 +1,60 @@
-
+% Setup paths
 addpath('Z:\Group Members\Rima\Stimulus'); 
 addpath('C:\Users\rbondare\2P_scripts\MouseBrainActivity-main\2p Pre-processing');
+
 maindir = 'Z:\Group Members\Rima\TEST\'; %DATA_2P
+ca_type = 1;
 
-
-ca_type=1; 
-
+% Get all experiment folders
 explist = dir(maindir);
 explist = explist(cat(1,explist.isdir));
-explist = explist(~ismember({explist.name},{'.','..'}));  
+explist = explist(~ismember({explist.name},{'. ','..'}));  % FIXED directory filtering
 
-%DBpath='D:\Aggregated\';
-%DBpath= '\\fs.ista.ac.at\group\joeschgrp\Rima\Aggregated';
-%DBpathBU='D:\DB_BU\';
-%DBfile='2PRecordingsDatabase.mat';
+if isempty(explist)
+    error('No experiments found in %s', maindir);
+end
 
-%load(fullfile(DBpath,DBfile));
-AnimalFolder = 'Z:\Group Members\Rima\Animals\'; %metadata about the animals used in the experiments 
-e=1;
-parallel.gpu.enableCUDAForwardCompatibility(true); % I have a newer GPU version? 
-params=FS_load_default_settings(); %load settings about colors & display etc
+fprintf('Found %d recording(s) to process\n', numel(explist));
 
-params.Neurons.use_deconvolved=true;
-params.Neurons.activity_type='both';
+AnimalFolder = 'Z:\Group Members\Rima\Animals\';
+parallel. gpu.enableCUDAForwardCompatibility(true);
+params = FS_load_default_settings();
 
-% 
-% paths_compact={'D:\compact\','B:\fs3-joeschgrp\Toni\2PData\compactDIsplit\'};
-% while e<numel(explist)
-%     e=e+1;
-%      if ~ismember(explist(e).name,Recording.Properties.RowNames)
+params. Neurons.use_deconvolved = true;
+params.Neurons. activity_type = 'both';
 
-fprintf('importing %s \n',explist(e).name)
-OutputFilename=RB_save_S2Pout_and_headers([explist(e).folder '\' explist(e).name '\'],ca_type,'overwrite_intermediate',false);
-RB_import_VideoBehav(); %import DLC data 
+%% Process ALL recordings
+for e = 1:numel(explist)  
+    
+    fprintf('\n=== [%d/%d] Processing:  %s ===\n', e, numel(explist), explist(e).name);
+    
+    recording_path = [explist(e).folder '\' explist(e).name '\'];
+    
+    % Check if suite2p folder exists
+    if ~exist([recording_path 'suite2p'], 'dir')
+        fprintf('No suite2p folder, skipping\n');
+        continue;
+    end
+    
+    % Check if already processed
+    preprocessed_file = ['Z:\Group Members\Rima\Aggregated\' explist(e).name '_preprocessed.mat'];
+    if exist(preprocessed_file, 'file')
+        fprintf('Already processed, skipping\n');
+        continue;
+    end
+    
+    % Process this recording
+    try
+        OutputFilename = RB_save_S2Pout_and_headers(recording_path, ca_type, 'overwrite_intermediate', false);
+        fprintf('Created:  %s\n', OutputFilename);
+    catch ME
+        fprintf('Error:  %s\n', ME.message);
+        fprintf('at %s:%d\n', ME.stack(1).name, ME.stack(1).line);
+    end
+end
 
-%    [filep,filen,filee]=fileparts(OutputFilename);
-%    [Animal,Recording]=FS_add_new_rec_to_DB(Animal,Recording,filep,strcat(filen,filee),[AnimalFolder, filen(1:8),'\'],true);
-%     compact_filepath=fullfile(paths_compact{1},[filen(1:end-13) '_compact.mat']);
-%      export_compact_preproc_220705(OutputFilename,compact_filepath,params)
-%      copyfile(compact_filepath,fullfile(paths_compact{2},[filen(1:end-13) '_compact.mat']));
-%      else
-%              fprintf('not importing %s \n',explist(e).name)
-%    end
-% end 
-%copyfile(fullfile(DBpath,DBfile),fullfile(DBpathBU,[DBfile(1:end-4) '_' datestr(now,'yymmdd_HHMM') '.mat']));
-%save(fullfile(DBpath,DBfile),'Animal','Recording');
-%% correct DB
-% all_files=dir([DBpath '\*_preprocessed.mat']);
-% inDB=false(size(Recording,1),1);
-% notinDB=false(size(all_files,1),1);
-% RecN=cat(1,Recording{:,'File'});
-% for n=1:numel(all_files)
-%     fname=all_files(n).name;
-%     n2=find(strcmp(RecN,fname));
-%     inDB(n2)=true;
-%     if isempty(n2)
-%         notinDB(n)=true;
-%     end
-% 
-% end
+% import DLC data for all processed recordings
+fprintf('Starting DLC import');
+RB_import_VideoBehav();
 
-%%
-% all_files = all_files(notinDB)
-%%
-%
-% w=waitbar(0);
-% for n=1:numel(all_files)
-%     fname=all_files(n).name;
-%  [Animal,Recording]=FS_add_new_rec_to_DB(Animal,Recording,DBpath,fname,AnimalFolder,true);
-% 
-%  waitbar(n/numel(all_files),w)
-% 
-% 
-% 
-% end
-%  close(w)
-%  %
-%  ID =  unique(Recording.AnimalID)
-%  AID=Recording.AnimalID;
-%  for n=1:size(Animal,1)
-%  Animal{n,'RecordingIDs'}={find(ismember(AID, ID(n)) ==1)};
-%  end
-%  %%
+fprintf('ALL DONE');
