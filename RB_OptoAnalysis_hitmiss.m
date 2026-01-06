@@ -1,5 +1,5 @@
 %% LOAD DATA
-data = load('Z:\Group Members\Rima\Stimulus\AnimalRB12\Training\stim_001__training_20251112_163054');
+data = load('Z:\Group Members\Rima\Stimulus\AnimalRB15\Training\stim_001__training_20251211_162736');
 
 %% PARAMETERS
 TIME_BEFORE_STIM = -0.2;
@@ -11,7 +11,7 @@ MISS_THRESHOLD = 5;
 OPTO_BLOCK_OFF = 10;
 OPTO_BLOCK_ON = 5;
 
-%% DATA EXTRACTION
+% DATA EXTRACTION
 StimTime = data.options.Trialtsecbegin;
 nTrials = data.i;
 nSubsessions = data.options.subsessions;
@@ -29,11 +29,6 @@ RedFramesNum = str2double(redFrames) + ((StimTime - data.options.tsecbegin) * 10
 %% EXTRACT LICKS AROUND STIMULI
 [LicksInFrame, discardedTrials] = extractLicksInWindow(LickTimes, RedFramesNum, ...
     LICK_WINDOW_PRE, LICK_WINDOW_POST, TIME_BEFORE_STIM, TIME_AFTER_STIM, nTrials);
-
-%% 
-%if cannot decide on parameters to disregard trials 
-
-discardedTrials = []; 
 
 %% PLOT RASTER
 plotRaster(LicksInFrame, nTrials, lickWindowMax, levelHistory, optoTrials, ...
@@ -66,6 +61,10 @@ opto_time_relative_to_stim(opto_idx) = TotalTrialWaitTime(opto_idx) + parallel_o
 
 plotRaster_opto_random(LicksInFrame, nTrials, lickWindowMax, levelHistory, optoTrials, ...
     OPTO_BLOCK_OFF, OPTO_BLOCK_ON, LICK_WINDOW_PRE, LICK_WINDOW_POST, opto_time_relative_to_stim);
+%% 
+%if cannot decide on parameters to disregard trials 
+
+discardedTrials = []; 
 %% CLASSIFY TRIALS
 [LicksHit, LicksMiss, FirstLicks] = classifyTrials(LicksInFrame, discardedTrials, ...
     HIT_THRESHOLD, MISS_THRESHOLD);

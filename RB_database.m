@@ -59,7 +59,7 @@ for m = 1:numel(mice)
             if any(S.options.opto_trial == 1)
                 condition = "opto";
             else
-                condition = "control";
+                condition = "baseline";
             end
         else
             condition = "other";
