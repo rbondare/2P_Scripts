@@ -1,32 +1,41 @@
-function import_VideoBehav
+function RB_import_VideoBehav
 params.movmed_filt=3;
 params.pupil_min_p=.95;
 params.body_min_p=.8;
 params.eye_r_mm=1.5;
 params.eye_px_per_mm=23.4;
 params.body_vid=480;
-params.overwrite=true;
+params.overwrite=false;
 params.delete_camera_tifs=false;
-
-parentdir='Z:\Group Members\Rims\Camera\';
+parentdir = 'Z:\Group Members\Rima\Camera_OTHER\'; 
+archivedir = 'Z:\Group Members\Rima\preCamera';
 DLCdir='Z:\Group Members\Rima\DLCData\';
 preprocesseddir='Z:\Group Members\Rima\ToAnalyse\';
-archivedir='Z:\Group Members\Rima\preCamera\';
-
+%archivedir='K:\Florian\preCamera\';
 
 data_exists=true;
 new_data=true;
+
 %%
 while data_exists
     
-    animallist=dir(parentdir);animallist(1:2)=[];
+    % Get animal folders, removing '.' and '..'
+    animallist=dir(parentdir);
+    animallist=animallist(cat(1,animallist.isdir));
+    animallist=animallist(~ismember({animallist.name},{'. ','..'}));
+
     if isempty(animallist)
         data_exists=false;
         fprintf('no data available anymore\n')
         break;
     end
+    
     for a=1:numel(animallist)
-        explist=dir([animallist(a).folder '\' animallist(a).name]);explist(1:2)=[];
+        % Get experiment folders, removing '.' and '..'
+        explist=dir([animallist(a).folder '\' animallist(a).name]);
+        explist=explist(cat(1,explist. isdir)); % Keep only directories
+        explist=explist(~ismember({explist.name},{'. ','..'})); % Remove '.' and '..'
+
         if isempty(explist)
             rmdir([animallist(a).folder '\' animallist(a).name]);
         else

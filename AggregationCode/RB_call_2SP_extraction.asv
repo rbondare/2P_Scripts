@@ -1,14 +1,17 @@
+clear;
 
-addpath('Z:\Group Members\Rima\Stimulus'); 
+RB_import_VideoBehav(); %import DLC data 
+
+addpath('\\fs.ista.ac.at\group\joeschgrp\Group Members\Rima\Stimulus'); 
+%[status,cmdout] = system('git pull origin','-echo'); %Pulls updates from a Git repository, keeping the codebase for this analysis pipeline up to date.
 addpath('C:\Users\rbondare\2P_scripts\MouseBrainActivity-main\2p Pre-processing');
-maindir = 'Z:\Group Members\Rima\TEST\'; %DATA_2P
-
-
+%maindir ='K:\Florian\DATA_2P\'
+maindir = '\\fs.ista.ac.at\group\joeschgrp\Group Members\Rima\TEST\';
 ca_type=1; 
 
-explist = dir(maindir);
-explist = explist(cat(1,explist.isdir));
-explist = explist(~ismember({explist.name},{'.','..'}));  
+explist=dir(maindir);
+explist=explist(cat(1,explist.isdir));
+explist=explist(3:end);
 
 %DBpath='D:\Aggregated\';
 %DBpath= '\\fs.ista.ac.at\group\joeschgrp\Rima\Aggregated';
@@ -16,24 +19,22 @@ explist = explist(~ismember({explist.name},{'.','..'}));
 %DBfile='2PRecordingsDatabase.mat';
 
 %load(fullfile(DBpath,DBfile));
-AnimalFolder = 'Z:\Group Members\Rima\Animals\'; %metadata about the animals used in the experiments 
+%AnimalFolder='C:\Users\fschmidt\Documents\GitHub\MouseTrainingScripts\AnimalsISTA\';
+AnimalFolder = '\\fs.ista.ac.at\group\joeschgrp\Rima\Animals\' %metadata about the animals used in the experiments 
 e=1;
 parallel.gpu.enableCUDAForwardCompatibility(true); % I have a newer GPU version? 
 params=FS_load_default_settings(); %load settings about colors & display etc
 
 params.Neurons.use_deconvolved=true;
 params.Neurons.activity_type='both';
-
-% 
 % paths_compact={'D:\compact\','B:\fs3-joeschgrp\Toni\2PData\compactDIsplit\'};
+%%
 % while e<numel(explist)
 %     e=e+1;
 %      if ~ismember(explist(e).name,Recording.Properties.RowNames)
 
-fprintf('importing %s \n',explist(e).name)
-OutputFilename=RB_save_S2Pout_and_headers([explist(e).folder '\' explist(e).name '\'],ca_type,'overwrite_intermediate',false);
-RB_import_VideoBehav(); %import DLC data 
-
+    fprintf('importing %s \n',explist(e).name)
+    OutputFilename=RB_save_S2Pout_and_headers([explist(e).folder '\' explist(e).name '\'],ca_type,'overwrite_intermediate',false);
 %    [filep,filen,filee]=fileparts(OutputFilename);
 %    [Animal,Recording]=FS_add_new_rec_to_DB(Animal,Recording,filep,strcat(filen,filee),[AnimalFolder, filen(1:8),'\'],true);
 %     compact_filepath=fullfile(paths_compact{1},[filen(1:end-13) '_compact.mat']);

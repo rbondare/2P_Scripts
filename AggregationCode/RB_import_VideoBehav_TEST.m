@@ -1,6 +1,5 @@
-function RB_import_VideoBehav
-
-params.movmed_filt=3;
+function RB_import_VideoBehav_TEST
+params. movmed_filt=3;
 params.pupil_min_p=.95;
 params.body_min_p=.8;
 params.eye_r_mm=1.5;
@@ -9,14 +8,16 @@ params.body_vid=480;
 params.overwrite=true;
 params.delete_camera_tifs=false;
 
-
-parentdir = 'Z:\Group Members\Rima\Camera_OTHER\'; % where the camera folder for each recording is sotred
-archivedir = 'Z:\Group Members\Rima\preCamera_TEST\';  % archive directory
+% TEST MODE: Use Camera_OTHER
+parentdir = 'Z:\Group Members\Rima\Camera_OTHER\'; 
+archivedir = 'Z:\Group Members\Rima\preCamera_TEST\';  % Separate test archive
 DLCdir='Z:\Group Members\Rima\DLCData\';
 preprocesseddir='Z:\Group Members\Rima\ToAnalyse\';
 
 data_exists=true;
 new_data=true;
+SINGLE_RUN = true;  % Run once instead of looping
+
 %%
 while data_exists
     
@@ -41,60 +42,79 @@ while data_exists
             rmdir([animallist(a).folder '\' animallist(a).name]);
         else
             for e=1:numel(explist)
-                clearvars -except params new_data data_exists parentdir preprocesseddir DLCdir animallist a explist e archivedir
+                clearvars -except params new_data data_exists parentdir preprocesseddir DLCdir animallist a explist e archivedir SINGLE_RUN
+                
+                fprintf('\n=== Checking %s ===\n', explist(e).name);
+                
                 if exist([explist(e).folder '\' explist(e).name '\success.log'],'file')
-                    %exist([explist(e).folder '\' explist(e).name '\eye_results'],'dir')
                     new_data=true;
                     finalFile=[preprocesseddir explist(e).name '_preprocessed.mat'];
                     preprocessed_exists=exist(finalFile,'file');
+                    
+                    fprintf('  success.log: FOUND\n');
+                    fprintf('  preprocessed exists: %d\n', preprocessed_exists);
+                    
                     if preprocessed_exists
                         DLCnotimported=isempty(who('-file',finalFile,'VideoParams'));
+                        fprintf('  DLC imported: %d\n', ~DLCnotimported);
                     else
                         DLCnotimported=true;
                     end
+                    
                     if ~preprocessed_exists || ((preprocessed_exists && DLCnotimported) || params.overwrite)
                         if ~exist([DLCdir explist(e).name '_DLC_filtered.mat'],'file') || params.overwrite
                             eyename=[explist(e).folder '\' explist(e).name '\eye_results\' explist(e).name '_eye.csv'];
                             if ~exist(eyename,'file')
                                 tempf=dir([explist(e).folder '\' explist(e).name '\eye_results\*_eye.csv']);
-                                 eyename=fullfile(tempf.folder,tempf.name);
+                                if isempty(tempf)
+                                    warning('  ✗ Eye CSV not found');
+                                    continue;
+                                end
+                                eyename=fullfile(tempf. folder,tempf.name);
                             end
+                            
                             bodyname=[explist(e).folder '\' explist(e).name '\body_results\' explist(e).name '_body.csv'];
-                             if ~exist(bodyname,'file')
+                            if ~exist(bodyname,'file')
                                 tempf=dir([explist(e).folder '\' explist(e).name '\body_results\*_body.csv']);
-                                 bodyname=fullfile(tempf.folder,tempf.name);
+                                if isempty(tempf)
+                                    warning('  ✗ Body CSV not found');
+                                    continue;
+                                end
+                                bodyname=fullfile(tempf.folder,tempf.name);
                             end
-                            fprintf('importing %s DLC file\n',explist(e).name)
+                            
+                            fprintf('  → Importing DLC files\n');
                             [DLC,VideoFrameTimes] = import_DLC_eye(eyename,params);
                             [DLCbody,DLCraw] = import_DLC_body(bodyname,params);
-                            DLCraw.PupilPoints=DLC.Pupil.PointsRaw;
-                            VideoParams.Eye.Radius_mm=DLC.eye_r_mm;
+                            
+                            DLCraw. PupilPoints=DLC. Pupil. PointsRaw;
+                            VideoParams.Eye. Radius_mm=DLC.eye_r_mm;
                             VideoParams.Eye.Center=DLC.Eye.center;
                             VideoParams.Eye.EllipseParams=DLC.Eye.A;
-                            VideoParams.Eye.Semiaxes=DLC.Eye.semiaxes;
+                            VideoParams.Eye. Semiaxes=DLC.Eye.semiaxes;
                             VideoParams.Eye.Rotation=DLC.Eye.phi;
-                            VideoParams.Eye.medfilt=DLC.Eye.denoise.movmed_points;
+                            VideoParams.Eye.medfilt=DLC.Eye.denoise. movmed_points;
                             VideoParams.Eye.CornealReflection=DLC.cornealReflection;
-                            VideoParams.Eye.px_per_mm=DLC.eye_px_per_mm;
-                            VideoParams.Pupil.p_thresh=DLC.Pupil.denoise.p_thresh;
+                            VideoParams.Eye.px_per_mm=DLC. eye_px_per_mm;
+                            VideoParams. Pupil.p_thresh=DLC. Pupil.denoise.p_thresh;
                             VideoParams.Body.HeadplatRBC=DLCbody.headplateRBC;
                             VideoParams.Body.BallLoc_RAC=DLCbody.BallRAC;
-                            VideoParams.Body.EyeLocFull=DLCbody.EyeLocFull;
-                            VideoParams.Body.p_trhesh=DLCbody.prob_cutoff;
-                            VideoParams.Body.medfilt=DLCbody.medfilt;
+                            VideoParams. Body.EyeLocFull=DLCbody.EyeLocFull;
+                            VideoParams.Body.p_trhesh=DLCbody. prob_cutoff;
+                            VideoParams. Body.medfilt=DLCbody.medfilt;
                             
-                            DLCSupporting.Probability.EyeLid=DLC.Eye.p;
-                            DLCSupporting.Probability.Pupil=DLC.Pupil.p;
-                            DLCSupporting.Probability.EllipseRMSE=DLC.Pupil.RMSE;
-                            DLCSupporting.Probability.BallApex=DLCbody.ballApex(:,3);
+                            DLCSupporting. Probability. EyeLid=DLC.Eye.p;
+                            DLCSupporting.Probability. Pupil=DLC.Pupil.p;
+                            DLCSupporting.Probability. EllipseRMSE=DLC. Pupil. RMSE;
+                            DLCSupporting.Probability.BallApex=DLCbody.ballApex(: ,3);
                             DLCSupporting.Probability.BallRostral=DLCbody.ballRostral(:,3);
-                            DLCSupporting.Probability.BallCaudal=DLCbody.ballCaudal(:,3);
+                            DLCSupporting. Probability.BallCaudal=DLCbody. ballCaudal(:,3);
                             
-                            DLCSupporting.Pupil.Eccentricity=DLC.Pupil.eccentricity;
-                            DLCSupporting.Pupil.EllipsePhi=DLC.Pupil.Rotation;
+                            DLCSupporting. Pupil. Eccentricity=DLC. Pupil.eccentricity;
+                            DLCSupporting.Pupil.EllipsePhi=DLC.Pupil. Rotation;
                             DLCSupporting.Pupil.EllipseSemiAxes=DLC.Pupil.semiaxes;
-                            DLCSupporting.Pupil.EllipseCenter=DLC.Pupil.center;
-                            DLCSupporting.Pupil.Points=DLC.Pupil.PointsRaw;
+                            DLCSupporting. Pupil.EllipseCenter=DLC.Pupil. center;
+                            DLCSupporting.Pupil.Points=DLC.Pupil. PointsRaw;
                             DLCSupporting.CropParams=DLC.CropParams;
                             DLCSupporting.CropParams.Body_vid_width=params.body_vid;
                             DLCSupporting.CropParams.Body_scale=DLCbody.bodyvid_scale;
@@ -102,36 +122,36 @@ while data_exists
                             DLCSupporting.Ball.Rostral=DLCbody.ballRostral(:,1:2);
                             DLCSupporting.Ball.Caudal=DLCbody.ballCaudal(:,1:2);
                             
-                            Behav.VideoNum=DLC.Vid(:,1);
-                            Behav.FrameNum=DLC.Vid(:,2);
-                            Behav.PupilAzEl=DLC.Pupil.az_el;
-                            Behav.PupilArea=DLC.Pupil.area;
+                            Behav.VideoNum=DLC.Vid(: ,1);
+                            Behav. FrameNum=DLC.Vid(:,2);
+                            Behav. PupilAzEl=DLC.Pupil. az_el;
+                            Behav.PupilArea=DLC.Pupil. area;
                             FN=fieldnames(DLCbody);
                             FN=FN(1:19);
                             for fn=1:numel(FN)
-                                Behav.(FN{fn})=DLCbody.(FN{fn})(:,1:2);
-                                DLCSupporting.Probability.(FN{fn})=DLCbody.(FN{fn})(:,3);
+                                Behav.(FN{fn})=DLCbody.(FN{fn})(: ,1:2);
+                                DLCSupporting. Probability.(FN{fn})=DLCbody.(FN{fn})(:,3);
                             end
                             Behav.EyeLidArea=DLC.Eye.area;
                             Behav.EyeLidCenter=DLC.Eye.position;
                             
-                            fprintf('saving %s DLC file\n',explist(e).name)
-                            
+                            fprintf('  → Saving DLC files\n');
                             save([DLCdir explist(e).name '_DLC_raw.mat'],'DLCraw')
                             save([DLCdir explist(e).name '_DLC_filtered.mat'],'DLCSupporting','Behav','VideoParams','VideoFrameTimes')
                             clear DLC DLCraw DLCbody FN
                         else
-                            fprintf('imported dlc exists... loading')
+                            fprintf('  → Loading existing DLC\n');
                             load([DLCdir explist(e).name '_DLC_filtered.mat'],'DLCSupporting','Behav','VideoParams','VideoFrameTimes')
                         end
+                        
                         if preprocessed_exists
-                            fprintf('correct timing %s\n',explist(e).name)
+                            fprintf('  → Adding DLC to preprocessed file\n');
                             
                             Data=matfile(finalFile,'Writable',true);
                             Triggers=Data.Triggers;
                             Stimuli=Data.Stimuli;
+                            
                             if isfield(VideoParams,'selected_frameIdx')
-                                %load(['K:\archive-joeschgrp\Toni\Run eye correction\' explist(e).name '\frame_to_include.mat'])
                                 selected_frameIdx=VideoParams.selected_frameIdx;
                             else
                                 [selected_frameIdx,Triggers]=correct_videoFrames_OS(Triggers,VideoFrameTimes,Behav);
@@ -139,17 +159,18 @@ while data_exists
                                 VideoParams.selected_frameIdx=selected_frameIdx;
                                 save([DLCdir explist(e).name '_DLC_filtered.mat'],'VideoParams','-append')
                             end
-                            FN=fieldnames(DLCSupporting.Probability);
+                            
+                            FN=fieldnames(DLCSupporting. Probability);
                             for fn=1:numel(FN)
-                                DLCSupporting.Probability.(FN{fn})=DLCSupporting.Probability.(FN{fn})(selected_frameIdx,:,:);
+                                DLCSupporting.Probability.(FN{fn})=DLCSupporting.Probability.(FN{fn})(selected_frameIdx,: ,: );
                             end
                             FN=fieldnames(DLCSupporting.Pupil);
                             for fn=1:numel(FN)
-                                DLCSupporting.Pupil.(FN{fn})=DLCSupporting.Pupil.(FN{fn})(selected_frameIdx,:,:);
+                                DLCSupporting. Pupil.(FN{fn})=DLCSupporting.Pupil.(FN{fn})(selected_frameIdx,:,: );
                             end
                             FN=fieldnames(DLCSupporting.Ball);
                             for fn=1:numel(FN)
-                                DLCSupporting.Ball.(FN{fn})=DLCSupporting.Ball.(FN{fn})(selected_frameIdx,:,:);
+                                DLCSupporting. Ball.(FN{fn})=DLCSupporting.Ball.(FN{fn})(selected_frameIdx,:,:);
                             end
                             FN=fieldnames(Behav);
                             for fn=1:numel(FN)
@@ -157,37 +178,62 @@ while data_exists
                             end
                             
                             Data.DLCSupporting=DLCSupporting;
-                            Data.Behav=Behav;
+                            Data. Behav=Behav;
                             Data.VideoParams=VideoParams;
                             
+                            fprintf('  ✓ Successfully aggregated!\n');
                         else
-                            warning([explist(e).name ' no preprocessed found... skipping'])
+                            warning('  ⚠ %s no preprocessed found...  skipping', explist(e).name)
                         end
                     else
-                        warning([explist(e).name ' already imported... skipping'])
+                        warning('  ⚠ %s already imported... skipping', explist(e).name)
                     end
+                    
                     if params.delete_camera_tifs && exist([explist(e).folder '\' explist(e).name '\camera'],'dir')
                         rmdir([explist(e).folder '\' explist(e).name '\camera'],'s')
                     end
                     
+                    % Archive processed files
+                    if ~exist([archivedir animallist(a).name], 'dir')
+                        mkdir([archivedir animallist(a).name]);
+                    end
                     mkdir([archivedir animallist(a).name '\' explist(e).name]);
                     stat=movefile([explist(e).folder '\' explist(e).name '\*'],[archivedir animallist(a).name '\' explist(e).name]);
                     if stat
                         rmdir([explist(e).folder '\' explist(e).name])
+                        fprintf('  ✓ Archived to preCamera_TEST\n');
                     end
                 else
-                   % warning([explist(e).name ' not yet dlcd... skipping'])
+                    fprintf('  ✗ No success.log, skipping\n');
                 end
             end
         end
     end
+    
     if new_data
-        fprintf('waiting for dlc\n')
+        fprintf('\n--- Scan complete ---\n')
         new_data=false;
+    end
+    
+    % TEST MODE: Exit after one run
+    if SINGLE_RUN
+        fprintf('Single run mode - exiting\n');
+        break;
+    else
+        fprintf('waiting for dlc\n')
+        pause(10);  % Wait 10 seconds before next scan
     end
 end
 
+fprintf('\n=== Function complete ===\n');
+
+% [Keep all your subfunction (import_DLC_eye, import_DLC_body, etc.) exactly as they are]
+% Copy them from your original file... 
+
+end
+
 %% FUNCTIONS
+
 function [DLC,VideoFrameTimes] = import_DLC_eye(filename,params)
 
 delimiter = ',';
@@ -378,10 +424,3 @@ fclose(fileID);
 
 scale = [dataArray{1:end-1}];
 end
-
-
-end
-
-
-
-
