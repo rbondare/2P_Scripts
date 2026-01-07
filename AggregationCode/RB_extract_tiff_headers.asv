@@ -1,0 +1,95 @@
+function RB_extract_tiff_headers(animalList, overwrite_intermediate)
+% Base directories
+dataDir   = 'Y:\Group Members\Rima\TEST';
+interBase = 'D:\IntermediateDir\';
+
+% Loop over animals
+for a = 1:numel(animalList)
+    animalName = animalList{a};
+    animalDir  = fullfile(dataDir, animalName);
+
+    % Find all recordings (folders inside animal folder)
+    recordings = dir(animalDir);
+    recordings = recordings([recordings.isdir] & ~ismember({recordings.name},{'.','..'}));
+
+    for r = 1:numel(recordings)
+        recordingName = recordings(r).name;
+        basedir = fullfile(animalDir, recordingName);
+
+        % Prepare intermediate save folder
+        interDir = fullfile(interBase, animalName);
+        if ~exist(interDir,'dir'); mkdir(interDir); end
+        IntermediateFilename = fullfile(interDir, [recordingName '_S2Presult.mat']);
+
+        % Find tif or header.mat files
+        files_tif = dir(fullfile(basedir, '*.tif'));
+        files_hdr = dir(fullfile(basedir, '*_header.mat'));
+        if ~isempty(files_tif)
+            files = files_tif;
+        else
+            files = files_hdr;
+        end
+        numFiles = numel(files);
+
+        % Open writable matfile for output
+        Data = matfile(IntermediateFilename,'Writable',true);
+
+        if ~exist(IntermediateFilename,'file') || overwrite_intermediate
+            Headers = struct();
+            w = waitbar(0, sprintf('Extracting headers: %s/%s', animalName, recordingName));
+
+            for f = 1:numFiles
+                fullname = fullfile(files(f).folder, files(f).name);
+                [~, file_name, ext] = fileparts(fullname);
+
+                % Load or extract header
+                if strcmp(ext,'.tif')
+                    headerFile = fullfile(basedir, [file_name '_header.mat']);
+                    if ~exist(headerFile,'file')
+                        [header,~,ImgInfo] = fast_get_scanimage_header_notMROI(fullname,'slice',1,'volume',1);
+                        save(headerFile,'header','ImgInfo','-v7.3');
+                    else
+                        load(headerFile,'header','ImgInfo');
+                    end
+                else
+                    load(fullname,'header','ImgInfo');
+                end
+
+                % Store in Headers struct
+                Headers(f).ImgInfo = ImgInfo;
+                if ~isempty(header)
+                    FN = fieldnames(header);
+                    for n = 1:numel(FN)
+                        Headers(f).(FN{n}) = header.(FN{n});
+                    end
+                end
+                waitbar(f/numFiles, w)
+            end
+            close(w)
+
+            % Extract SI_Info (first non-empty one)
+            k1 = find(~cellfun(@isempty,{Headers.SI}),1,'first');
+            SI_Info = Headers(k1).SI;
+            SI_Info.Clockstart = datetime(Headers(k1).epoch{1});
+
+            % Check for missing numVolumes & fix frameNumbers if needed
+            if ~isfield(Headers(end).ImgInfo,'numVolumes') && Headers(end).SI.hStackManager.numSlices > 1
+                numS = Headers(end-1).ImgInfo.numSlices + SI_Info.hFastZ.numDiscardFlybackFrames;
+                FN = fieldnames(Headers);
+                last = numel(Headers(end).frameNumbers) - rem(numel(Headers(end).frameNumbers), numS);
+                for n = 3:numel(FN) % skip first two fields (ImgInfo + SI)
+                    try
+                        Headers(end).(FN{n}) = Headers(end).(FN{n})(1:last);
+                    catch
+                        % ignore non-vector fields
+                    end
+                end
+            end
+
+            % Save into Intermediate file
+            Data.Headers = Headers;
+            Data.SI_Info = SI_Info;
+        end
+        fprintf('Headers extracted for %s / %s\\n', animalName, recordingName);
+    end
+end

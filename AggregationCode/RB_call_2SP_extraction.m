@@ -1,4 +1,5 @@
 % Setup paths
+addpath('C:\Users\rbondare\2P_scripts\');
 addpath('Z:\Group Members\Rima\Stimulus'); 
 addpath('C:\Users\rbondare\2P_scripts\MouseBrainActivity-main\2p Pre-processing');
 
