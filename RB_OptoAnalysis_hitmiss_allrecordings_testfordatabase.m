@@ -31,19 +31,19 @@ INCLUDED_SESSIONS = {
  %   'AnimalRB12_1118_1220_baseline';
  %   'AnimalRB12_1119_1428_opto' % used smaller square here 10 mW
 
-%     'AnimalRB15_1030_1558_opto';
-%     'AnimalRB15_1103_1413_opto';
-%     'AnimalRB15_1104_1235_baseline';
-%     'AnimalRB15_1105_1307_opto';
-%     'AnimalRB15_1106_1329_opto';
+    'AnimalRB15_1030_1558_opto';
+    'AnimalRB15_1103_1413_opto';
+    'AnimalRB15_1104_1235_baseline';
+    'AnimalRB15_1105_1307_opto';
+    'AnimalRB15_1106_1329_opto';
     'AnimalRB15_1107_0848_baseline'; 
     'AnimalRB15_1111_1355_baseline';
-     'AnimalRB15_1112_1409_opto'; % 10 mW
-     'AnimalRB15_1113_1256_opto'; % to use this trial need to use only up trial 100 (afterwards motor stopped working) 10 mW
-     'AnimalRB15_1114_1359_opto'; % 5 mW
-     'AnimalRB15_1117_1721_opto'; % here opto happens at different time (-0.5s) 10 mW
-     'AnimalRB15_1118_1349_baseline'
- 
+%      'AnimalRB15_1112_1409_opto'; % 10 mW
+%      'AnimalRB15_1113_1256_opto'; % to use this trial need to use only up trial 100 (afterwards motor stopped working) 10 mW
+%      'AnimalRB15_1114_1359_opto'; % 5 mW
+%      'AnimalRB15_1117_1721_opto'; % here opto happens at different time (-0.5s) 10 mW
+%      'AnimalRB15_1118_1349_baseline'
+%  
  };
 
 
