@@ -1,3 +1,5 @@
+%% this function extracts headers from TIF files on scanimage computer (2P computer)
+
 function RB_extract_tiff_headers(recordingList, overwrite_intermediate)
 
 dataDir   = 'Z:\Group Members\Rima\TEST\';
