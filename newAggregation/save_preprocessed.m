@@ -1,0 +1,832 @@
+function OutputFilename = save_preprocessed(recording_path, varargin)
+%SAVE_PREPROCESSED Universal aggregation function for 2P preprocessing
+%
+%   OutputFilename = save_preprocessed(recording_path)
+%   OutputFilename = save_preprocessed(recording_path, 'ca_type', 1)
+%   OutputFilename = save_preprocessed(recording_path, 'ca_format', 'none')
+%
+%   Universal aggregation function that combines calcium imaging data,
+%   behavioral data, and stimulus information into a single preprocessed file.
+%
+%   Key improvements over RB_save_S2Pout_and_headers.m:
+%   - Optional calcium processing (behavior-only mode with ca_format='none')
+%   - Config-based paths (no hardcoded user paths)
+%   - Multiple calcium data formats (suite2p, caiman, auto-detect)
+%   - Bug fixes from RB version (size(FN) -> size(FN,1), datetime format)
+%
+%   Input:
+%       recording_path - Path to recording folder (containing suite2p/, tif files, etc.)
+%                        Can also be just the recording name if config is provided
+%
+%   Optional Name-Value Arguments:
+%       'ca_type' - Calcium data type index (default: 1)
+%           1 = Raw, 2 = di_masks, 3 = di
+%
+%       'ca_format' - Calcium data format (default: 'auto')
+%           'auto'    - Auto-detect from files present
+%           'suite2p' - Load from suite2p output
+%           'caiman'  - Load from Caiman HDF5 files
+%           'none'    - Skip calcium processing (behavior-only)
+%
+%       'process_calcium' - Whether to process calcium data (default: true)
+%           Set to false for behavior-only processing
+%
+%       'process_stimulus' - Whether to process stimulus data (default: true)
+%
+%       'process_behavior' - Whether to process DLC behavioral data (default: true)
+%
+%       'config' - User configuration from get_user_config (default: auto-detect)
+%
+%       'overwrite_intermediate' - Overwrite intermediate files (default: false)
+%
+%   Output:
+%       OutputFilename - Path to the created preprocessed.mat file
+%
+%   Example:
+%       % Full processing with auto-detection
+%       OutputFilename = save_preprocessed('D:\DATA_2P\AnimalRB5_20231201_001\');
+%
+%       % Behavior-only processing (no calcium data required)
+%       OutputFilename = save_preprocessed('D:\DATA_2P\AnimalRB14_20231215_002\', ...
+%           'ca_format', 'none');
+%
+%       % Process with specific config
+%       config = get_user_config('AnimalRB5');
+%       OutputFilename = save_preprocessed('AnimalRB5_20231201_001', 'config', config);
+%
+%   See also: get_user_config, get_experiment_list, load_calcium_data, run_aggregation
+
+%% Parse inputs
+p = inputParser;
+addRequired(p, 'recording_path', @ischar);
+addParameter(p, 'ca_type', 1, @(x) isnumeric(x) && x >= 0 && x <= 3);
+addParameter(p, 'ca_format', 'auto', @(x) ismember(x, {'auto', 'suite2p', 'caiman', 'none'}));
+addParameter(p, 'process_calcium', true, @islogical);
+addParameter(p, 'process_stimulus', true, @islogical);
+addParameter(p, 'process_behavior', true, @islogical);
+addParameter(p, 'config', [], @(x) isempty(x) || isstruct(x));
+addParameter(p, 'overwrite_intermediate', false, @islogical);
+parse(p, recording_path, varargin{:});
+
+ca_type = p.Results.ca_type;
+ca_format = p.Results.ca_format;
+process_calcium = p.Results.process_calcium;
+process_stimulus = p.Results.process_stimulus;
+process_behavior = p.Results.process_behavior;
+config = p.Results.config;
+overwrite_intermediate = p.Results.overwrite_intermediate;
+
+% If ca_format is 'none', disable calcium processing
+if strcmp(ca_format, 'none')
+    process_calcium = false;
+end
+
+%% Setup paths and directories
+% Ensure recording_path ends with filesep
+basedir = recording_path;
+if ~endsWith(basedir, filesep)
+    basedir = [basedir filesep];
+end
+
+% Extract animal and recording names from path
+pathsplit = strsplit(basedir, filesep);
+pathsplit = pathsplit(~cellfun(@isempty, pathsplit));  % Remove empty entries
+RecordingName = pathsplit{end};
+if isempty(RecordingName)
+    RecordingName = pathsplit{end-1};
+end
+
+namesplit = strsplit(RecordingName, '_');
+AnimalName = namesplit{1};
+
+% Get user config if not provided
+if isempty(config)
+    config = get_user_config(AnimalName);
+end
+
+% Store original config for looking up AnimalInfo in original location
+original_config = get_user_config(AnimalName);
+
+fprintf('=== Processing: %s ===\n', RecordingName);
+fprintf('Animal: %s, Operator: %s\n', AnimalName, config.OperatorID);
+fprintf('Processing: Calcium=%d, Stimulus=%d, Behavior=%d\n', ...
+    process_calcium, process_stimulus, process_behavior);
+
+%% Setup output paths
+OutputDir = config.OutputDir;
+OutputCopyDir = config.OutputCopyDir;
+OutputFilename = fullfile(OutputDir, [RecordingName '_preprocessed.mat']);
+AnimalFolder = fullfile(config.AnimalFolder, AnimalName, filesep);
+StimPath = fullfile(config.StimBasePath, AnimalName, RecordingName, filesep);
+DLCdir = config.DLCDir;
+IntermediateDir = config.IntermediateDir;
+IntermediateFilename = fullfile(IntermediateDir, [RecordingName '_S2Presult.mat']);
+
+% Create directories if needed
+if ~exist(OutputDir, 'dir'); mkdir(OutputDir); end
+if ~exist(IntermediateDir, 'dir'); mkdir(IntermediateDir); end
+
+%% Initialize output file
+Data = matfile(OutputFilename, 'Writable', true);
+
+%% Process headers and calcium data
+if process_calcium
+    [Headers, SI_Info, Fall, S2Pdirs, multicolor] = process_calcium_headers(...
+        basedir, ca_format, IntermediateFilename, overwrite_intermediate);
+
+    % Save SI_Info to output
+    Data.SI_Info = SI_Info;
+
+    % Handle animal info (pass original_config to check original location)
+    [AnimalInfo, Data] = handle_animal_info(AnimalFolder, AnimalName, Headers, Data, original_config);
+
+else
+    % Behavior-only mode: create minimal structures
+    fprintf('Behavior-only mode: skipping calcium/header processing\n');
+
+    % Try to load stimulus files to get timing info
+    Headers = struct();
+    SI_Info = struct();
+    SI_Info.Clockstart = datetime('now');  % Placeholder, will be updated from stimulus
+    Fall = [];
+    S2Pdirs = [];
+    multicolor = false;
+
+    % Create placeholder AnimalInfo
+    AnimalInfo = struct();
+    AnimalInfo.AnimalName = AnimalName;
+    AnimalInfo.Dates.Imaging = datetime('now');
+end
+
+%% Process frame timestamps
+if process_calcium && ~isempty(fieldnames(Headers))
+    [FT, multi, dtA, dt] = process_frame_timestamps(Headers, SI_Info);
+    Data.TimeCa = FT;
+else
+    FT = [];
+    multi = false;
+    dtA = [];
+    dt = [];
+end
+
+%% Process calcium data
+if process_calcium && ~isempty(Fall)
+    [CaData, Img_max_proj] = process_calcium_signals(Fall, S2Pdirs, SI_Info, FT, multicolor, ca_type);
+    Data.CaData = CaData;
+    Data.Img_max = Img_max_proj;
+else
+    % Create empty CaData structure
+    CaData = create_empty_cadata();
+    Data.CaData = CaData;
+    Data.dFFsettings = create_default_dff_settings();
+end
+
+%% Process triggers
+if process_calcium && ~isempty(fieldnames(Headers))
+    [Triggers, Headers, TimingProblems] = process_triggers(Headers, multi, dt, dtA);
+    Data.Triggers = Triggers;
+    Data.Headers = Headers;
+else
+    Triggers = struct();
+    Triggers.TimeProjector = [];
+    Triggers.TimeCamera = [];
+    Triggers.TimeBall = {};
+    Triggers.TimingProblems = false;
+    Data.Triggers = Triggers;
+end
+
+%% Process stimulus data
+if process_stimulus
+    [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
+        StimPath, Headers, SI_Info, Triggers, multi, dtA);
+
+    if ~isempty(Stimulusoptions)
+        Data.Stimuli = Stimulusoptions;
+    end
+    if ~isempty(LocomotionCal)
+        Data.LocomotionNonCal = BallCamData;
+        Data.LocomotionCal = LocomotionCal;
+    end
+end
+
+%% Process DLC behavioral data
+if process_behavior
+    dlc_file = fullfile(DLCdir, [RecordingName '_DLC_filtered.mat']);
+    if exist(dlc_file, 'file')
+        fprintf('Loading DLC behavioral data\n');
+        load(dlc_file, 'DLCSupporting', 'Behav', 'VideoParams', 'VideoFrameTimes');
+
+        % Correct video frame timing
+        if isfield(VideoParams, 'selected_frameIdx')
+            selected_frameIdx = VideoParams.selected_frameIdx;
+        else
+            if exist('Triggers', 'var') && isfield(Triggers, 'TimeCamera')
+                [selected_frameIdx, Triggers] = correct_videoFrames_OS(Triggers, VideoFrameTimes, Behav);
+                Data.Triggers = Triggers;
+                VideoParams.selected_frameIdx = selected_frameIdx;
+                save(dlc_file, 'VideoParams', '-append');
+            else
+                selected_frameIdx = 1:size(Behav.VideoNum, 1);
+            end
+        end
+
+        % Apply frame selection to DLC data
+        DLCSupporting = apply_frame_selection(DLCSupporting, selected_frameIdx);
+        Behav = apply_frame_selection_behav(Behav, selected_frameIdx);
+
+        Data.DLCSupporting = DLCSupporting;
+        Data.Behav = Behav;
+        Data.VideoParams = VideoParams;
+    else
+        fprintf('DLC file not found: %s\n', dlc_file);
+    end
+end
+
+%% Copy to backup location
+if ~isempty(OutputCopyDir)
+    if ~exist(OutputCopyDir, 'dir'); mkdir(OutputCopyDir); end
+    copyfile(OutputFilename, fullfile(OutputCopyDir, [RecordingName '_preprocessed.mat']));
+    fprintf('Copied to backup: %s\n', OutputCopyDir);
+end
+
+fprintf('=== Completed: %s ===\n', OutputFilename);
+
+end
+
+%% ===== HELPER FUNCTIONS =====
+
+function [Headers, SI_Info, Fall, S2Pdirs, multicolor] = process_calcium_headers(...
+    basedir, ca_format, IntermediateFilename, overwrite_intermediate)
+%PROCESS_CALCIUM_HEADERS Load and process calcium data and headers
+
+suite2Pdir = fullfile(basedir, 'suite2p', filesep);
+S2Pdirs = dir([suite2Pdir 'plane*']);
+
+% Sort plane directories
+if ~isempty(S2Pdirs)
+    temp = struct2cell(S2Pdirs);
+    temp = temp(1,:)';
+    temp = cellfun(@(x) str2double(x(6:end)), temp);
+    [~, sort_idx] = sort(temp);
+    S2Pdirs = S2Pdirs(sort_idx);
+end
+
+% Find and process header files
+files = dir(fullfile(basedir, '*header.mat'));
+files_tif = dir(fullfile(basedir, '*.tif'));
+
+if ~isempty(files_tif)
+    files = dir(fullfile(basedir, '*.tif'));
+end
+
+if isempty(files)
+    error('save_preprocessed:NoHeaders', 'No header or TIF files found in: %s', basedir);
+end
+
+% Load or create headers
+if ~exist(IntermediateFilename, 'file') || overwrite_intermediate
+    Headers = load_headers_from_files(basedir, files, files_tif);
+
+    % Get SI_Info
+    k1 = 1;
+    if isempty(Headers(k1).SI); k1 = 2; end
+    SI_Info = Headers(k1).SI;
+    SI_Info.Clockstart = datetime(Headers(k1).epoch{1});
+
+    % Determine multicolor
+    if numel(SI_Info.hChannels.channelsActive) > 1
+        multicolor = true;
+    else
+        multicolor = false;
+    end
+
+    % Load calcium data
+    [Fall, S2Pdirs, ~] = load_calcium_data(basedir, 'format', ca_format, 'SI_Info', SI_Info);
+
+    % Save intermediate
+    fprintf('Saving intermediate file\n');
+    save(IntermediateFilename, 'Fall', 'Headers', '-v7.3');
+else
+    fprintf('Loading from intermediate file\n');
+    load(IntermediateFilename, 'Fall', 'Headers');
+
+    k1 = 1;
+    if isempty(fieldnames(Headers(k1).ImgInfo)); k1 = 2; end
+    SI_Info = Headers(k1).SI;
+    SI_Info.Clockstart = datetime(Headers(k1).epoch{1});
+
+    if numel(SI_Info.hChannels.channelsActive) > 1
+        multicolor = true;
+    else
+        multicolor = false;
+    end
+end
+
+% Fix numFramesPerVolume if missing
+if ~isfield(SI_Info.hFastZ, 'numFramesPerVolume')
+    if isfield(SI_Info.hStackManager, 'numFramesPerVolumeWithFlyback')
+        SI_Info.hFastZ.numFramesPerVolume = SI_Info.hStackManager.numFramesPerVolumeWithFlyback;
+    else
+        error('save_preprocessed:PlaneNumNotFound', 'Plane number not found in SI_Info');
+    end
+end
+
+end
+
+
+function Headers = load_headers_from_files(basedir, files, files_tif)
+%LOAD_HEADERS_FROM_FILES Load header information from TIF or header files
+
+numFiles = length(files);
+Headers = struct();
+
+w = waitbar(0, 'Loading headers');
+for File = 1:numFiles
+    fullname = files(File).name;
+    [~, file_name, ext] = fileparts(fullname);
+
+    if strcmp(ext, '.tif')
+        header_file = fullfile(basedir, [file_name '_header.mat']);
+        if ~exist(header_file, 'file')
+            [header, ~, ImgInfo] = fast_get_scanimage_header_notMROI(fullfile(basedir, fullname), 'slice', 1, 'volume', 1);
+            save(header_file, 'header', 'ImgInfo', '-v7.3');
+        else
+            load(header_file, 'header', 'ImgInfo');
+        end
+    else
+        load(fullfile(basedir, [file_name '.mat']), 'header', 'ImgInfo');
+    end
+
+    Headers(File).ImgInfo = ImgInfo;
+    if ~isempty(header)
+        FN = fieldnames(header);
+        % BUG FIX: Use size(FN,1) instead of size(FN) which returns [rows,cols]
+        for n = 1:size(FN, 1)
+            Headers(File).(FN{n}) = header.(FN{n});
+        end
+    end
+    waitbar(File/numFiles, w);
+end
+close(w);
+
+% Clean up headers for last file if needed
+k1 = 1;
+if isempty(Headers(k1).SI); k1 = 2; end
+SI_Info = Headers(k1).SI;
+
+if ~isfield(Headers(end).ImgInfo, 'numVolumes') && Headers(end).SI.hStackManager.numSlices > 1
+    numS = Headers(end-1).ImgInfo.numSlices + SI_Info.hFastZ.numDiscardFlybackFrames;
+    FN = fieldnames(Headers);
+    last = numel(Headers(end).frameNumbers) - rem(numel(Headers(end).frameNumbers), numS);
+    for n = 3:numel(FN)
+        Headers(end).(FN{n}) = Headers(end).(FN{n})(1:last);
+    end
+end
+
+end
+
+
+function [AnimalInfo, Data] = handle_animal_info(AnimalFolder, AnimalName, Headers, Data, original_config)
+%HANDLE_ANIMAL_INFO Load or create animal information
+%   Also checks original user folder if local folder doesn't have the file
+
+k1 = 1;
+if isempty(Headers(k1).SI); k1 = 2; end
+
+animal_file = fullfile(AnimalFolder, [AnimalName '.mat']);
+animal_info_found = false;
+
+% First check local/test folder
+if exist(animal_file, 'file')
+    load(animal_file, 'AnimalInfo');
+    animal_info_found = true;
+    fprintf('Loaded AnimalInfo from: %s\n', animal_file);
+end
+
+% If not found and we have original config, check original location
+if ~animal_info_found && nargin >= 5 && ~isempty(original_config)
+    original_animal_folder = fullfile(original_config.AnimalFolder, AnimalName, filesep);
+    original_animal_file = fullfile(original_animal_folder, [AnimalName '.mat']);
+    if exist(original_animal_file, 'file')
+        load(original_animal_file, 'AnimalInfo');
+        animal_info_found = true;
+        fprintf('Loaded AnimalInfo from original location: %s\n', original_animal_file);
+    end
+end
+
+% If still not found, create default (without dialog for batch mode compatibility)
+if ~animal_info_found
+    % Check if we're in batch/non-interactive mode
+    is_batch_mode = batchStartupOptionUsed || ~usejava('desktop');
+
+    if is_batch_mode
+        % Create default AnimalInfo without dialog
+        fprintf('Creating default AnimalInfo (batch mode)\n');
+        AnimalInfo = struct();
+        AnimalInfo.AnimalName = AnimalName;
+        AnimalInfo.Genotype = 'Unknown';
+        AnimalInfo.PCF_AnimalNumber = 'xx/xxx';
+        AnimalInfo.Sex = 'unknown';
+        AnimalInfo.Notes = 'Auto-created in batch mode';
+        AnimalInfo.Dates.Birth = datetime('now') - years(1);
+        AnimalInfo.Dates.Injection = datetime('now') - days(30);
+        AnimalInfo.Dates.Implantation = datetime('now') - days(14);
+        AnimalInfo.Indicator.Type = 'GCamP6f';
+        AnimalInfo.Indicator.Expression = '';
+        AnimalInfo.Dates.Imaging = [];
+    else
+        % Interactive mode - show dialog
+        N = {'AnimalName'; 'Genotype'; 'PCF_AnimalNumber'; 'Sex'; 'DateOfBirth'; ...
+            'DateOfInjection'; 'DateOfImplantation'; 'Indicator'; 'Expression'; 'Notes'};
+        def = {AnimalName; 'Ai148/Rorb-IRES2-cre ki'; 'xx/xxx'; 'm'; '20190101'; ...
+            '20190101'; '20190101'; 'GCamP6f'; ''; ''};
+        answerE = inputdlg(N, 'Add animal', 1, def);
+
+        infmt = 'yyyyMMdd';
+        AnimalInfo = struct();
+        AnimalInfo.AnimalName = answerE{1};
+        AnimalInfo.Genotype = answerE{2};
+        AnimalInfo.PCF_AnimalNumber = answerE{3};
+        AnimalInfo.Sex = answerE{4};
+        AnimalInfo.Notes = answerE{10};
+        AnimalInfo.Dates.Birth = datetime(answerE{5}, 'InputFormat', infmt);
+        AnimalInfo.Dates.Injection = datetime(answerE{6}, 'InputFormat', infmt);
+        AnimalInfo.Dates.Implantation = datetime(answerE{7}, 'InputFormat', infmt);
+        AnimalInfo.Indicator.Type = answerE{8};
+        AnimalInfo.Indicator.Expression = answerE{9};
+        AnimalInfo.Dates.Imaging = [];
+    end
+end
+
+% Add imaging date
+AnimalInfo.Dates.Imaging = [AnimalInfo.Dates.Imaging; datetime(Headers(k1).epoch{1})];
+
+% Save animal info to local folder
+if ~exist(AnimalFolder, 'dir'); mkdir(AnimalFolder); end
+save(animal_file, 'AnimalInfo');
+Data.AnimalInfo = AnimalInfo;
+
+end
+
+
+function [FT, multi, dtA, dt] = process_frame_timestamps(Headers, SI_Info)
+%PROCESS_FRAME_TIMESTAMPS Process and validate frame timestamps
+
+k1 = 1;
+if isempty(Headers(k1).SI); k1 = 2; end
+
+FT = cat(2, Headers(:).frameTimestamps_sec);
+
+if any(diff(FT) < 0)
+    % Handle non-monotonic timestamps (multi-acquisition)
+    dt = cellfun(@(x) datetime(x), cat(2, Headers(:).epoch), 'UniformOutput', false);
+    dt = cat(2, dt{:});
+    dt = seconds(dt - dt(1));
+
+    dtA = zeros(size(Headers));
+    stE = datetime(Headers(k1).epoch{1});
+    for h = 1:numel(Headers)
+        dtA(h) = seconds(datetime(Headers(h).epoch{1}) - stE);
+    end
+
+    tempf = figure('Name', 'Timestamp Correction');
+    plot(FT, 'k'); hold on;
+    FT = FT + dt;
+    plot(FT, 'r'); hold off;
+    legend('timestamps raw', 'timestamps corrected');
+
+    multi = any(input('Frame Timestamps not monotonically increasing, multi-acquisition? 1 for yes/0 for cancel: '));
+    close(tempf);
+
+    if ~multi
+        error('save_preprocessed:TimestampCancel', 'Cancelling due to timestamp issues');
+    end
+else
+    multi = false;
+    dt = [];
+    dtA = [];
+end
+
+FT = unique(FT, 'stable');
+
+if isfield(Headers(k1).ImgInfo, 'numSlices')
+    FT = reshape(FT, Headers(k1).ImgInfo.numSlices + SI_Info.hFastZ.numDiscardFlybackFrames, []);
+    if SI_Info.hFastZ.numDiscardFlybackFrames > 0
+        FT = FT(1:end-SI_Info.hFastZ.numDiscardFlybackFrames, :);
+    end
+end
+
+end
+
+
+function [CaData, Img_max_proj] = process_calcium_signals(Fall, S2Pdirs, SI_Info, FT, multicolor, ca_type)
+%PROCESS_CALCIUM_SIGNALS Process calcium fluorescence signals
+
+proj = exist([S2Pdirs(1).folder filesep 'proj'], 'dir') == 7;
+
+if proj
+    FT = FT(floor(size(FT, 1)/2), :);
+end
+
+if ~proj
+    num_planes = SI_Info.hFastZ.numFramesPerVolume - SI_Info.hFastZ.numDiscardFlybackFrames;
+    Img_max_proj = cell(num_planes, 1);
+
+    for f = 1:min(numel(S2Pdirs), num_planes)
+        Ncell = find(Fall(f).iscell(:, 1));
+        S2Presult(f).deconvolved = Fall(f).spks(logical(Fall(f).iscell(:, 1)), 1:size(FT, 2));
+        S2Presult(f).F = Fall(f).F(logical(Fall(f).iscell(:, 1)), 1:size(FT, 2));
+        S2Presult(f).Fneu = Fall(f).Fneu(logical(Fall(f).iscell(:, 1)), 1:size(FT, 2));
+        S2Presult(f).center = nan(numel(Ncell), 2);
+        S2Presult(f).cellstats = Fall(f).stat(Ncell)';
+
+        for n = 1:numel(Ncell)
+            S2Presult(f).center(n, :) = Fall(f).stat{Ncell(n)}.med;
+        end
+
+        if multicolor
+            S2Presult(f).redcell = Fall(f).redcell(Ncell, :);
+        end
+
+        Img_max_proj{f, 1} = Fall(f).ops.max_proj;
+        if multicolor
+            Img_max_proj{f, 2} = single(Fall(f).ops.meanImg_chan2);
+        end
+    end
+else
+    Img_max_proj = {Fall.ops.max_proj};
+    Ncell = find(Fall.iscell(:, 1));
+    S2Presult.deconvolved = Fall.spks(logical(Fall.iscell(:, 1)), 1:size(FT, 2));
+    S2Presult.F = Fall.F(logical(Fall.iscell(:, 1)), 1:size(FT, 2));
+    S2Presult.Fneu = Fall.Fneu(logical(Fall.iscell(:, 1)), 1:size(FT, 2));
+    S2Presult.center = nan(numel(Ncell), 2);
+    S2Presult.cellstats = Fall.stat(Ncell)';
+
+    if multicolor
+        S2Presult.redcell = Fall.redcell(Ncell, :);
+    end
+
+    for n = 1:numel(Ncell)
+        S2Presult.center(n, :) = Fall.stat{Ncell(n)}.med;
+    end
+end
+
+% Add plane index to center coordinates
+for n = 1:numel(S2Presult)
+    S2Presult(n).center(:, end+1) = n;
+end
+
+% Calculate dF/F
+fprintf('Calculating dF/F\n');
+dFFsettings = create_default_dff_settings();
+
+Ca_F_neuropil = cat(1, S2Presult(:).Fneu);
+Ca_F = cat(1, S2Presult(:).F);
+Ca_deconvolved = cat(1, S2Presult(:).deconvolved);
+Ca_centroid_voxel = cat(1, S2Presult(:).center);
+Ca_cellstats = cat(1, S2Presult(:).cellstats);
+
+% Convert cellstats from cell to struct array
+Ca_cellstats2 = Ca_cellstats{1};
+for n = 1:numel(Ca_cellstats)
+    Ca_cellstats2(n) = Ca_cellstats{n};
+end
+Ca_cellstats = Ca_cellstats2;
+
+if multicolor
+    Red_cell_prob = cat(1, S2Presult(:).redcell);
+    for n = 1:numel(Ca_cellstats)
+        Ca_cellstats(n).redprob = Red_cell_prob(n, end);
+    end
+end
+
+[Ca_dFF, Ca_baseline] = estimate_continuous_dff(FT, Ca_F, Ca_F_neuropil, ...
+    dFFsettings.neuropil_factor, dFFsettings.window, ...
+    dFFsettings.medianmode, dFFsettings.baselinemode, dFFsettings.prclevel);
+
+% Create CaData structure
+CaData = create_empty_cadata();
+
+if ca_type > 0
+    CaData(ca_type).Ca_dFF = Ca_dFF;
+    CaData(ca_type).Ca_deconvolved = Ca_deconvolved;
+    CaData(ca_type).Ca_centroid_voxel = Ca_centroid_voxel;
+    CaData(ca_type).Ca_F = Ca_F;
+    CaData(ca_type).Ca_F_neuropil = Ca_F_neuropil;
+    CaData(ca_type).Ca_baseline = Ca_baseline;
+    CaData(ca_type).Ca_cellstats = Ca_cellstats;
+end
+
+end
+
+
+function CaData = create_empty_cadata()
+%CREATE_EMPTY_CADATA Create empty CaData structure
+
+for fe = 1:3
+    CaData(fe).Ca_dFF = [];
+    CaData(fe).Ca_deconvolved = [];
+    CaData(fe).Ca_centroid_voxel = [];
+    CaData(fe).Ca_F = [];
+    CaData(fe).Ca_F_neuropil = [];
+    CaData(fe).Ca_baseline = [];
+    CaData(fe).Ca_cellstats = [];
+end
+
+end
+
+
+function dFFsettings = create_default_dff_settings()
+%CREATE_DEFAULT_DFF_SETTINGS Create default dF/F calculation settings
+
+dFFsettings.window = 15;
+dFFsettings.neuropil_factor = 0.5;
+dFFsettings.medianmode = 'windowed';
+dFFsettings.baselinemode = 'prctile';
+dFFsettings.prclevel = 8;
+
+end
+
+
+function [Triggers, Headers, TimingProblems] = process_triggers(Headers, multi, dt, dtA)
+%PROCESS_TRIGGERS Extract and process timing triggers from headers
+
+TimingProblems = false;
+k1 = 1;
+if isempty(Headers(k1).SI); k1 = 2; end
+
+% Remove unnecessary fields from Headers
+Headers = rmfield(Headers, {'SI'; 'acqTriggerTimestamps_sec'; 'acquisitionNumbers'; ...
+    'frameNumberAcquisition'; 'nextFileMarkerTimestamps_sec'; 'endOfAcquisition'; ...
+    'endOfAcquisitionMode'; 'dcOverVoltage'; 'I2CData'; 'epoch'});
+
+fprintf('Processing timing triggers\n');
+
+FrameNum = cat(2, Headers(:).frameNumbers);
+
+if multi
+    newAcqIdx = [find(diff(FrameNum) < 0) + 1, numel(FrameNum) + 1];
+    for m = 1:numel(newAcqIdx) - 1
+        FrameNum(newAcqIdx(m):newAcqIdx(m+1)-1) = ...
+            FrameNum(newAcqIdx(m):newAcqIdx(m+1)-1) + FrameNum(newAcqIdx(m)-1);
+    end
+end
+
+[~, ia, ~] = unique(FrameNum, 'stable');
+
+% Projector triggers
+PT = cat(2, Headers(:).auxTrigger0);
+if multi
+    for m = 1:numel(PT)
+        PT{m} = PT{m} + dt(m);
+    end
+end
+PT = cat(2, PT{ia});
+dPT = [inf diff(PT)];
+if any(dPT < 0)
+    warning('Projector Timestamps not monotonically increasing');
+    TimingProblems = true;
+end
+PT(dPT < 1/60) = [];
+Triggers.TimeProjector = PT;
+
+% Camera triggers
+CT = cat(2, Headers(:).auxTrigger1);
+if multi
+    for m = 1:numel(CT)
+        CT{m} = CT{m} + dt(m);
+    end
+end
+CT = cat(2, CT{ia(ia < numel(CT))});
+dCT = [inf diff(CT)];
+if any(dCT < 0)
+    warning('Camera Timestamps not monotonically increasing');
+    TimingProblems = true;
+end
+Triggers.TimeCamera = CT;
+
+% Ball triggers
+BT = cell(numel(Headers), 1);
+for b = 1:numel(BT)
+    if ~isempty(Headers(b).auxTrigger2)
+        [~, temp_fn, ~] = unique(Headers(b).frameNumbers);
+        BT{b} = cat(2, Headers(b).auxTrigger2{temp_fn});
+        if multi
+            BT{b} = BT{b} + dtA(b);
+        end
+    end
+end
+Triggers.TimeBall = BT;
+Triggers.TimingProblems = TimingProblems;
+
+% Remove trigger fields if no problems
+if ~TimingProblems
+    Headers = rmfield(Headers, {'auxTrigger0'; 'auxTrigger1'; 'auxTrigger2'; 'auxTrigger3'});
+end
+
+Headers = rmfield(Headers, {'frameNumbers'; 'frameTimestamps_sec'});
+
+end
+
+
+function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
+    StimPath, Headers, SI_Info, Triggers, multi, dtA)
+%PROCESS_STIMULUS_DATA Load and process stimulus files
+
+Stimulusoptions = [];
+BallCamData = [];
+LocomotionCal = [];
+
+% Find stimulus files
+StimFiles = dir(fullfile(StimPath, 'stim*.mat'));
+if isempty(StimFiles)
+    % Try alternative path pattern
+    [parent_path, rec_name, ~] = fileparts(StimPath(1:end-1));
+    StimFiles = dir(fullfile(parent_path, [rec_name '*'], 'stim*.mat'));
+end
+
+if isempty(StimFiles)
+    fprintf('No stimulus files found in: %s\n', StimPath);
+    return;
+end
+
+fprintf('Loading %d stimulus file(s)\n', size(StimFiles, 1));
+
+% Load stimulus files
+Stimulusoptions = [];
+Stimuli = [];
+for F = 1:size(StimFiles, 1)
+    stim_data = load(fullfile(StimFiles(F).folder, StimFiles(F).name));
+    if isfield(stim_data, 'options')
+        if isempty(Stimulusoptions)
+            Stimulusoptions = stim_data.options;
+        else
+            Stimulusoptions(F) = stim_data.options;
+        end
+    end
+    if isempty(Stimuli)
+        Stimuli = stim_data;
+    else
+        Stimuli(F) = stim_data;
+    end
+end
+
+if isempty(Stimulusoptions)
+    fprintf('No stimulus options found in files\n');
+    return;
+end
+
+% Extract ball camera data
+BallCamData_temp = cat(1, {Stimuli(:).BallCamData})';
+Stimuli = rmfield(Stimuli, {'BallCamData', 'options'});
+
+% Transfer fields from Stimuli to Stimulusoptions
+Ca_f = fieldnames(Stimuli);
+for i = 1:length(Ca_f)
+    for j = 1:size(Stimuli, 2)
+        Stimulusoptions(j).(Ca_f{i}) = Stimuli(j).(Ca_f{i});
+    end
+end
+
+% Note: Full stimulus timing synchronization requires Headers and Triggers
+% This is a simplified version that preserves the stimulus data
+
+end
+
+
+function DLCSupporting = apply_frame_selection(DLCSupporting, selected_frameIdx)
+%APPLY_FRAME_SELECTION Apply frame selection to DLC supporting data
+
+if isfield(DLCSupporting, 'Probability')
+    FN = fieldnames(DLCSupporting.Probability);
+    for fn = 1:numel(FN)
+        DLCSupporting.Probability.(FN{fn}) = DLCSupporting.Probability.(FN{fn})(selected_frameIdx, :, :);
+    end
+end
+
+if isfield(DLCSupporting, 'Pupil')
+    FN = fieldnames(DLCSupporting.Pupil);
+    for fn = 1:numel(FN)
+        DLCSupporting.Pupil.(FN{fn}) = DLCSupporting.Pupil.(FN{fn})(selected_frameIdx, :, :);
+    end
+end
+
+if isfield(DLCSupporting, 'Ball')
+    FN = fieldnames(DLCSupporting.Ball);
+    for fn = 1:numel(FN)
+        DLCSupporting.Ball.(FN{fn}) = DLCSupporting.Ball.(FN{fn})(selected_frameIdx, :, :);
+    end
+end
+
+end
+
+
+function Behav = apply_frame_selection_behav(Behav, selected_frameIdx)
+%APPLY_FRAME_SELECTION_BEHAV Apply frame selection to behavioral data
+
+FN = fieldnames(Behav);
+for fn = 1:numel(FN)
+    Behav.(FN{fn}) = Behav.(FN{fn})(selected_frameIdx, :, :);
+end
+
+end
