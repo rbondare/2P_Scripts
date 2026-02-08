@@ -74,8 +74,10 @@ switch operator_id
         % Rima Bondarenko paths
         config.AnimalFolder = 'Z:\Group Members\Rima\Animals\';
         config.OutputDir = 'Z:\Group Members\Rima\Aggregated\';
-        config.OutputCopyDir = 'C:\Users\rbondare\Aggregated\';
-        config.StimBasePath = 'Z:\Group Members\Rima\Stimulus\';
+       % config.OutputCopyDir = 'C:\Users\rbondare\Aggregated\';
+        config.OutputCopyDir = ''; % for testing leaving empty
+       %config.StimBasePath = 'Z:\Group Members\Rima\Stimulus\';
+        config.StimBasePath = 'C:\Users\rbondare\Stimulus_test';
         config.DLCDir = 'Z:\Group Members\Rima\DLCData\';
         config.IntermediateDir = 'C:\Users\rbondare\IntermediateDir\';
         config.CameraDir = 'Z:\Group Members\Rima\Camera_OTHER\';

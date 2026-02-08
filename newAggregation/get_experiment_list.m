@@ -109,7 +109,7 @@ end
 % Get base directory based on source
 if isempty(config)
     % Use default FS config to get base paths
-    config = get_user_config('AnimalFS0');
+    config = get_user_config('AnimalRB0');
 end
 
 switch source

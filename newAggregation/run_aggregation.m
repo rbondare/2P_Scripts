@@ -17,7 +17,7 @@
 
 % --- Experiment Discovery ---
 % 'source' options: 'stimulus', 'calcium', 'camera', 'manual'
-config_source = 'stimulus';          % Where to look for experiments
+config_source = 'manual';          % Where to look for experiments
 
 % --- Manual Recording Specification ---
 % Only used when config_source = 'manual'
@@ -25,7 +25,7 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 
 % --- Animal Filtering ---
 % Leave empty {} to process all animals found
-config_animals = {};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+config_animals = {'AnimalRB5'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = false;      % false = allow behavior-only processing
