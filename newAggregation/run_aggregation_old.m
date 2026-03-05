@@ -17,7 +17,7 @@
 
 % --- Experiment Discovery ---
 % 'source' options: 'stimulus', 'calcium', 'camera', 'manual'
-config_source = 'manual';          % Where to look for experiments
+config_source = 'stimulus';          % Where to look for experiments
 
 % --- Manual Recording Specification ---
 % Only used when config_source = 'manual'
@@ -25,7 +25,7 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 
 % --- Animal Filtering ---
 % Leave empty {} to process all animals found
-config_animals = {AnimalRB5'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+config_animals = {'AnimalRB5'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = false;      % false = allow behavior-only processing
@@ -133,21 +133,14 @@ for i = 1:numel(experiments)
         fprintf('  Mode: Full processing (calcium format: %s)\n', ca_format);
     end
 
-    % Determine recording path
-% Determine recording path - Use DATA_2P if calcium exists, otherwise stimulus
-if exp.has_calcium
-    % Calcium data exists - use DATA_2P folder (contains headers/TIF/suite2p)
-    recording_path = fullfile(exp.config.DATA_2P, exp.name);
-    fprintf('  Using DATA_2P path (has calcium data)\n');
-    
-elseif exp.has_stimulus
-    % Behavior-only mode - use stimulus folder
-    recording_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
-    fprintf('  Using stimulus path (behavior-only mode)\n');
-    
-else
-    error('run_aggregation:NoData', 'No data found for recording: %s', exp.name);
-end
+    % Determine recording path — prioritise DATA_2P when calcium exists
+    if exp.has_calcium
+        recording_path = fullfile(exp.config.DATA_2P, exp.name);
+    elseif ~isempty(exp.path)
+        recording_path = exp.path;
+    else
+        recording_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
+    end
 
     % Process recording
     try

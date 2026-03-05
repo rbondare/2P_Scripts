@@ -86,7 +86,7 @@ check_processed = p.Results.check_processed;
 % Initialize empty experiments array
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % Handle manual source
 if strcmp(source, 'manual')
@@ -153,14 +153,9 @@ for i = 1:numel(experiments)
     end
 
     % Check for stimulus data
-    if ~isempty(exp.stim_file)
-        % Training session: stimulus is the specific file
-        exp.has_stimulus = exist(exp.stim_file, 'file') == 2;
-    else
-        stim_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
-        stim_files = dir(fullfile(stim_path, 'stim*.mat'));
-        exp.has_stimulus = ~isempty(stim_files);
-    end
+    stim_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
+    stim_files = dir(fullfile(stim_path, 'stim*.mat'));
+    exp.has_stimulus = ~isempty(stim_files);
 
     % Check for DLC data
     dlc_file = fullfile(exp.config.DLCDir, [exp.name '_DLC_filtered.mat']);
@@ -207,7 +202,7 @@ function experiments = scan_stimulus_folder(base_dir, animals_filter, recordings
 
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % List animal folders
 animal_dirs = dir(base_dir);
@@ -236,32 +231,6 @@ for a = 1:numel(animal_dirs)
             continue;
         end
 
-        % Expand Training folder into individual session entries
-        if strcmpi(rec_name, 'Training')
-            training_path = fullfile(animal_path, rec_name);
-            stim_files = dir(fullfile(training_path, 'stim*.mat'));
-            for s = 1:numel(stim_files)
-                % Extract date/time from filename: stim_001__training_YYYYMMDD_HHMMSS.mat
-                [~, stim_base, ~] = fileparts(stim_files(s).name);
-                full_dt = stim_base(20:end);                       % "20231201_143000"
-                date_time_str = [full_dt(3:8) '_' full_dt(10:13)];  % "231201_1430"
-
-                exp = struct();
-                exp.name = sprintf('%s_%s', animal_name, date_time_str);
-                exp.animal_name = animal_name;
-                exp.path = training_path;
-                exp.has_calcium = false;
-                exp.has_stimulus = true;
-                exp.has_dlc = false;
-                exp.is_processed = false;
-                exp.config = struct();
-                exp.stim_file = fullfile(training_path, stim_files(s).name);
-
-                experiments(end+1) = exp; %#ok<AGROW>
-            end
-            continue;
-        end
-
         % Create experiment entry
         exp = struct();
         exp.name = rec_name;
@@ -272,7 +241,6 @@ for a = 1:numel(animal_dirs)
         exp.has_dlc = false;
         exp.is_processed = false;
         exp.config = struct();
-        exp.stim_file = '';
 
         experiments(end+1) = exp; %#ok<AGROW>
     end
@@ -286,7 +254,7 @@ function experiments = scan_flat_folder(base_dir, animals_filter, recordings_fil
 
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % List recording folders
 rec_dirs = dir(base_dir);
@@ -320,7 +288,6 @@ for r = 1:numel(rec_dirs)
     exp.has_dlc = false;
     exp.is_processed = false;
     exp.config = struct();
-    exp.stim_file = '';
 
     experiments(end+1) = exp; %#ok<AGROW>
 end
@@ -352,7 +319,6 @@ exp.has_stimulus = false;
 exp.has_dlc = false;
 exp.is_processed = false;
 exp.config = exp_config;
-exp.stim_file = '';
 
 % Check for calcium data path
 calcium_path = fullfile(exp_config.DATA_2P, rec_name);

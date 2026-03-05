@@ -40,13 +40,30 @@ config.AnimalName = animal_name;
 config.AnimalFolder = 'Z:\Group Members\Rima\Animals\';
 config.OutputDir = 'Z:\Group Members\Rima\Aggregated\';
 config.OutputCopyDir = '';  % Backup directory (empty for now)
-config.StimBasePath = 'C:\Users\rbondare\Stimulus_test';
+config.StimBasePath = 'Z:\Group Members\Rima\Stimulus';
+%config.StimBasePath = 'C:\Users\rbondare\Stimulus_test';
 config.DLCDir = 'Z:\Group Members\Rima\DLCData\';
 config.IntermediateDir = 'C:\Users\rbondare\IntermediateDir\';
-config.CameraDir = 'Z:\Group Members\Rima\Camera_OTHER\';
+config.CameraDir = 'Z:\Group Members\Rima\Camera\';
 config.DATA_2P = 'Z:\Group Members\Rima\TEST\';
 
 % Append animal name subfolder to IntermediateDir
 config.IntermediateDir = fullfile(config.IntermediateDir, animal_name, filesep);
+
+% Display warning if paths don't exist (helps with debugging)
+persistent warned_paths;
+if isempty(warned_paths)
+    warned_paths = containers.Map;
+end
+
+key = sprintf('%s_%s', animal_name, config.StimBasePath);
+if ~warned_paths.isKey(key)
+    if ~exist(config.StimBasePath, 'dir')
+        warning('get_user_config:PathNotFound', ...
+            'StimBasePath not found: %s (looking for %s data)', ...
+            config.StimBasePath, animal_name);
+    end
+    warned_paths(key) = true;
+end
 
 end

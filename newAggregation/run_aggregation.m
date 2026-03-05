@@ -1,18 +1,14 @@
 %RUN_AGGREGATION Universal script for aggregating 2P preprocessing data
-%
-%   This script replaces RB_call_2SP_extraction.m with a more flexible approach:
-%   - User auto-detection from animal names
-%   - Manual experiment specification option
-%   - Stimulus folder as default source (not DATA_2P)
-%   - Support for behavior-only processing (require_calcium = false by default)
-%
-%   Usage:
-%       1. Edit the configuration section below
-%       2. Run the script
-%
 %   See also: save_preprocessed, get_experiment_list, get_user_config, import_video_behavior
 
-%% ===== CONFIGURATION ===== 
+%% ===== SETUP =====
+%clear;
+
+% Add required paths
+script_dir = fileparts(mfilename('fullpath'));
+addpath(script_dir);
+
+%% ===== CONFIGURATION =====
 % Edit these settings to customize processing
 
 % --- Experiment Discovery ---
@@ -24,8 +20,11 @@ config_source = 'stimulus';          % Where to look for experiments
 config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalRB14_20231215_002'}
 
 % --- Animal Filtering ---
-% Leave empty {} to process all animals found
-config_animals = {'AnimalRB5'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+% Filters the chosen source to only the specified animal(s).
+% Works with any source: e.g. source='stimulus' + animals={'AnimalRB5'}
+% will scan the stimulus folder but only process AnimalRB5.
+% Leave empty {} to process all animals found.
+config_animals = {'AnimalRB14'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = false;      % false = allow behavior-only processing
@@ -34,26 +33,8 @@ config_check_processed = true;       % true = skip already processed recordings
 config_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
 config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
 
-% --- Import DLC After Aggregation ---
-config_import_dlc = true;            % Run import_video_behavior after aggregation
-
-%% ===== SETUP =====
-clear;
-
-% Add required paths
-script_dir = fileparts(mfilename('fullpath'));
-addpath(script_dir);
-
-% Load saved configuration if editing above
-config_source = 'stimulus';
-config_recordings = {};
-config_animals = {};
-config_require_calcium = false;
-config_require_stimulus = true;
-config_check_processed = true;
-config_ca_type = 1;
-config_ca_format = 'auto';
-config_import_dlc = true;
+% --- Import DLC Before Aggregation ---
+config_import_dlc = true;            % Run import_video_behavior before aggregation
 
 %% ===== GET EXPERIMENT LIST =====
 fprintf('=== Universal Aggregation Script ===\n');
@@ -88,6 +69,26 @@ if isempty(experiments)
     return;
 end
 
+%% ===== IMPORT DLC DATA =====
+if config_import_dlc
+    fprintf('\n=== Importing DLC Data ===\n');
+
+    dlc_config = experiments(1).config;
+    try
+        if ~isempty(config_animals)
+            fprintf('  Importing DLC for: %s\n', strjoin(config_animals, ', '));
+            import_video_behavior('config', dlc_config, 'animals', config_animals);
+        else
+            import_video_behavior('config', dlc_config);
+        end
+        fprintf('DLC import completed.\n');
+    catch ME
+        fprintf('DLC import error: %s\n', ME.message);
+    end
+end
+
+
+
 %% ===== DISPLAY EXPERIMENTS =====
 fprintf('\n=== Experiments to Process ===\n');
 fprintf('%-40s %-10s %-10s %-10s %-10s\n', 'Recording', 'Calcium', 'Stimulus', 'DLC', 'Processed');
@@ -102,6 +103,13 @@ for i = 1:numel(experiments)
         yesno(exp.has_dlc), ...
         yesno(exp.is_processed));
 end
+
+% Count training sessions
+training_mask = ~cellfun(@isempty, {experiments.stim_file});
+if any(training_mask)
+    fprintf('  (includes %d training session(s))\n', sum(training_mask));
+end
+
 fprintf('\n');
 
 %% ===== CONFIRM PROCESSING =====
@@ -110,6 +118,9 @@ if ~isempty(reply) && ~strcmpi(reply, 'y')
     fprintf('Cancelled.\n');
     return;
 end
+
+
+
 
 %% ===== PROCESS RECORDINGS =====
 fprintf('\n=== Starting Processing ===\n');
@@ -133,29 +144,25 @@ for i = 1:numel(experiments)
         fprintf('  Mode: Full processing (calcium format: %s)\n', ca_format);
     end
 
-
-    % Determine recording path - Use DATA_2P if calcium exists, otherwise stimulus
+    % Determine recording path — prioritise DATA_2P when calcium exists
     if exp.has_calcium
-        % Calcium data exists - use DATA_2P folder (contains headers/TIF/suite2p)
         recording_path = fullfile(exp.config.DATA_2P, exp.name);
-        fprintf('  Using DATA_2P path (has calcium data)\n');
-        
-    elseif exp.has_stimulus
-        % Behavior-only mode - use stimulus folder
-        recording_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
-        fprintf('  Using stimulus path (behavior-only mode)\n');
-        
+    elseif ~isempty(exp.path)
+        recording_path = exp.path;
     else
-        error('run_aggregation:NoData', 'No data found for recording: %s', exp.name);
+        recording_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
     end
 
     % Process recording
     try
-        OutputFilename = save_preprocessed(recording_path, ...
-            'ca_type', config_ca_type, ...
+        save_args = {'ca_type', config_ca_type, ...
             'ca_format', ca_format, ...
             'config', exp.config, ...
-            'overwrite_intermediate', false);
+            'overwrite_intermediate', false};
+        if ~isempty(exp.stim_file)
+            save_args = [save_args, {'stim_file', exp.stim_file}];
+        end
+        OutputFilename = save_preprocessed(recording_path, save_args{:});
 
         fprintf('  Output: %s\n', OutputFilename);
         success_count = success_count + 1;
@@ -170,17 +177,7 @@ for i = 1:numel(experiments)
     end
 end
 
-%% ===== IMPORT DLC DATA =====
-if config_import_dlc
-    fprintf('\n=== Importing DLC Data ===\n');
 
-    try
-        import_video_behavior();
-        fprintf('DLC import completed.\n');
-    catch ME
-        fprintf('DLC import error: %s\n', ME.message);
-    end
-end
 
 %% ===== SUMMARY =====
 fprintf('\n=== Processing Summary ===\n');

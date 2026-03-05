@@ -75,8 +75,11 @@ params.delete_camera_tifs = delete_camera_tifs;
 
 %% Get directories based on config or detect from animals
 if isempty(config)
-    % Process for default FS user, then detect others from animal names
-    config = get_user_config('AnimalFS0');
+    if ~isempty(animals_filter)
+        config = get_user_config(animals_filter{1});
+    else
+        config = get_user_config('AnimalFS0');
+    end
 end
 
 parentdir = config.CameraDir;
@@ -100,19 +103,51 @@ if ~exist(parentdir, 'dir')
     return;
 end
 
-% Get animal list - FIXED: Properly filter directories
+% Get folder list - FIXED: Properly filter directories
 animallist = dir(parentdir);
 animallist = animallist([animallist.isdir]);  % Fixed: removed space
 animallist = animallist(~ismember({animallist.name}, {'.', '..'}));
 
 if isempty(animallist)
-    fprintf('No animal folders found in %s\n', parentdir);
+    fprintf('No folders found in %s\n', parentdir);
     return;
 end
 
-% Apply animal filter
+% Detect folder structure: animal subfolders vs flat recording folders
+folder_names = {animallist.name};
 if ~isempty(animals_filter)
-    animallist = animallist(ismember({animallist.name}, animals_filter));
+    has_animal_dirs = any(ismember(folder_names, animals_filter));
+else
+    % Folders without date suffixes (e.g. _YYMMDD_HHMM) are animal dirs
+    has_animal_dirs = any(cellfun(@isempty, regexp(folder_names, '_\d{6}_\d{4}$')));
+end
+flat_mode = ~has_animal_dirs;
+
+% Set up animal list depending on folder structure
+if flat_mode
+    fprintf('Flat folder structure detected (no animal subfolders).\n');
+    tokens = regexp(folder_names, '^(.+?)_\d{6}_\d{4}$', 'tokens');
+    valid = ~cellfun(@isempty, tokens);
+    rec_animal_names = repmat({''}, size(folder_names));
+    rec_animal_names(valid) = cellfun(@(t) t{1}{1}, tokens(valid), 'UniformOutput', false);
+    unique_animals = unique(rec_animal_names(valid), 'stable');
+
+    if ~isempty(animals_filter)
+        unique_animals = unique_animals(ismember(unique_animals, animals_filter));
+    end
+
+    all_rec_folders = animallist;
+    animallist = [];
+    for i = 1:numel(unique_animals)
+        animallist(i).name = unique_animals{i};
+        animallist(i).folder = parentdir;
+    end
+else
+    all_rec_folders = [];
+    rec_animal_names = {};
+    if ~isempty(animals_filter)
+        animallist = animallist(ismember(folder_names, animals_filter));
+    end
 end
 
 fprintf('Found %d animal folder(s)\n', numel(animallist));
@@ -132,14 +167,22 @@ for a = 1:numel(animallist)
     DLCdir = animal_config.DLCDir;
     preprocesseddir = animal_config.OutputDir;
 
-    % Get experiment directories - FIXED: Properly filter
-    explist = dir(fullfile(animallist(a).folder, animallist(a).name));
-    explist = explist([explist.isdir]);  % Fixed: removed space
-    explist = explist(~ismember({explist.name}, {'.', '..'}));
+    % Get experiment directories - mode-aware
+    if flat_mode
+        % Recording folders sit directly in parentdir
+        mask = strcmp(rec_animal_names, animal_name);
+        explist = all_rec_folders(mask);
+    else
+        explist = dir(fullfile(animallist(a).folder, animallist(a).name));
+        explist = explist([explist.isdir]);  % Fixed: removed space
+        explist = explist(~ismember({explist.name}, {'.', '..'}));
+    end
 
     if isempty(explist)
-        fprintf('  No experiments found, removing empty folder\n');
-        rmdir(fullfile(animallist(a).folder, animallist(a).name));
+        if ~flat_mode
+            fprintf('  No experiments found, removing empty folder\n');
+            rmdir(fullfile(animallist(a).folder, animallist(a).name));
+        end
         continue;
     end
 

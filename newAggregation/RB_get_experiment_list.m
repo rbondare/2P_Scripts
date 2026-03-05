@@ -1,4 +1,4 @@
-function experiments = get_experiment_list(varargin)
+function experiments = RB_get_experiment_list(varargin)
 %GET_EXPERIMENT_LIST Flexible experiment discovery for aggregation pipeline
 %
 %   experiments = get_experiment_list()
@@ -39,6 +39,11 @@ function experiments = get_experiment_list(varargin)
 %           true: Skip already processed recordings
 %           false: Include all recordings regardless of processing status
 %
+%       'strict_source' - Whether to only look in the source folder for data (default: false)
+%           true: ONLY process recordings found in source folder, don't check other locations
+%                 (e.g., if source='stimulus', don't check DATA_2P folder for calcium data)
+%           false: Check all configured locations for data availability
+%
 %   Output:
 %       experiments - Structure array with fields:
 %           .name           - Recording name (e.g., 'AnimalRB5_20231201_001')
@@ -73,6 +78,7 @@ addParameter(p, 'recordings', {}, @iscell);
 addParameter(p, 'require_calcium', false, @islogical);
 addParameter(p, 'require_stimulus', true, @islogical);
 addParameter(p, 'check_processed', true, @islogical);
+addParameter(p, 'strict_source', false, @islogical);
 parse(p, varargin{:});
 
 source = p.Results.source;
@@ -82,11 +88,12 @@ recordings_filter = p.Results.recordings;
 require_calcium = p.Results.require_calcium;
 require_stimulus = p.Results.require_stimulus;
 check_processed = p.Results.check_processed;
+strict_source = p.Results.strict_source;
 
 % Initialize empty experiments array
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % Handle manual source
 if strcmp(source, 'manual')
@@ -109,7 +116,7 @@ end
 % Get base directory based on source
 if isempty(config)
     % Use default FS config to get base paths
-    config = get_user_config('AnimalFS0');
+    config = get_user_config('AnimalRB0');
 end
 
 switch source
@@ -139,30 +146,35 @@ end
 % Enrich experiments with additional info and filter
 valid_idx = true(numel(experiments), 1);
 
+if strict_source
+    fprintf('Checking data availability for %d experiment(s)... (strict source mode)\n', numel(experiments));
+else
+    fprintf('Checking data availability for %d experiment(s)...\n', numel(experiments));
+end
+
 for i = 1:numel(experiments)
     exp = experiments(i);
+    
+    % Double-check animal filter (safety check)
+    if ~isempty(animals_filter) && ~ismember(exp.animal_name, animals_filter)
+        fprintf('  WARNING: Filtering out %s (animal %s not in filter)\n', exp.name, exp.animal_name);
+        valid_idx(i) = false;
+        continue;
+    end
 
     % Get user config for this animal
     exp.config = get_user_config(exp.animal_name);
 
-    % Check for calcium data
-    calcium_base = fullfile(exp.config.DATA_2P, exp.name);
-    exp.has_calcium = exist(fullfile(calcium_base, 'suite2p'), 'dir') == 7;
-    if exp.has_calcium
-        exp.path = calcium_base;
-    end
+    % Check for calcium data (always in DATA_2P folder)
+    calcium_path = fullfile(exp.config.DATA_2P, exp.name, 'suite2p');
+    exp.has_calcium = exist(calcium_path, 'dir') == 7;
 
-    % Check for stimulus data
-    if ~isempty(exp.stim_file)
-        % Training session: stimulus is the specific file
-        exp.has_stimulus = exist(exp.stim_file, 'file') == 2;
-    else
-        stim_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
-        stim_files = dir(fullfile(stim_path, 'stim*.mat'));
-        exp.has_stimulus = ~isempty(stim_files);
-    end
+    % Check for stimulus data (always in StimBasePath folder)
+    stim_path = fullfile(exp.config.StimBasePath, exp.animal_name, exp.name);
+    stim_files = dir(fullfile(stim_path, 'stim*.mat'));
+    exp.has_stimulus = ~isempty(stim_files);
 
-    % Check for DLC data
+    % Check for DLC data (always in DLCDir folder)
     dlc_file = fullfile(exp.config.DLCDir, [exp.name '_DLC_filtered.mat']);
     exp.has_dlc = exist(dlc_file, 'file') == 2;
 
@@ -192,11 +204,26 @@ end
 % Apply filter
 experiments = experiments(valid_idx);
 
+% Get unique animals in final list
+unique_animals = unique({experiments.animal_name});
+
 % Print summary
 fprintf('Found %d experiment(s) to process\n', numel(experiments));
 if ~isempty(experiments)
+    fprintf('  Animals: %s\n', strjoin(unique_animals, ', '));
     fprintf('  With calcium: %d, Without calcium: %d\n', ...
         sum([experiments.has_calcium]), sum(~[experiments.has_calcium]));
+end
+
+% Final validation: ensure all experiments match animal filter
+if ~isempty(animals_filter)
+    for i = 1:numel(experiments)
+        if ~ismember(experiments(i).animal_name, animals_filter)
+            warning('get_experiment_list:FilterViolation', ...
+                'Experiment %s from animal %s passed filter but should not have!', ...
+                experiments(i).name, experiments(i).animal_name);
+        end
+    end
 end
 
 end
@@ -207,58 +234,40 @@ function experiments = scan_stimulus_folder(base_dir, animals_filter, recordings
 
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % List animal folders
 animal_dirs = dir(base_dir);
 animal_dirs = animal_dirs([animal_dirs.isdir]);
 animal_dirs = animal_dirs(~ismember({animal_dirs.name}, {'.', '..'}));
 
+fprintf('Scanning stimulus folder: %s\n', base_dir);
+fprintf('Found %d animal folder(s)\n', numel(animal_dirs));
+
 for a = 1:numel(animal_dirs)
     animal_name = animal_dirs(a).name;
 
     % Apply animal filter
     if ~isempty(animals_filter) && ~ismember(animal_name, animals_filter)
+        fprintf('  Skipping %s (not in filter)\n', animal_name);
         continue;
     end
+    
+    fprintf('  Processing %s...\n', animal_name);
 
     % List recording folders
     animal_path = fullfile(base_dir, animal_name);
     rec_dirs = dir(animal_path);
     rec_dirs = rec_dirs([rec_dirs.isdir]);
     rec_dirs = rec_dirs(~ismember({rec_dirs.name}, {'.', '..'}));
+    
+    fprintf('    Found %d recording(s)\n', numel(rec_dirs));
 
     for r = 1:numel(rec_dirs)
         rec_name = rec_dirs(r).name;
 
         % Apply recording filter
         if ~isempty(recordings_filter) && ~ismember(rec_name, recordings_filter)
-            continue;
-        end
-
-        % Expand Training folder into individual session entries
-        if strcmpi(rec_name, 'Training')
-            training_path = fullfile(animal_path, rec_name);
-            stim_files = dir(fullfile(training_path, 'stim*.mat'));
-            for s = 1:numel(stim_files)
-                % Extract date/time from filename: stim_001__training_YYYYMMDD_HHMMSS.mat
-                [~, stim_base, ~] = fileparts(stim_files(s).name);
-                full_dt = stim_base(20:end);                       % "20231201_143000"
-                date_time_str = [full_dt(3:8) '_' full_dt(10:13)];  % "231201_1430"
-
-                exp = struct();
-                exp.name = sprintf('%s_%s', animal_name, date_time_str);
-                exp.animal_name = animal_name;
-                exp.path = training_path;
-                exp.has_calcium = false;
-                exp.has_stimulus = true;
-                exp.has_dlc = false;
-                exp.is_processed = false;
-                exp.config = struct();
-                exp.stim_file = fullfile(training_path, stim_files(s).name);
-
-                experiments(end+1) = exp; %#ok<AGROW>
-            end
             continue;
         end
 
@@ -272,11 +281,12 @@ for a = 1:numel(animal_dirs)
         exp.has_dlc = false;
         exp.is_processed = false;
         exp.config = struct();
-        exp.stim_file = '';
 
         experiments(end+1) = exp; %#ok<AGROW>
     end
 end
+
+fprintf('\n');
 
 end
 
@@ -286,12 +296,14 @@ function experiments = scan_flat_folder(base_dir, animals_filter, recordings_fil
 
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
     'has_calcium', {}, 'has_stimulus', {}, 'has_dlc', {}, ...
-    'is_processed', {}, 'config', {}, 'stim_file', {});
+    'is_processed', {}, 'config', {});
 
 % List recording folders
+fprintf('Scanning flat folder: %s\n', base_dir);
 rec_dirs = dir(base_dir);
 rec_dirs = rec_dirs([rec_dirs.isdir]);
 rec_dirs = rec_dirs(~ismember({rec_dirs.name}, {'.', '..'}));
+fprintf('Found %d recording folder(s)\n', numel(rec_dirs));
 
 for r = 1:numel(rec_dirs)
     rec_name = rec_dirs(r).name;
@@ -307,8 +319,11 @@ for r = 1:numel(rec_dirs)
 
     % Apply animal filter
     if ~isempty(animals_filter) && ~ismember(animal_name, animals_filter)
+        fprintf('  Skipping %s (animal %s not in filter)\n', rec_name, animal_name);
         continue;
     end
+    
+    fprintf('  Found %s (animal: %s)\n', rec_name, animal_name);
 
     % Create experiment entry
     exp = struct();
@@ -320,10 +335,11 @@ for r = 1:numel(rec_dirs)
     exp.has_dlc = false;
     exp.is_processed = false;
     exp.config = struct();
-    exp.stim_file = '';
 
     experiments(end+1) = exp; %#ok<AGROW>
 end
+
+fprintf('\n');
 
 end
 
@@ -352,7 +368,6 @@ exp.has_stimulus = false;
 exp.has_dlc = false;
 exp.is_processed = false;
 exp.config = exp_config;
-exp.stim_file = '';
 
 % Check for calcium data path
 calcium_path = fullfile(exp_config.DATA_2P, rec_name);

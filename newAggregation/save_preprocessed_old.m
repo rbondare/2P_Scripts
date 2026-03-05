@@ -66,7 +66,6 @@ addParameter(p, 'process_stimulus', true, @islogical);
 addParameter(p, 'process_behavior', true, @islogical);
 addParameter(p, 'config', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'overwrite_intermediate', false, @islogical);
-addParameter(p, 'stim_file', '', @ischar);
 parse(p, recording_path, varargin{:});
 
 ca_type = p.Results.ca_type;
@@ -76,7 +75,6 @@ process_stimulus = p.Results.process_stimulus;
 process_behavior = p.Results.process_behavior;
 config = p.Results.config;
 overwrite_intermediate = p.Results.overwrite_intermediate;
-stim_file = p.Results.stim_file;
 
 % If ca_format is 'none', disable calcium processing
 if strcmp(ca_format, 'none')
@@ -211,7 +209,7 @@ end
 %% Process stimulus data
 if process_stimulus
     [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-        StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file);
+        StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps);
 
     if ~isempty(Stimulusoptions)
         Data.Stimuli = Stimulusoptions;
@@ -743,7 +741,7 @@ end
 
 
 function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-    StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file)
+    StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps)
 %PROCESS_STIMULUS_DATA Load and process stimulus files
 
 Stimulusoptions = [];
@@ -751,16 +749,11 @@ BallCamData = [];
 LocomotionCal = [];
 
 % Find stimulus files
-if nargin >= 8 && ~isempty(stim_file)
-    % Use specific stim file (e.g. individual Training session)
-    StimFiles = dir(stim_file);
-else
-    StimFiles = dir(fullfile(StimPath, 'stim*.mat'));
-    if isempty(StimFiles)
-        % Try alternative path pattern
-        [parent_path, rec_name, ~] = fileparts(StimPath(1:end-1));
-        StimFiles = dir(fullfile(parent_path, [rec_name '*'], 'stim*.mat'));
-    end
+StimFiles = dir(fullfile(StimPath, 'stim*.mat'));
+if isempty(StimFiles)
+    % Try alternative path pattern
+    [parent_path, rec_name, ~] = fileparts(StimPath(1:end-1));
+    StimFiles = dir(fullfile(parent_path, [rec_name '*'], 'stim*.mat'));
 end
 
 if isempty(StimFiles)

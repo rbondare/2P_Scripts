@@ -1,4 +1,4 @@
-function OutputFilename = save_preprocessed(recording_path, varargin)
+function OutputFilename = RB_save_preprocessed(recording_path, varargin)
 %SAVE_PREPROCESSED Universal aggregation function for 2P preprocessing
 %
 %   OutputFilename = save_preprocessed(recording_path)
@@ -66,7 +66,6 @@ addParameter(p, 'process_stimulus', true, @islogical);
 addParameter(p, 'process_behavior', true, @islogical);
 addParameter(p, 'config', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'overwrite_intermediate', false, @islogical);
-addParameter(p, 'stim_file', '', @ischar);
 parse(p, recording_path, varargin{:});
 
 ca_type = p.Results.ca_type;
@@ -76,7 +75,6 @@ process_stimulus = p.Results.process_stimulus;
 process_behavior = p.Results.process_behavior;
 config = p.Results.config;
 overwrite_intermediate = p.Results.overwrite_intermediate;
-stim_file = p.Results.stim_file;
 
 % If ca_format is 'none', disable calcium processing
 if strcmp(ca_format, 'none')
@@ -183,17 +181,6 @@ else
     Data.dFFsettings = create_default_dff_settings();
 end
 
-%% Compute acquisition timestamps (needed for locomotion, before trigger processing strips Headers)
-if process_calcium && ~isempty(fieldnames(Headers))
-    acq_timestamps = nan(numel(Headers), 2);
-    for h = 1:numel(Headers)
-        acq_timestamps(h,:) = Headers(h).frameTimestamps_sec([1 end]);
-        if multi; acq_timestamps(h,:) = acq_timestamps(h,:) + dtA(h); end
-    end
-else
-    acq_timestamps = [];
-end
-
 %% Process triggers
 if process_calcium && ~isempty(fieldnames(Headers))
     [Triggers, Headers, TimingProblems] = process_triggers(Headers, multi, dt, dtA);
@@ -204,6 +191,7 @@ else
     Triggers.TimeProjector = [];
     Triggers.TimeCamera = [];
     Triggers.TimeBall = {};
+    Triggers.Stimulus_acq_timestamps = [];
     Triggers.TimingProblems = false;
     Data.Triggers = Triggers;
 end
@@ -211,7 +199,7 @@ end
 %% Process stimulus data
 if process_stimulus
     [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-        StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file);
+        StimPath, Headers, SI_Info, Triggers, multi, dtA);
 
     if ~isempty(Stimulusoptions)
         Data.Stimuli = Stimulusoptions;
@@ -732,6 +720,18 @@ end
 Triggers.TimeBall = BT;
 Triggers.TimingProblems = TimingProblems;
 
+% Extract stimulus acquisition timestamps before removing frameTimestamps_sec
+Stimulus_acq_timestamps = nan(numel(Headers), 2);
+for n = 1:numel(Headers)
+    if isfield(Headers(n), 'frameTimestamps_sec') && ~isempty(Headers(n).frameTimestamps_sec)
+        Stimulus_acq_timestamps(n,:) = Headers(n).frameTimestamps_sec([1 end]);
+        if multi && ~isempty(dtA) && n <= numel(dtA)
+            Stimulus_acq_timestamps(n,:) = Stimulus_acq_timestamps(n,:) + dtA(n);
+        end
+    end
+end
+Triggers.Stimulus_acq_timestamps = Stimulus_acq_timestamps;
+
 % Remove trigger fields if no problems
 if ~TimingProblems
     Headers = rmfield(Headers, {'auxTrigger0'; 'auxTrigger1'; 'auxTrigger2'; 'auxTrigger3'});
@@ -743,24 +743,19 @@ end
 
 
 function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-    StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file)
-%PROCESS_STIMULUS_DATA Load and process stimulus files
+    StimPath, Headers, SI_Info, Triggers, multi, dtA)
+%PROCESS_STIMULUS_DATA Load and process stimulus files and locomotion data
 
 Stimulusoptions = [];
 BallCamData = [];
 LocomotionCal = [];
 
 % Find stimulus files
-if nargin >= 8 && ~isempty(stim_file)
-    % Use specific stim file (e.g. individual Training session)
-    StimFiles = dir(stim_file);
-else
-    StimFiles = dir(fullfile(StimPath, 'stim*.mat'));
-    if isempty(StimFiles)
-        % Try alternative path pattern
-        [parent_path, rec_name, ~] = fileparts(StimPath(1:end-1));
-        StimFiles = dir(fullfile(parent_path, [rec_name '*'], 'stim*.mat'));
-    end
+StimFiles = dir(fullfile(StimPath, 'stim*.mat'));
+if isempty(StimFiles)
+    % Try alternative path pattern
+    [parent_path, rec_name, ~] = fileparts(StimPath(1:end-1));
+    StimFiles = dir(fullfile(parent_path, [rec_name '*'], 'stim*.mat'));
 end
 
 if isempty(StimFiles)
@@ -795,125 +790,332 @@ if isempty(Stimulusoptions)
 end
 
 % Extract ball camera data
+if ~isfield(Stimuli, 'BallCamData')
+    fprintf('No BallCamData found in stimulus files\n');
+    return;
+end
+
 BallCamData_temp = cat(1, {Stimuli(:).BallCamData})';
 Stimuli = rmfield(Stimuli, {'BallCamData', 'options'});
 
 % Transfer fields from Stimuli to Stimulusoptions
-stim_fields = fieldnames(Stimuli);
-for i = 1:length(stim_fields)
+Ca_f = fieldnames(Stimuli);
+for i = 1:length(Ca_f)
     for j = 1:size(Stimuli, 2)
-        Stimulusoptions(j).(stim_fields{i}) = Stimuli(j).(stim_fields{i});
+        Stimulusoptions(j).(Ca_f{i}) = Stimuli(j).(Ca_f{i});
     end
 end
 
-% --- Process ball camera data into locomotion ---
-BT = Triggers.TimeBall;
-if isempty(BT) || all(cellfun(@isempty, BT))
-    % No ball triggers available
+% Get ball triggers
+if isfield(Triggers, 'TimeBall')
+    BT = Triggers.TimeBall;
+else
+    fprintf('No ball triggers found\n');
     return;
 end
 
-% Determine number of stimuli and mapping mode
+% Determine stimulus type and process accordingly
+if ~strcmp(Stimulusoptions(1).type, 'training')
+    % Process non-training stimulus
+    [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_nontraining(...
+        Stimulusoptions, BallCamData_temp, BT, Headers, SI_Info, Triggers);
+else
+    % Process training stimulus
+    [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_training(...
+        Stimulusoptions, BallCamData_temp, BT, Headers, SI_Info, Triggers);
+end
+
+end
+
+
+function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_nontraining(...
+    Stimulusoptions, BallCamData_temp, BT, Headers, SI_Info, Triggers)
+%PROCESS_STIMULUS_NONTRAINING Process non-training stimulus data with locomotion
+
+fprintf('Processing non-training stimulus data\n');
+
+% Get projector triggers and acquisition timestamps
+PT = Triggers.TimeProjector;
+Stimulus_acquisition_start_stop_timestamp = Triggers.Stimulus_acq_timestamps;
+
+% Synchronize red frames
+for Stimnumber = 1:numel(Stimulusoptions)
+    stim_sync = synchronize_red_frames(...
+        Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, ...
+        Stimnumber, SI_Info);
+    
+    % Copy new fields back to avoid structure mismatch
+    Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
+    Stimulusoptions(Stimnumber).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
+    Stimulusoptions(Stimnumber).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+end
+
+% Process ball camera data and locomotion
+BallCamData = struct;
 if numel(BT) == numel(BallCamData_temp)
     N = numel(BallCamData_temp);
-    StimAcqNumber = [];  % direct 1:1 mapping
 else
-    N = numel(Stimulusoptions);
-    % Compute StimAcqNumber: map each stimulus to its acquisition block
-    if ~isempty(acq_timestamps)
-        ClockAcqEnd = seconds(acq_timestamps(:,2)) + SI_Info.Clockstart;
-        ClockStimEnd = cat(1, Stimulusoptions(:).timeend);
-        StimAcqNumber = zeros(size(ClockStimEnd));
-        for s = 1:numel(ClockStimEnd)
-            [~, I] = sort(abs(seconds(ClockAcqEnd - ClockStimEnd(s))));
-            StimAcqNumber(s) = I(1);
-        end
-    else
-        N = min(numel(BT), numel(BallCamData_temp));
-        StimAcqNumber = [];
-    end
+    N = numel(StimAcqNumber);
 end
 
-BallCamData = struct;
-for n = 1:N
-    % Find bad readings (cells that don't have exactly 5 values)
-    Ca_f = find(cellfun(@numel, BallCamData_temp{n}) ~= 5);
-
-    if numel(Ca_f) <= 0
-        % Normal case: all readings valid
-        BallCamData(n).Values = cell2mat(BallCamData_temp{n}');
-
-        if isempty(StimAcqNumber)
-            % Direct mapping
-            if size(BallCamData(n).Values,1) < numel(BT{n}); BT{n}(Ca_f) = []; end
-            BallCamData(n).Triggers_sec = BT{n}';
-        else
-            % Multi-acquisition mapping
-            if StimAcqNumber(n) > 1
-                temp_BT = [BT{StimAcqNumber(n)-1}'; BT{StimAcqNumber(n)}'];
-                if size(BallCamData(n).Values,1) < numel(temp_BT); temp_BT(Ca_f) = []; end
-                BallCamData(n).Triggers_sec = temp_BT;
-            else
-                if size(BallCamData(n).Values,1) < numel(BT{StimAcqNumber(n)})
-                    BT{StimAcqNumber(n)}(Ca_f) = [];
-                end
-                BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
-            end
-        end
-    else
-        % Bad readings present: fill with NaN, splice good values
-        warning('Ball camera data contains %d bad readings for stimulus %d', numel(Ca_f), n);
-        BallCamData_temp{n}(Ca_f) = [];
-
-        if isempty(StimAcqNumber)
-            if numel(BallCamData_temp{n}) < numel(BT{n}); BT{n}(Ca_f) = []; end
-            BallCamData(n).Triggers_sec = BT{n}';
-        else
-            if StimAcqNumber(n) > 1
-                temp_BT = [BT{StimAcqNumber(n)-1}'; BT{StimAcqNumber(n)}'];
-                if numel(BallCamData_temp{n}) < numel(temp_BT); temp_BT(Ca_f) = []; end
-                BallCamData(n).Triggers_sec = temp_BT;
-            else
-                if numel(BallCamData_temp{n}) < numel(BT{StimAcqNumber(n)})
-                    BT{StimAcqNumber(n)}(Ca_f) = [];
-                end
-                BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
-            end
-        end
-
-        BallCamData(n).Values = nan(numel(BallCamData(n).Triggers_sec), 5);
-        good_data = cell2mat(BallCamData_temp{n}');
-        BallCamData(n).Values(1:size(good_data,1), :) = good_data;
-    end
+% Match stimulus to acquisition numbers if needed
+if numel(BT) ~= numel(BallCamData_temp) && ~exist('StimAcqNumber', 'var')
+    Stimulus_acquisition_start_stop_timestamp = Triggers.Stimulus_acq_timestamps;
+    StimAcqNumber = match_stim_to_acq(Stimulusoptions, Stimulus_acquisition_start_stop_timestamp, SI_Info);
 end
 
-% Calibrate locomotion — pre-load model to avoid uigetfile in batch mode
-cal_paths = {
-    'A:\Florian\BallCalibration\CalibrationModel.mat'
-    'S:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
-    'K:\Toni\BallCalibration\CalibrationModel.mat'
-    'K:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
-    'B:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
-    fullfile(fileparts(mfilename('fullpath')), 'CalibrationModel.mat')
-};
-ModelParams = [];
-for cp = 1:numel(cal_paths)
-    if exist(cal_paths{cp}, 'file')
-        tmp = load(cal_paths{cp}, 'ModelParams');
-        ModelParams = tmp.ModelParams;
-        break;
-    end
-end
 try
-    if ~isempty(ModelParams)
-        LocomotionCal = transform_locomotion(BallCamData, SI_Info, ModelParams);
-    else
-        LocomotionCal = transform_locomotion(BallCamData, SI_Info);
+    for n = 1:N
+        % Find bad frames with wrong number of values
+        Ca_f = find(cellfun(@numel, BallCamData_temp{n}) ~= 5);
+        
+        if numel(Ca_f) <= 0
+            % All frames are good
+            BallCamData(n).Values = cell2mat(BallCamData_temp{n}');
+            
+            if numel(BT) == numel(BallCamData_temp)
+                if size(BallCamData(n).Values, 1) < numel(BT{n})
+                    BT{n}(Ca_f) = [];
+                end
+                BallCamData(n).Triggers_sec = BT{n}';
+            else
+                % Handle case where BT doesn't match BallCamData_temp (multi-acquisition)
+                if StimAcqNumber(n) > 1
+                    temp_BT = [BT{StimAcqNumber(n)-1}'; BT{StimAcqNumber(n)}'];
+                    if size(BallCamData(n).Values, 1) < numel(temp_BT)
+                        temp_BT(Ca_f) = [];
+                    end
+                    BallCamData(n).Triggers_sec = temp_BT;
+                else
+                    if size(BallCamData(n).Values, 1) < numel(BT{StimAcqNumber(n)})
+                        BT{StimAcqNumber(n)}(Ca_f) = [];
+                    end
+                    BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
+                end
+            end
+        else
+            % Handle bad frames
+            warning('wrong number of values')
+            BallCamData_temp{n}(Ca_f) = [];
+            
+            if numel(BT) == numel(BallCamData_temp)
+                if numel(BallCamData_temp{n}) < numel(BT{n})
+                    BT{n}(Ca_f) = [];
+                end
+                BallCamData(n).Triggers_sec = BT{n}';
+            else
+                % Handle case where BT doesn't match BallCamData_temp (multi-acquisition)
+                if StimAcqNumber(n) > 1
+                    temp_BT = [BT{StimAcqNumber(n)-1}'; BT{StimAcqNumber(n)}'];
+                    if numel(BallCamData_temp{n}) < numel(temp_BT)
+                        temp_BT(Ca_f) = [];
+                    end
+                    BallCamData(n).Triggers_sec = temp_BT;
+                else
+                    if numel(BallCamData_temp{n}) < numel(BT{StimAcqNumber(n)})
+                        BT{StimAcqNumber(n)}(Ca_f) = [];
+                    end
+                    BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
+                end
+            end
+            
+            % Create Values array with NaNs for bad frames
+            BallCamData(n).Values = nan(numel(BallCamData(n).Triggers_sec), 5);
+            BallCamData(n).Values(1:Ca_f(1)-1, :) = cell2mat(BallCamData_temp{n}(1:Ca_f(1)-1)');
+            BallCamData(n).Values((numel(BallCamData(n).Triggers_sec) - numel(BallCamData_temp{n}(Ca_f(end)+2:end))):numel(BallCamData(n).Triggers_sec), :) = cell2mat(BallCamData_temp{n}(Ca_f(end)+1:end)');
+        end
     end
+    
+    % Transform locomotion to calibrated coordinates
+    fprintf('Transforming locomotion data\n');
+    LocomotionCal = transform_locomotion(BallCamData, SI_Info);
+    
 catch ME
-    warning('Locomotion calibration failed: %s', ME.message);
+    warning('Error processing ball camera data: %s', ME.message);
+    BallCamData = [];
     LocomotionCal = [];
 end
+
+end
+
+
+function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_training(...
+    Stimulusoptions, BallCamData_temp, BT, Headers, SI_Info, Triggers)
+%PROCESS_STIMULUS_TRAINING Process training stimulus data with locomotion
+
+fprintf('Processing training stimulus data\n');
+
+% Get projector triggers and acquisition timestamps
+PT = Triggers.TimeProjector;
+Stimulus_acquisition_start_stop_timestamp = Triggers.Stimulus_acq_timestamps;
+
+% Match stimulus to acquisition numbers
+StimAcqNumber = match_stim_to_acq(Stimulusoptions, Stimulus_acquisition_start_stop_timestamp, SI_Info);
+
+% Synchronize red frames for training
+for Stimnumber = 1:Stimulusoptions.i
+    Stimulusoptions = synchronize_red_frames_training(...
+        Stimulusoptions, PT, Stimulus_acquisition_start_stop_timestamp, ...
+        StimAcqNumber, Stimnumber, SI_Info);
+end
+
+% Process ball camera data for training
+try
+    % Flatten the nested BallCamData structure for training
+    if iscell(BallCamData_temp{1,1})
+        temp1 = cell(1);
+        temp2 = cell(1);
+        for i = 1:size(BallCamData_temp{1,1}, 2)
+            temp1 = BallCamData_temp{1,1}(:, i)';
+            temp1 = temp1(~cellfun('isempty', temp1));
+            temp2{i,1} = temp1;
+        end
+        BallCamData_temp = temp2;
+    end
+    
+    BallCamData = struct;
+    N = numel(StimAcqNumber);
+    
+    % Combine all values and triggers
+    BallCamData.allValues = vertcat(BallCamData_temp{1,1}{:});
+    BallCamData.allTriggers = cat(2, BT{:});
+    
+    % Get trigger lengths for each acquisition
+    BTLength = [];
+    for b = 1:numel(BT)
+        BTLength = [BTLength; numel(BT{b,:})];
+    end
+    
+    % Find bad frames
+    Ca_f = find(cellfun(@numel, BallCamData_temp{1,1}) ~= 5);
+    
+    if numel(Ca_f) <= 0
+        % All frames are good - split data by stimulus
+        for n = 1:N
+            if StimAcqNumber(n) > 1
+                temp_BT = [BT{StimAcqNumber(n)}'];
+                BallCamData(n).Triggers_sec = temp_BT;
+                start_idx = sum(BTLength(1:StimAcqNumber(n)-1)) + 1;
+                end_idx = sum(BTLength(1:StimAcqNumber(n)-1)) + length(temp_BT);
+                BallCamData(n).Values = vertcat(BallCamData_temp{1,1}{start_idx:end_idx});
+            else
+                BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
+                BallCamData(n).Values = vertcat(BallCamData_temp{1,1}{1:BTLength(1)});
+            end
+        end
+    else
+        warning('Wrong number of values in training BallCamData');
+        % Handle bad frames - similar to non-training case
+        BallCamData_temp{1,1}(Ca_f) = [];
+        for n = 1:N
+            BallCamData(n).Triggers_sec = BT{StimAcqNumber(n)}';
+            BallCamData(n).Values = nan(numel(BallCamData(n).Triggers_sec), 5);
+        end
+    end
+    
+    % Transform locomotion to calibrated coordinates
+    fprintf('Transforming locomotion data\n');
+    LocomotionCal = transform_locomotion(BallCamData, SI_Info);
+    
+catch ME
+    warning('Error processing training ball camera data: %s', ME.message);
+    BallCamData = [];
+    LocomotionCal = [];
+end
+
+end
+
+
+function StimAcqNumber = match_stim_to_acq(Stimulusoptions, timestamps, SI_Info)
+%MATCH_STIM_TO_ACQ Match stimulus presentations to acquisition numbers
+
+ClockAcquisitionEnd = seconds(timestamps(:,2)) + SI_Info.Clockstart;
+ClockStimEnd = cat(1, Stimulusoptions(:).timeend);
+StimAcqNumber = zeros(size(ClockStimEnd));
+
+for s = 1:numel(ClockStimEnd)
+    [~, I] = sort(abs(seconds(ClockAcquisitionEnd - ClockStimEnd(s))));
+    StimAcqNumber(s) = I(1);
+end
+
+end
+
+
+function Stimopts = synchronize_red_frames(Stimopts, PT, timestamps, Stimnumber, SI_Info)
+%SYNCHRONIZE_RED_FRAMES Synchronize projected frames using red sync frames
+
+Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(Stimnumber,1) & PT <= timestamps(Stimnumber,2)+1);
+Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count))-1, Stimopts.red_sync_nth_frame) == 0);
+
+% Handle edge cases
+if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
+    Red_frame_number(end) = [];
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    dt = diff([-inf Timestamp_Projected_Sync_Frames]);
+    tc = Timestamp_Projected_Sync_Frames(dt > .04);
+    if numel(Red_frame_number) == numel(tc) + 1
+        Red_frame_number(end) = [];
+    end
+    if numel(Red_frame_number) == numel(tc)
+        Timestamp_Projected_Sync_Frames = tc;
+    end
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    warning('Projector sync frames not matching! Using PC Clock Times instead');
+    Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+else
+    Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
+        1:sum(~isnan(Stimopts.Frameinfo.frame_count)), 'linear', 'extrap');
+    Stimopts.RedFrameSynchronized = true;
+end
+
+Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
+    Stimopts.TimeStimulusFrame(1);
+Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.TimeStimulusFrameVBL))';
+
+end
+
+
+function Stimopts = synchronize_red_frames_training(Stimopts, PT, timestamps, StimAcqNumber, Stimnumber, SI_Info)
+%SYNCHRONIZE_RED_FRAMES_TRAINING Synchronize red frames for training paradigm
+
+acq_num = StimAcqNumber(Stimnumber);
+Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(acq_num,1) & PT <= timestamps(acq_num,2)+1);
+Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber)))-1, Stimopts.red_sync_nth_frame) == 0);
+
+% Handle edge cases
+if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
+    Red_frame_number(end) = [];
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    dt = diff([-inf Timestamp_Projected_Sync_Frames]);
+    tc = Timestamp_Projected_Sync_Frames(dt > .04);
+    if numel(Red_frame_number) == numel(tc) + 1
+        Red_frame_number(end) = [];
+    end
+    if numel(Red_frame_number) == numel(tc)
+        Timestamp_Projected_Sync_Frames = tc;
+    end
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    warning('Projector sync frames not matching for training! Using PC Clock Times instead');
+    Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+else
+    Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
+        1:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber))), 'linear', 'extrap');
+    Stimopts.RedFrameSynchronized = true;
+end
+
+Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
+    Stimopts.TimeStimulusFrame(1);
+Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.TimeStimulusFrameVBL))';
 
 end
 
