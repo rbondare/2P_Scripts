@@ -24,7 +24,7 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 % Works with any source: e.g. source='stimulus' + animals={'AnimalRB5'}
 % will scan the stimulus folder but only process AnimalRB5.
 % Leave empty {} to process all animals found.
-config_animals = {'AnimalRB14'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+config_animals = {'AnimalRB19'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = false;      % false = allow behavior-only processing
