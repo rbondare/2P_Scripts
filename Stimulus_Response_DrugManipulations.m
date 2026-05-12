@@ -10,7 +10,6 @@
 %% SECTION 1
 clc;
 close all;
-clear;
 
 % Recording labels for plots
 label1 = 'Control';
@@ -147,32 +146,6 @@ for s = 1:numel(stimulus_types)
         saveas(gcf, fullfile(out_dir, ['hist_mean_' stimulus_type '.png']));
     end
 
-    %% SECTION 5B - Histogram of SD/Mean variability ratio
-    combined_ratio = [ratio1; ratio2];
-    bin_edges_ratio = linspace(min(combined_ratio), max(combined_ratio), num_bins_ratio + 1);
-
-    figure('Name', ['SD-Mean Ratio - ' stimulus_type], 'NumberTitle', 'off');
-    histogram(ratio1, 'Normalization', 'pdf', ...
-        'FaceColor', 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'BinEdges', bin_edges_ratio);
-    hold on;
-    histogram(ratio2, 'Normalization', 'pdf', ...
-        'FaceColor', 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'BinEdges', bin_edges_ratio);
-
-    if strcmp(stimulus_type, 'grating') || strcmp(stimulus_type, 'full_field_flash')
-        xlim([0 200]);
-    else
-        xlim([0 50]);
-    end
-
-    xlabel('SD/Mean Ratio');
-    ylabel('Probability Density');
-    title(['SD/Mean Ratio - ' strrep(stimulus_type, '_', ' ')]);
-    legend({label1, label2}, 'Location', 'best');
-    hold off;
-
-    if save_figures
-        saveas(gcf, fullfile(out_dir, ['hist_ratio_' stimulus_type '.png']));
-    end
 
     %% SECTION 5C - Heatmap for each condition (same style as original)
     plot_stimulus_heatmap(concat1, stimulus_type, label1, max_cells_heatmap, max_frames_heatmap, save_figures, out_dir);
@@ -245,6 +218,7 @@ end
 
 
 %% ===================== LOCAL HELPER FUNCTIONS =====================
+
 function t = get_time_vector(TimeCa)
 % Handle either 1xN or 2xN TimeCa formats robustly.
     if isvector(TimeCa)
