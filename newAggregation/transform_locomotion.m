@@ -30,6 +30,7 @@ end
 if isempty(CalibrationNumber)
     CalibrationNumber=1;%numel(ModelParams);
 end
+fprintf('Using calibration #%d (date: %s)\n', CalibrationNumber, datestr(ModelParams(CalibrationNumber).Date));
 Calibration=ModelParams(CalibrationNumber).Calibration;
 if size(Calibration,2)==4; Calibration=[zeros(3,1) Calibration];end
 if isstruct(LocomotionNonCal)

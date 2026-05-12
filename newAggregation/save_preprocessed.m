@@ -889,11 +889,12 @@ end
 
 % Calibrate locomotion — pre-load model to avoid uigetfile in batch mode
 cal_paths = {
-    'A:\Florian\BallCalibration\CalibrationModel.mat'
-    'S:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
-    'K:\Toni\BallCalibration\CalibrationModel.mat'
-    'K:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
-    'B:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
+   % 'A:\Florian\BallCalibration\CalibrationModel.mat'
+   % 'S:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
+   % 'K:\Toni\BallCalibration\CalibrationModel.mat'
+   % 'K:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
+   % 'B:\fs3-joeschgrp\Toni\BallCalibration\CalibrationModel.mat'
+   'C:\Users\rbondarenko\projects\2P_Scripts\newAggregation\\CalibrationModel.mat'
     fullfile(fileparts(mfilename('fullpath')), 'CalibrationModel.mat')
 };
 ModelParams = [];
