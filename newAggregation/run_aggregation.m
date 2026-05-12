@@ -27,9 +27,9 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 config_animals = {'AnimalRB19'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
-config_require_calcium = false;      % false = allow behavior-only processing
+config_require_calcium = true;      % false = allow behavior-only processing
 config_require_stimulus = true;      % true = require stimulus files
-config_check_processed = true;       % true = skip already processed recordings
+config_check_processed = false;       % true = skip already processed recordings
 config_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
 config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
 
