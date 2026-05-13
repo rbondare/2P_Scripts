@@ -205,6 +205,7 @@ else
     Triggers.TimeCamera = [];
     Triggers.TimeBall = {};
     Triggers.TimingProblems = false;
+    Triggers.Stimulus_acq_timestamps = [];
     Data.Triggers = Triggers;
 end
 
@@ -732,6 +733,18 @@ end
 Triggers.TimeBall = BT;
 Triggers.TimingProblems = TimingProblems;
 
+% Extract stimulus acquisition timestamps before removing frameTimestamps_sec
+Stimulus_acq_timestamps = nan(numel(Headers), 2);
+for n = 1:numel(Headers)
+    if isfield(Headers(n), 'frameTimestamps_sec') && ~isempty(Headers(n).frameTimestamps_sec)
+        Stimulus_acq_timestamps(n,:) = Headers(n).frameTimestamps_sec([1 end]);
+        if multi && ~isempty(dtA) && n <= numel(dtA)
+            Stimulus_acq_timestamps(n,:) = Stimulus_acq_timestamps(n,:) + dtA(n);
+        end
+    end
+end
+Triggers.Stimulus_acq_timestamps = Stimulus_acq_timestamps;
+
 % Remove trigger fields if no problems
 if ~TimingProblems
     Headers = rmfield(Headers, {'auxTrigger0'; 'auxTrigger1'; 'auxTrigger2'; 'auxTrigger3'});
@@ -803,6 +816,42 @@ stim_fields = fieldnames(Stimuli);
 for i = 1:length(stim_fields)
     for j = 1:size(Stimuli, 2)
         Stimulusoptions(j).(stim_fields{i}) = Stimuli(j).(stim_fields{i});
+    end
+end
+
+% Synchronize stimulus frames using projector triggers (red sync frames)
+% Check stimulus type to determine synchronization method
+if ~isempty(Stimulusoptions) && isfield(Stimulusoptions(1), 'type')
+    PT = Triggers.TimeProjector;
+    Stimulus_acquisition_start_stop_timestamp = Triggers.Stimulus_acq_timestamps;
+    
+    if ~strcmp(Stimulusoptions(1).type, 'training')
+        % Non-training stimulus: synchronize using projector triggers
+        fprintf('Synchronizing stimulus frames for non-training paradigm\n');
+        for Stimnumber = 1:numel(Stimulusoptions)
+            stim_sync = synchronize_red_frames(...
+                Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, ...
+                Stimnumber, SI_Info);
+            
+            % Copy synchronized fields back to stimulus struct
+            Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
+            Stimulusoptions(Stimnumber).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
+            Stimulusoptions(Stimnumber).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+        end
+    else
+        % Training stimulus: use acquisition-based synchronization
+        fprintf('Synchronizing stimulus frames for training paradigm\n');
+        StimAcqNumber = match_stim_to_acq(Stimulusoptions, Stimulus_acquisition_start_stop_timestamp, SI_Info);
+        for Stimnumber = 1:numel(Stimulusoptions)
+            stim_sync = synchronize_red_frames_training(...
+                Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, ...
+                StimAcqNumber, Stimnumber, SI_Info);
+            
+            % Copy synchronized fields back to stimulus struct
+            Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
+            Stimulusoptions(Stimnumber).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
+            Stimulusoptions(Stimnumber).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+        end
     end
 end
 
@@ -914,6 +963,112 @@ try
 catch ME
     warning('Locomotion calibration failed: %s', ME.message);
     LocomotionCal = [];
+end
+
+end
+
+
+function Stimopts = synchronize_red_frames(Stimopts, PT, timestamps, Stimnumber, SI_Info)
+%SYNCHRONIZE_RED_FRAMES Synchronize projected frames using red sync frames
+%   Aligns stimulus frame times from stimulus PC with camera acquisition times
+%   using projector trigger times as reference
+
+Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(Stimnumber,1) & PT <= timestamps(Stimnumber,2)+1);
+Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count))-1, Stimopts.red_sync_nth_frame) == 0);
+
+% Handle edge cases where red frame count doesn't match projector sync count
+if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
+    Red_frame_number(end) = [];
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    % Try filtering projector times by larger gaps (likely sync point)
+    dt = diff([-inf Timestamp_Projected_Sync_Frames]);
+    tc = Timestamp_Projected_Sync_Frames(dt > .04);
+    if numel(Red_frame_number) == numel(tc) + 1
+        Red_frame_number(end) = [];
+    end
+    if numel(Red_frame_number) == numel(tc)
+        Timestamp_Projected_Sync_Frames = tc;
+    end
+end
+
+% If still mismatched, fall back to using PC clock times
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    warning('Projector sync frames not matching! Using PC Clock Times instead');
+    Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+else
+    % Interpolate to map stimulus frame numbers to camera-synchronized times
+    Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
+        1:sum(~isnan(Stimopts.Frameinfo.frame_count)), 'linear', 'extrap');
+    Stimopts.RedFrameSynchronized = true;
+end
+
+% Compute VBL-relative timing (time relative to first stimulus frame)
+Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
+    Stimopts.TimeStimulusFrame(1);
+Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.TimeStimulusFrameVBL))';
+
+end
+
+
+function Stimopts = synchronize_red_frames_training(Stimopts, PT, timestamps, StimAcqNumber, Stimnumber, SI_Info)
+%SYNCHRONIZE_RED_FRAMES_TRAINING Synchronize red frames for training paradigm
+%   Similar to synchronize_red_frames but accounts for training stimulus structure
+%   where multiple stimuli may be spread across acquisition blocks
+
+acq_num = StimAcqNumber(Stimnumber);
+Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(acq_num,1) & PT <= timestamps(acq_num,2)+1);
+Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber)))-1, Stimopts.red_sync_nth_frame) == 0);
+
+% Handle edge cases where red frame count doesn't match projector sync count
+if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
+    Red_frame_number(end) = [];
+end
+
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    % Try filtering projector times by larger gaps (likely sync point)
+    dt = diff([-inf Timestamp_Projected_Sync_Frames]);
+    tc = Timestamp_Projected_Sync_Frames(dt > .04);
+    if numel(Red_frame_number) == numel(tc) + 1
+        Red_frame_number(end) = [];
+    end
+    if numel(Red_frame_number) == numel(tc)
+        Timestamp_Projected_Sync_Frames = tc;
+    end
+end
+
+% If still mismatched, fall back to using PC clock times
+if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    warning('Projector sync frames not matching for training! Using PC Clock Times instead');
+    Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+else
+    % Interpolate to map stimulus frame numbers to camera-synchronized times
+    Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
+        1:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber))), 'linear', 'extrap');
+    Stimopts.RedFrameSynchronized = true;
+end
+
+% Compute VBL-relative timing (time relative to first stimulus frame)
+Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
+    Stimopts.TimeStimulusFrame(1);
+Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.TimeStimulusFrameVBL))';
+
+end
+
+
+function StimAcqNumber = match_stim_to_acq(Stimulusoptions, acq_timestamps, SI_Info)
+%MATCH_STIM_TO_ACQ Map each training stimulus to its acquisition block
+%   Uses stimulus end time to find closest acquisition block end time
+
+ClockAcqEnd = seconds(acq_timestamps(:,2)) + SI_Info.Clockstart;
+ClockStimEnd = cat(1, Stimulusoptions(:).timeend);
+StimAcqNumber = zeros(size(ClockStimEnd));
+for s = 1:numel(ClockStimEnd)
+    [~, I] = sort(abs(seconds(ClockAcqEnd - ClockStimEnd(s))));
+    StimAcqNumber(s) = I(1);
 end
 
 end
