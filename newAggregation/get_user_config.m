@@ -45,8 +45,8 @@ config.StimBasePath = 'Z:\group\joeschgrp\Group Members\Rima\Stimulus_test\';
 config.DLCDir = 'Z:\group\joeschgrp\Group Members\Rima\DLCData\';
 config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
 config.CameraDir = 'Z:\group\joeschgrp\Group Members\Rima\Camera\';
-%config.DATA_2P = 'Z:\group\joeschgrp\Group Members\Rima\TEST\';
-config.DATA_2P = 'C:\Users\rbondarenko\projects\DATA_2P\TEST\';
+config.DATA_2P = 'Z:\group\joeschgrp\Group Members\Rima\DATA_2P\';
+%config.DATA_2P = 'C:\Users\rbondarenko\projects\DATA_2P\TEST\';
 
 % Append animal name subfolder to IntermediateDir
 config.IntermediateDir = fullfile(config.IntermediateDir, animal_name, filesep);

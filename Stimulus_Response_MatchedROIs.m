@@ -33,7 +33,7 @@ ca_type = 1;
 
 % Optional stimulus filter. Keep {} to use all stimulus entries.
 % Example: {'moving_bar', 'grating'}
-stimulus_types = {'grating'};
+stimulus_types = {'spontaneous'};
 
 % Heatmap frame selection (edit to choose which frames to display)
 plot_frame_start = 1;       % starting frame index to display

@@ -993,15 +993,20 @@ if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     end
 end
 
-% If still mismatched, fall back to using PC clock times
-if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+% If still mismatched or insufficient points, fall back to using PC clock times
+num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count));
+if numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     warning('Projector sync frames not matching! Using PC Clock Times instead');
     Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+elseif num_frames < 1
+    warning('Stimulus has no valid frames! Setting TimeStimulusFrame to NaN');
+    Stimopts.TimeStimulusFrame = nan(1, numel(Stimopts.Frameinfo.frametime));
     Stimopts.RedFrameSynchronized = false;
 else
     % Interpolate to map stimulus frame numbers to camera-synchronized times
     Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
-        1:sum(~isnan(Stimopts.Frameinfo.frame_count)), 'linear', 'extrap');
+        1:num_frames, 'linear', 'extrap');
     Stimopts.RedFrameSynchronized = true;
 end
 
@@ -1039,15 +1044,20 @@ if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     end
 end
 
-% If still mismatched, fall back to using PC clock times
-if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+% If still mismatched or insufficient points, fall back to using PC clock times
+num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber)));
+if numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     warning('Projector sync frames not matching for training! Using PC Clock Times instead');
     Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
+    Stimopts.RedFrameSynchronized = false;
+elseif num_frames < 1
+    warning('Training stimulus %d has no valid frames! Setting TimeStimulusFrame to NaN', Stimnumber);
+    Stimopts.TimeStimulusFrame = nan(1, numel(Stimopts.Frameinfo.frametime));
     Stimopts.RedFrameSynchronized = false;
 else
     % Interpolate to map stimulus frame numbers to camera-synchronized times
     Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
-        1:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber))), 'linear', 'extrap');
+        1:num_frames, 'linear', 'extrap');
     Stimopts.RedFrameSynchronized = true;
 end
 
