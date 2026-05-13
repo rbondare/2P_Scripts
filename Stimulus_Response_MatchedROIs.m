@@ -252,8 +252,35 @@ function metrics = compute_stimulus_metrics(dff, t, Stimuli, stimulus_types)
     stim_idx_list = collect_stimulus_indices(t, Stimuli, stimulus_types);
     pre_idx_list = collect_prestim_indices(t, Stimuli, stimulus_types);
 
+    % If no windows found for requested stimulus_types, try falling back to
+    % using all stimuli and report available stimulus types to the user.
     if isempty(stim_idx_list)
-        warning('No valid stimulus windows found. Returning NaN metrics.');
+        if ~isempty(stimulus_types)
+            types = {};
+            for k = 1:numel(Stimuli)
+                if isfield(Stimuli(k), 'type') && ~isempty(Stimuli(k).type)
+                    types{end+1} = Stimuli(k).type; %#ok<AGROW>
+                end
+            end
+            types = unique(types);
+            if isempty(types)
+                warning('No valid stimulus windows found. Stimuli contain no ''type'' fields. Returning NaN metrics.');
+                metrics = struct('mean_stim', nan(size(dff,1),1), 'delta_stim', nan(size(dff,1),1));
+                return;
+            else
+                warning('No valid stimulus windows found for requested types. Available stimulus types: %s. Retrying with all stimuli.', strjoin(types, ', '));
+                stim_idx_list = collect_stimulus_indices(t, Stimuli, {});
+                pre_idx_list = collect_prestim_indices(t, Stimuli, {});
+            end
+        else
+            warning('No valid stimulus windows found. Returning NaN metrics.');
+            metrics = struct('mean_stim', nan(size(dff,1),1), 'delta_stim', nan(size(dff,1),1));
+            return;
+        end
+    end
+
+    if isempty(stim_idx_list)
+        warning('No valid stimulus windows found after fallback. Returning NaN metrics.');
         metrics = struct('mean_stim', nan(size(dff,1),1), 'delta_stim', nan(size(dff,1),1));
         return;
     end
