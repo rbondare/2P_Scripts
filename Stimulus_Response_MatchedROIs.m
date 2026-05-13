@@ -33,7 +33,7 @@ ca_type = 1;
 
 % Optional stimulus filter. Keep {} to use all stimulus entries.
 % Example: {'moving_bar', 'grating'}
-stimulus_types = {'baseline'};
+stimulus_types = {'grating'};
 
 % Heatmap frame selection (edit to choose which frames to display)
 plot_frame_start = 1;       % starting frame index to display
@@ -129,6 +129,8 @@ drug_time = get_time_vector(D.TimeCa);
 
 fprintf('Matched ROI pairs used: %d\n', size(base_dff, 1));
 fprintf('Selected plane: suite2p plane%d\n', selected_plane_s2p);
+fprintf('Baseline time range: %.2f - %.2f s (%d frames)\n', base_time(1), base_time(end), numel(base_time));
+fprintf('Drug time range:     %.2f - %.2f s (%d frames)\n', drug_time(1), drug_time(end), numel(drug_time));
 
 % Determine frame indices to plot (use same window for both recordings)
 nFramesBase = size(base_dff, 2);
@@ -139,19 +141,46 @@ plot_idx = plot_frame_start:plot_frame_end;
 
 fprintf('Plotting frames %d:%d (max %d)\n', plot_frame_start, plot_frame_end, common_max);
 
+%% VALIDATE STIMULUS DATA
+% Check if Stimuli contain valid timing and type fields
+if ~isempty(B.Stimuli)
+    has_type = false;
+    has_timing = false;
+    for i = 1:min(3, numel(B.Stimuli))
+        if isfield(B.Stimuli(i), 'type') && ~isempty(B.Stimuli(i).type)
+            has_type = true;
+        end
+        if isfield(B.Stimuli(i), 'TimeStimulusFrame') && ~isempty(B.Stimuli(i).TimeStimulusFrame)
+            has_timing = true;
+        end
+    end
+    if has_type
+        fprintf('Stimulus data validated: contains type field.\n');
+    end
+    if has_timing
+        fprintf('Stimulus data contains TimeStimulusFrame (frame-based timing).\n');
+    end
+else
+    warning('No stimulus data in baseline file.');
+end
+
 %% PLOT 1: AVERAGE TRACE ACROSS MATCHED ROIS
 figure('Name', 'Matched ROI Mean Traces', 'NumberTitle', 'off');
 subplot(2,1,1);
-plot(base_time, mean(base_dff, 1), 'r', 'LineWidth', 1.5);
-xlabel('Time'); ylabel('Mean dF/F');
-title(sprintf('Baseline mean trace (%d matched ROIs)', size(base_dff, 1)));
-grid on;
+    trace_base = mean(base_dff, 1);
+    plot(base_time, trace_base, 'r', 'LineWidth', 1.5);
+    xlabel('Time (s)'); ylabel('Mean dF/F');
+    title(sprintf('Baseline mean trace (%d matched ROIs, %d frames)', size(base_dff, 1), size(base_dff, 2)));
+    grid on;
+    ylim([min(trace_base) - 0.5, max(trace_base) + 0.5]);
 
 subplot(2,1,2);
-plot(drug_time, mean(drug_dff, 1), 'b', 'LineWidth', 1.5);
-xlabel('Time'); ylabel('Mean dF/F');
-title(sprintf('Drug mean trace (%d matched ROIs)', size(drug_dff, 1)));
-grid on;
+    trace_drug = mean(drug_dff, 1);
+    plot(drug_time, trace_drug, 'b', 'LineWidth', 1.5);
+    xlabel('Time (s)'); ylabel('Mean dF/F');
+    title(sprintf('Drug mean trace (%d matched ROIs, %d frames)', size(drug_dff, 1), size(drug_dff, 2)));
+    grid on;
+    ylim([min(trace_drug) - 0.5, max(trace_drug) + 0.5]);
 
 %% PLOT 2: HEATMAPS OF MATCHED ROIS
 figure('Name', 'Matched ROI Heatmaps', 'NumberTitle', 'off');
@@ -163,8 +192,9 @@ subplot(1,2,1);
     c = colorbar;
     caxis(heatmap_clim);
     ylabel(c, 'dF/F');
-xlabel('Frame'); ylabel('Matched ROI');
-title('Baseline matched ROIs');
+    xlabel('Frame (from frame ' + string(plot_frame_start) + ')');
+    ylabel('Matched ROI');
+    title(sprintf('Baseline matched ROIs (frames %d-%d)', plot_frame_start, plot_frame_end));
 
 subplot(1,2,2);
     imagesc(drug_dff(:, plot_idx));
@@ -174,46 +204,83 @@ subplot(1,2,2);
     c = colorbar;
     caxis(heatmap_clim);
     ylabel(c, 'dF/F');
-xlabel('Frame'); ylabel('Matched ROI');
-title('Drug matched ROIs');
+    xlabel('Frame (from frame ' + string(plot_frame_start) + ')');
+    ylabel('Matched ROI');
+    title(sprintf('Drug matched ROIs (frames %d-%d)', plot_frame_start, plot_frame_end));
 
 %% RESPONSE METRICS 
 % Uses mean dF/F during stimulus minus pre-stimulus baseline.
+fprintf('\n--- Computing response metrics for BASELINE ---\\n');
 base_metrics = compute_stimulus_metrics(base_dff, base_time, B.Stimuli, stimulus_types);
+fprintf('--- Computing response metrics for DRUG ---\\n');
 drug_metrics = compute_stimulus_metrics(drug_dff, drug_time, D.Stimuli, stimulus_types);
 
+% Validation: check if metrics contain valid (non-NaN) values
+base_valid = ~isnan(base_metrics.mean_stim);
+drug_valid = ~isnan(drug_metrics.mean_stim);
+n_valid = sum(base_valid & drug_valid);
+fprintf('\\nValid paired responses: %d / %d ROIs\\n', n_valid, size(base_dff, 1));
+
+if n_valid < size(base_dff, 1) * 0.5
+    warning('Less than 50%% of ROIs have valid responses. Check stimulus timing alignment.');
+end
+
 %% PLOT 3: PAIRED RESPONSE COMPARISON
+% Only plot valid (non-NaN) data
+valid_idx = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+
 figure('Name', 'Matched ROI Response Comparison', 'NumberTitle', 'off');
 subplot(1,2,1);
-plot([1 2], [base_metrics.mean_stim, drug_metrics.mean_stim]', '-o', 'Color', [0.7 0.7 0.7]);
-hold on;
-plot([1 2], [mean(base_metrics.mean_stim) mean(drug_metrics.mean_stim)], 'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
-set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-ylabel('Mean dF/F during stimulus');
-title('Per-ROI stimulus mean (paired)');
-grid on;
+    if sum(valid_idx) > 0
+        plot([1 2], [base_metrics.mean_stim(valid_idx), drug_metrics.mean_stim(valid_idx)]', '-o', 'Color', [0.7 0.7 0.7]);
+        hold on;
+        plot([1 2], [mean(base_metrics.mean_stim(valid_idx)), mean(drug_metrics.mean_stim(valid_idx))], ...
+            'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
+    else
+        warning('No valid data for mean stimulus response plot.');
+    end
+    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
+    ylabel('Mean dF/F during stimulus');
+    title(sprintf('Per-ROI stimulus mean (n=%d)', sum(valid_idx)));
+    grid on;
 
 subplot(1,2,2);
-plot([1 2], [base_metrics.delta_stim, drug_metrics.delta_stim]', '-o', 'Color', [0.7 0.7 0.7]);
-hold on;
-plot([1 2], [mean(base_metrics.delta_stim) mean(drug_metrics.delta_stim)], 'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
-set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-ylabel('Stimulus - pre-stimulus dF/F');
-title('Per-ROI evoked delta (paired)');
-grid on;
+    valid_delta_idx = ~isnan(base_metrics.delta_stim) & ~isnan(drug_metrics.delta_stim);
+    if sum(valid_delta_idx) > 0
+        plot([1 2], [base_metrics.delta_stim(valid_delta_idx), drug_metrics.delta_stim(valid_delta_idx)]', '-o', 'Color', [0.7 0.7 0.7]);
+        hold on;
+        plot([1 2], [mean(base_metrics.delta_stim(valid_delta_idx)), mean(drug_metrics.delta_stim(valid_delta_idx))], ...
+            'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
+    else
+        warning('No valid data for delta response plot.');
+    end
+    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
+    ylabel('Stimulus - pre-stimulus dF/F');
+    title(sprintf('Per-ROI evoked delta (n=%d)', sum(valid_delta_idx)));
+    grid on;
 
 %% BASIC STATS OUTPUT
-[p_mean, ~, stats_mean] = signrank(base_metrics.mean_stim, drug_metrics.mean_stim);
-[p_delta, ~, stats_delta] = signrank(base_metrics.delta_stim, drug_metrics.delta_stim);
-
-fprintf('\n=== Response Summary (Matched ROIs) ===\n');
-fprintf('Baseline mean(stim): %.4f\n', mean(base_metrics.mean_stim));
-fprintf('Drug mean(stim):     %.4f\n', mean(drug_metrics.mean_stim));
-fprintf('signrank p (mean_stim): %.3g, signed-rank=%g\n', p_mean, stats_mean.signedrank);
-
-fprintf('Baseline mean(delta): %.4f\n', mean(base_metrics.delta_stim));
-fprintf('Drug mean(delta):     %.4f\n', mean(drug_metrics.delta_stim));
-fprintf('signrank p (delta): %.3g, signed-rank=%g\n', p_delta, stats_delta.signedrank);
+% Only compute statistics on valid (non-NaN) paired data
+valid_pairs = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+if sum(valid_pairs) < 3
+    fprintf('WARNING: Fewer than 3 valid paired ROIs for statistics. Skipping statistical tests.\\n');
+else
+    [p_mean, ~, stats_mean] = signrank(base_metrics.mean_stim(valid_pairs), drug_metrics.mean_stim(valid_pairs));
+    [p_delta, ~, stats_delta] = signrank(base_metrics.delta_stim(valid_pairs), drug_metrics.delta_stim(valid_pairs));
+    
+    fprintf('\\n=== Response Summary (Matched ROIs, n=%d valid pairs) ===\\n', sum(valid_pairs));
+    fprintf('Baseline mean(stim): %.4f ± %.4f\\n', mean(base_metrics.mean_stim(valid_pairs), 'omitnan'), ...
+            std(base_metrics.mean_stim(valid_pairs), 'omitnan'));
+    fprintf('Drug mean(stim):     %.4f ± %.4f\\n', mean(drug_metrics.mean_stim(valid_pairs), 'omitnan'), ...
+            std(drug_metrics.mean_stim(valid_pairs), 'omitnan'));
+    fprintf('signrank p (mean_stim): %.3g, signed-rank=%g\\n', p_mean, stats_mean.signedrank);
+    
+    fprintf('\\nBaseline mean(delta): %.4f ± %.4f\\n', mean(base_metrics.delta_stim(valid_pairs), 'omitnan'), ...
+            std(base_metrics.delta_stim(valid_pairs), 'omitnan'));
+    fprintf('Drug mean(delta):     %.4f ± %.4f\\n', mean(drug_metrics.delta_stim(valid_pairs), 'omitnan'), ...
+            std(drug_metrics.delta_stim(valid_pairs), 'omitnan'));
+    fprintf('signrank p (delta): %.3g, signed-rank=%g\\n', p_delta, stats_delta.signedrank);
+end
 
 % Optional outputs in workspace
 matched_results = struct();
@@ -268,7 +335,9 @@ function metrics = compute_stimulus_metrics(dff, t, Stimuli, stimulus_types)
                 metrics = struct('mean_stim', nan(size(dff,1),1), 'delta_stim', nan(size(dff,1),1));
                 return;
             else
-                warning('No valid stimulus windows found for requested types. Available stimulus types: %s. Retrying with all stimuli.', strjoin(types, ', '));
+                fprintf('WARNING: No stimulus windows found for type(s): %s\n', strjoin(stimulus_types, ', '));
+                fprintf('Available stimulus types: %s\n', strjoin(types, ', '));
+                fprintf('Retrying with all stimuli as fallback.\n');
                 stim_idx_list = collect_stimulus_indices(t, Stimuli, {});
                 pre_idx_list = collect_prestim_indices(t, Stimuli, {});
             end
@@ -288,19 +357,25 @@ function metrics = compute_stimulus_metrics(dff, t, Stimuli, stimulus_types)
     % Concatenate all windows for a compact essential metric.
     stim_idx = unique([stim_idx_list{:}]);
     mean_stim = mean(dff(:, stim_idx), 2, 'omitnan');
+    
+    fprintf('Used %d frames from stimulus windows (out of %d total frames).\\n', numel(stim_idx), size(dff, 2));
 
     if isempty(pre_idx_list)
         delta_stim = nan(size(mean_stim));
+        fprintf('No pre-stimulus baseline available. Delta response set to NaN.\\n');
     else
         pre_idx = unique([pre_idx_list{:}]);
         mean_pre = mean(dff(:, pre_idx), 2, 'omitnan');
         delta_stim = mean_stim - mean_pre;
+        fprintf('Used %d frames from pre-stimulus baseline.\\n', numel(pre_idx));
     end
 
     metrics = struct('mean_stim', mean_stim, 'delta_stim', delta_stim);
 end
 
 function stim_idx_list = collect_stimulus_indices(t, Stimuli, stimulus_types)
+    % Collect frame indices corresponding to stimulus windows.
+    % Assumes TimeStimulusFrame contains frame indices (integers).
     stim_idx_list = {};
     for i = 1:numel(Stimuli)
         if ~isfield(Stimuli(i), 'TimeStimulusFrame') || isempty(Stimuli(i).TimeStimulusFrame)
@@ -310,16 +385,20 @@ function stim_idx_list = collect_stimulus_indices(t, Stimuli, stimulus_types)
             continue;
         end
 
-        st = Stimuli(i).TimeStimulusFrame(1);
-        en = Stimuli(i).TimeStimulusFrame(end);
-        idx = find(t >= st & t <= en);
-        if ~isempty(idx)
-            stim_idx_list{end+1} = idx; %#ok<AGROW>
+        % TimeStimulusFrame is expected to be a vector of frame indices
+        stim_frames = Stimuli(i).TimeStimulusFrame;
+        stim_frames = unique(round(stim_frames)); % Ensure integer frame indices
+        stim_frames = stim_frames(stim_frames >= 1 & stim_frames <= numel(t));
+        
+        if ~isempty(stim_frames)
+            stim_idx_list{end+1} = stim_frames; %#ok<AGROW>
         end
     end
 end
 
 function pre_idx_list = collect_prestim_indices(t, Stimuli, stimulus_types)
+    % Collect frame indices for pre-stimulus baseline (duration-matched window before stimulus).
+    % Assumes TimeStimulusFrame contains frame indices.
     pre_idx_list = {};
     for i = 1:numel(Stimuli)
         if ~isfield(Stimuli(i), 'TimeStimulusFrame') || isempty(Stimuli(i).TimeStimulusFrame)
@@ -329,18 +408,26 @@ function pre_idx_list = collect_prestim_indices(t, Stimuli, stimulus_types)
             continue;
         end
 
-        st = Stimuli(i).TimeStimulusFrame(1);
-        en = Stimuli(i).TimeStimulusFrame(end);
-        dur = en - st;
-        if dur <= 0
+        % Extract stimulus window frames
+        stim_frames = Stimuli(i).TimeStimulusFrame;
+        stim_frames = unique(round(stim_frames));
+        stim_frames = stim_frames(stim_frames >= 1 & stim_frames <= numel(t));
+        
+        if isempty(stim_frames)
             continue;
         end
 
-        pre_st = st - dur;
-        pre_en = st;
-        idx = find(t >= pre_st & t < pre_en);
-        if ~isempty(idx)
-            pre_idx_list{end+1} = idx; %#ok<AGROW>
+        st_frame = min(stim_frames);
+        en_frame = max(stim_frames);
+        dur = en_frame - st_frame + 1;
+        
+        % Pre-stimulus window: same duration, ending just before stimulus
+        pre_st_frame = max(1, st_frame - dur);
+        pre_en_frame = st_frame - 1;
+        
+        if pre_en_frame >= pre_st_frame
+            pre_frames = pre_st_frame:pre_en_frame;
+            pre_idx_list{end+1} = pre_frames; %#ok<AGROW>
         end
     end
 end
