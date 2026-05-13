@@ -73,6 +73,7 @@ addParameter(p, 'recordings', {}, @iscell);
 addParameter(p, 'require_calcium', false, @islogical);
 addParameter(p, 'require_stimulus', true, @islogical);
 addParameter(p, 'check_processed', true, @islogical);
+addParameter(p, 'debug_discovery', false, @islogical);
 parse(p, varargin{:});
 
 source = p.Results.source;
@@ -82,6 +83,7 @@ recordings_filter = p.Results.recordings;
 require_calcium = p.Results.require_calcium;
 require_stimulus = p.Results.require_stimulus;
 check_processed = p.Results.check_processed;
+debug_discovery = p.Results.debug_discovery;
 
 % Initialize empty experiments array
 experiments = struct('name', {}, 'animal_name', {}, 'path', {}, ...
@@ -172,20 +174,38 @@ for i = 1:numel(experiments)
 
     experiments(i) = exp;
 
+    if debug_discovery
+        fprintf('[DISCOVERY] %s | calcium=%d stimulus=%d processed=%d\n', ...
+            exp.name, exp.has_calcium, exp.has_stimulus, exp.is_processed);
+    end
+
     % Apply filters
     if require_calcium && ~exp.has_calcium
+        if debug_discovery
+            fprintf('  -> EXCLUDED: missing calcium (suite2p folder not found)\n');
+        end
         valid_idx(i) = false;
         continue;
     end
 
     if require_stimulus && ~exp.has_stimulus
+        if debug_discovery
+            fprintf('  -> EXCLUDED: missing stimulus (no stim*.mat found)\n');
+        end
         valid_idx(i) = false;
         continue;
     end
 
     if check_processed && exp.is_processed
+        if debug_discovery
+            fprintf('  -> EXCLUDED: already processed (_preprocessed.mat exists)\n');
+        end
         valid_idx(i) = false;
         continue;
+    end
+
+    if debug_discovery
+        fprintf('  -> INCLUDED\n');
     end
 end
 
