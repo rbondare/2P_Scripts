@@ -177,7 +177,7 @@ subplot(1,2,2);
 xlabel('Frame'); ylabel('Matched ROI');
 title('Drug matched ROIs');
 
-%% RESPONSE METRICS (ESSENTIAL)
+%% RESPONSE METRICS 
 % Uses mean dF/F during stimulus minus pre-stimulus baseline.
 base_metrics = compute_stimulus_metrics(base_dff, base_time, B.Stimuli, stimulus_types);
 drug_metrics = compute_stimulus_metrics(drug_dff, drug_time, D.Stimuli, stimulus_types);
