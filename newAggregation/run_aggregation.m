@@ -29,7 +29,9 @@ config_animals = {'AnimalRB19'};                 % e.g., {'AnimalRB5', 'AnimalRB
 % --- Processing Options ---
 config_require_calcium = true;      % false = allow behavior-only processing
 config_require_stimulus = true;      % true = require stimulus files
-config_check_processed = false;       % true = skip already processed recordingsconfig_debug_discovery = false;      % true = print include/exclude reason per recordingconfig_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
+config_check_processed = false;       % true = skip already processed recordings
+config_debug_discovery = false;      % true = print include/exclude reason per recording
+config_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
 config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
 
 % --- Import DLC Before Aggregation ---
