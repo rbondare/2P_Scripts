@@ -1,5 +1,6 @@
 # MATLAB data files
 *.mat
+*.fig
 
 # OS and editor files
 .DS_Store
