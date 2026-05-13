@@ -140,18 +140,20 @@ grid on;
 %% PLOT 2: HEATMAPS OF MATCHED ROIS
 figure('Name', 'Matched ROI Heatmaps', 'NumberTitle', 'off');
 subplot(1,2,1);
-imagesc(base_dff);
-axis tight;
-colormap(gca, 'parula');
-colorbar;
+    imagesc(base_dff);
+    axis tight;
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+    colorbar;
 xlabel('Frame'); ylabel('Matched ROI');
 title('Baseline matched ROIs');
 
 subplot(1,2,2);
-imagesc(drug_dff);
-axis tight;
-colormap(gca, 'parula');
-colorbar;
+    imagesc(drug_dff);
+    axis tight;
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+    colorbar;
 xlabel('Frame'); ylabel('Matched ROI');
 title('Drug matched ROIs');
 
