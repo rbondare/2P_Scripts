@@ -35,6 +35,13 @@ ca_type = 1;
 % Example: {'moving_bar', 'grating'}
 stimulus_types = {};
 
+% Heatmap frame selection (edit to choose which frames to display)
+plot_frame_start = 1;       % starting frame index to display
+plot_num_frames  = 1000;    % number of frames to display (choose 1000)
+
+% Color limits for heatmaps
+heatmap_clim = [0 5];       % colorbar axis limits
+
 %% LOAD DATA
 B = load(baseline_file);
 D = load(drug_file);
@@ -123,6 +130,15 @@ drug_time = get_time_vector(D.TimeCa);
 fprintf('Matched ROI pairs used: %d\n', size(base_dff, 1));
 fprintf('Selected plane: suite2p plane%d\n', selected_plane_s2p);
 
+% Determine frame indices to plot (use same window for both recordings)
+nFramesBase = size(base_dff, 2);
+nFramesDrug = size(drug_dff, 2);
+common_max = min(nFramesBase, nFramesDrug);
+plot_frame_end = min(plot_frame_start + plot_num_frames - 1, common_max);
+plot_idx = plot_frame_start:plot_frame_end;
+
+fprintf('Plotting frames %d:%d (max %d)\n', plot_frame_start, plot_frame_end, common_max);
+
 %% PLOT 1: AVERAGE TRACE ACROSS MATCHED ROIS
 figure('Name', 'Matched ROI Mean Traces', 'NumberTitle', 'off');
 subplot(2,1,1);
@@ -140,20 +156,24 @@ grid on;
 %% PLOT 2: HEATMAPS OF MATCHED ROIS
 figure('Name', 'Matched ROI Heatmaps', 'NumberTitle', 'off');
 subplot(1,2,1);
-    imagesc(base_dff);
+    imagesc(base_dff(:, plot_idx));
     axis tight;
     colormap(flipud(gray));
     set(gca, 'YDir', 'reverse');
-    colorbar;
+    c = colorbar;
+    caxis(heatmap_clim);
+    ylabel(c, 'dF/F');
 xlabel('Frame'); ylabel('Matched ROI');
 title('Baseline matched ROIs');
 
 subplot(1,2,2);
-    imagesc(drug_dff);
+    imagesc(drug_dff(:, plot_idx));
     axis tight;
     colormap(flipud(gray));
     set(gca, 'YDir', 'reverse');
-    colorbar;
+    c = colorbar;
+    caxis(heatmap_clim);
+    ylabel(c, 'dF/F');
 xlabel('Frame'); ylabel('Matched ROI');
 title('Drug matched ROIs');
 
