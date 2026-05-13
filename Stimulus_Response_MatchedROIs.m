@@ -1,5 +1,5 @@
-%% MATCHED ROI STIMULUS RESPONSE COMPARISON (ESSENTIALS)
-% Minimal baseline vs drug comparison using ROI matches from ROIMatchPub.
+%% MATCHED ROI STIMULUS RESPONSE COMPARISON
+%  V1 of the script to compare baseline vs drug using ROI matches from ROIMatchPub.
 % Inputs:
 %   1) Two preprocessed files (baseline and drug)
 %   2) ROIMatch file containing roiMatchData.allSessionMapping
@@ -14,8 +14,8 @@ clear;
 
 %% USER SETTINGS
 % Preprocessed recordings
-baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat\";
-drug_file     = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\Animal25_240717_1409_preprocessed.mat\";
+baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
+drug_file     = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
 
 % ROI match file saved by ROIMatchPub (contains roiMatchData)
 roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
