@@ -35,12 +35,12 @@ ca_type = 1;
 % Stimulus type to focus on for detailed response analysis
 selected_stimulus_type = 'spontaneous';  % e.g., 'spontaneous', 'grating', 'moving_bar'
 
-% Frame selection within stimulus window (no before/after padding)
+% Frame selection within stimulus window 
 stim_frame_start = 1;      % start frame within stimulus window (e.g., 1 to start from beginning)
-stim_frame_count = 200;    % number of frames to show (e.g., 200 frames = cleaner visualization than 5 min)
+stim_frame_count = 1000;    % number of frames to show 
 
 % Plotting options
-n_top_snr = 8;             % number of top SNR ROIs to display (8 for 4 rows x 2 cols)
+n_top_snr = 8;             % number of top SNR ROIs to display 
 heatmap_clim = [0 5];      % colorbar axis limits for heatmaps
 
 %% LOAD DATA
@@ -250,7 +250,7 @@ top_idx_display = top_idx_display(1:min(n_top_snr, numel(top_idx_display)));
 
 fprintf('Top %d SNR ROIs identified for visualization.\n', numel(top_idx_display));
 
-%% PLOT 1: TOP SNR ROI RESPONSES - PUBLICATION QUALITY
+%% PLOT 1: TOP SNR ROI RESPONSES 
 % Display individual ROI responses during stimulus window
 figure('Name', sprintf('High SNR dFF Responses - %s', selected_stimulus_type), ...
        'NumberTitle', 'off', 'Position', [100 100 1200 1000]);
