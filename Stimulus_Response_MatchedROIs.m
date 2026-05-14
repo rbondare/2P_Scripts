@@ -35,13 +35,13 @@ ca_type = 1;
 % Stimulus type to focus on for detailed response analysis
 selected_stimulus_type = 'spontaneous';  % e.g., 'spontaneous', 'grating', 'moving_bar'
 
-% Time window around stimulus (in seconds)
-time_before_stim = 0.5;  % seconds before stimulus start
-time_after_stim = 1.0;   % seconds after stimulus end
+% Frame selection within stimulus window (no before/after padding)
+stim_frame_start = 1;      % start frame within stimulus window (e.g., 1 to start from beginning)
+stim_frame_count = 200;    % number of frames to show (e.g., 200 frames = cleaner visualization than 5 min)
 
 % Plotting options
-n_top_snr = 12;          % number of top SNR ROIs to display (e.g., 12 for 2 rows x 6 cols)
-heatmap_clim = [0 5];    % colorbar axis limits for heatmaps
+n_top_snr = 8;             % number of top SNR ROIs to display (8 for 4 rows x 2 cols)
+heatmap_clim = [0 5];      % colorbar axis limits for heatmaps
 
 %% LOAD DATA
 B = load(baseline_file);
@@ -160,55 +160,86 @@ end
 fprintf('\n--- ALIGNING STIMULUS RESPONSES ---\n');
 
 % Find stimulus presentations of selected type in both recordings
-base_stim_frames = find_stimulus_presentations(B.Stimuli, selected_stimulus_type);
-drug_stim_frames = find_stimulus_presentations(D.Stimuli, selected_stimulus_type);
+base_stim_info = find_stimulus_presentations(B.Stimuli, selected_stimulus_type);
+drug_stim_info = find_stimulus_presentations(D.Stimuli, selected_stimulus_type);
 
-fprintf('Found %d presentations of "%s" in baseline.\n', numel(base_stim_frames), selected_stimulus_type);
-fprintf('Found %d presentations of "%s" in drug.\n', numel(drug_stim_frames), selected_stimulus_type);
+fprintf('Found %d presentations of "%s" in baseline.\n', numel(base_stim_info), selected_stimulus_type);
+fprintf('Found %d presentations of "%s" in drug.\n', numel(drug_stim_info), selected_stimulus_type);
 
-% Convert time window to frame counts
-base_frame_before = round(time_before_stim * (numel(base_time) / base_time(end)));
-base_frame_after = round(time_after_stim * (numel(base_time) / base_time(end)));
-drug_frame_before = round(time_before_stim * (numel(drug_time) / drug_time(end)));
-drug_frame_after = round(time_after_stim * (numel(drug_time) / drug_time(end)));
+% Extract frame ranges for matched stimulus presentations
+base_stim_frame_ranges = {};
+drug_stim_frame_ranges = {};
 
-fprintf('Baseline: %.2f sec before (~%d frames), %.2f sec after (~%d frames)\n', ...
-    time_before_stim, base_frame_before, time_after_stim, base_frame_after);
-fprintf('Drug:     %.2f sec before (~%d frames), %.2f sec after (~%d frames)\n', ...
-    time_before_stim, drug_frame_before, time_after_stim, drug_frame_after);
+n_matched = min(numel(base_stim_info), numel(drug_stim_info));
+fprintf('Using %d matched stimulus presentations.\n', n_matched);
 
-% Extract response windows and calculate SNR
-base_responses = [];
-drug_responses = [];
-base_snr = [];
-drug_snr = [];
+% Get TimeStimulusFrame for each stimulus of selected type
+for i = 1:numel(B.Stimuli)
+    if isfield(B.Stimuli(i), 'type') && strcmp(B.Stimuli(i).type, selected_stimulus_type)
+        if isfield(B.Stimuli(i), 'TimeStimulusFrame') && ~isempty(B.Stimuli(i).TimeStimulusFrame)
+            stim_frames = B.Stimuli(i).TimeStimulusFrame;
+            st_frame = min(stim_frames(:));
+            en_frame = max(stim_frames(:));
+            base_stim_frame_ranges{end+1} = [st_frame, en_frame];
+            if numel(base_stim_frame_ranges) >= n_matched
+                break;
+            end
+        end
+    end
+end
 
-n_matched = min(numel(base_stim_frames), numel(drug_stim_frames));
+for i = 1:numel(D.Stimuli)
+    if isfield(D.Stimuli(i), 'type') && strcmp(D.Stimuli(i).type, selected_stimulus_type)
+        if isfield(D.Stimuli(i), 'TimeStimulusFrame') && ~isempty(D.Stimuli(i).TimeStimulusFrame)
+            stim_frames = D.Stimuli(i).TimeStimulusFrame;
+            st_frame = min(stim_frames(:));
+            en_frame = max(stim_frames(:));
+            drug_stim_frame_ranges{end+1} = [st_frame, en_frame];
+            if numel(drug_stim_frame_ranges) >= n_matched
+                break;
+            end
+        end
+    end
+end
+
+% Ensure we have matching lengths
+n_matched = min(numel(base_stim_frame_ranges), numel(drug_stim_frame_ranges));
+if n_matched == 0
+    error('No matching stimulus presentations found. Check stimulus type: "%s"', selected_stimulus_type);
+end
+
+fprintf('Extracted %d frame ranges for each condition.\n', n_matched);
+
+% Calculate SNR for each ROI across matched stimulus presentations
+base_snr = zeros(size(base_dff, 1), n_matched);
+drug_snr = zeros(size(drug_dff, 1), n_matched);
+
+fprintf('Calculating SNR across stimulus presentations...\n');
 for i = 1:n_matched
-    % Extract baseline response window
-    base_st = max(1, base_stim_frames(i) - base_frame_before);
-    base_en = min(size(base_dff, 2), base_stim_frames(i) + base_frame_after);
-    if base_en > base_st
-        base_window = base_dff(:, base_st:base_en);
-        base_responses(:, i) = mean(base_window, 2);
-        base_snr(:, i) = calculate_snr(base_window, base_stim_frames(i) - base_st + 1);
+    % Baseline
+    if ~isempty(base_stim_frame_ranges{i})
+        st_idx = base_stim_frame_ranges{i}(1);
+        en_idx = base_stim_frame_ranges{i}(2);
+        if en_idx <= size(base_dff, 2) && st_idx >= 1
+            base_window = base_dff(:, st_idx:en_idx);
+            base_snr(:, i) = calculate_snr_window(base_window);
+        end
     end
     
-    % Extract drug response window
-    drug_st = max(1, drug_stim_frames(i) - drug_frame_before);
-    drug_en = min(size(drug_dff, 2), drug_stim_frames(i) + drug_frame_after);
-    if drug_en > drug_st
-        drug_window = drug_dff(:, drug_st:drug_en);
-        drug_responses(:, i) = mean(drug_window, 2);
-        drug_snr(:, i) = calculate_snr(drug_window, drug_stim_frames(i) - drug_st + 1);
+    % Drug
+    if ~isempty(drug_stim_frame_ranges{i})
+        st_idx = drug_stim_frame_ranges{i}(1);
+        en_idx = drug_stim_frame_ranges{i}(2);
+        if en_idx <= size(drug_dff, 2) && st_idx >= 1
+            drug_window = drug_dff(:, st_idx:en_idx);
+            drug_snr(:, i) = calculate_snr_window(drug_window);
+        end
     end
 end
 
 % Average SNR across stimulus presentations for each ROI
 mean_snr_base = mean(base_snr, 2, 'omitnan');
 mean_snr_drug = mean(drug_snr, 2, 'omitnan');
-
-fprintf('Processed %d matched stimulus presentations.\n', n_matched);
 
 % Get top SNR ROI indices
 [~, base_top_idx] = sort(mean_snr_base, 'descend');
@@ -219,75 +250,138 @@ top_idx_display = top_idx_display(1:min(n_top_snr, numel(top_idx_display)));
 
 fprintf('Top %d SNR ROIs identified for visualization.\n', numel(top_idx_display));
 
-%% PLOT 1: HIGHEST SNR RESPONSES (Baseline vs Drug)
-figure('Name', sprintf('Top SNR Responses - %s', selected_stimulus_type), ...
-       'NumberTitle', 'off', 'Position', [100 100 1400 800]);
+%% PLOT 1: TOP SNR ROI RESPONSES - PUBLICATION QUALITY
+% Display individual ROI responses during stimulus window
+figure('Name', sprintf('High SNR dFF Responses - %s', selected_stimulus_type), ...
+       'NumberTitle', 'off', 'Position', [100 100 1200 1000]);
 
 n_plots = numel(top_idx_display);
-n_cols = 6;
-n_rows = ceil(n_plots / n_cols);
+n_cols = 2;  % baseline left, drug right
+n_rows = ceil(n_plots / 1);  % one row per ROI
 
-for plot_idx = 1:n_plots
-    roi_idx = top_idx_display(plot_idx);
+for plot_num = 1:n_plots
+    roi_idx = top_idx_display(plot_num);
     
-    % Baseline response (left subplot)
-    ax_base = subplot(n_rows, 2*n_cols, 2*plot_idx - 1);
+    % ===== BASELINE RESPONSES (Left) =====
+    ax_base = subplot(n_rows, 2, 2*plot_num - 1);
+    
     hold on;
-    for stim_idx = 1:min(3, n_matched)  % Show up to 3 stimulus presentations
-        base_st = max(1, base_stim_frames(stim_idx) - base_frame_before);
-        base_en = min(size(base_dff, 2), base_stim_frames(stim_idx) + base_frame_after);
-        if base_en > base_st
-            window_data = base_dff(roi_idx, base_st:base_en);
-            x_axis = 1:numel(window_data);
-            plot(x_axis, window_data, 'r-', 'Alpha', 0.5);
+    baseline_traces = [];
+    
+    for stim_idx = 1:n_matched
+        if ~isempty(base_stim_frame_ranges{stim_idx})
+            st_frame = base_stim_frame_ranges{stim_idx}(1);
+            en_frame = base_stim_frame_ranges{stim_idx}(2);
+            
+            % Extract selected frames from this stimulus window
+            disp_st = st_frame + stim_frame_start - 1;
+            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+            
+            if disp_en > disp_st && disp_st >= 1 && disp_en <= size(base_dff, 2)
+                trace = base_dff(roi_idx, disp_st:disp_en);
+                baseline_traces(:, stim_idx) = trace';
+            end
         end
     end
-    hold off;
-    ylabel('dF/F');
-    title(sprintf('ROI %d Baseline (SNR=%.2f)', roi_idx, mean_snr_base(roi_idx)));
-    set(gca, 'YLim', heatmap_clim);
-    grid on;
     
-    % Drug response (right subplot)
-    ax_drug = subplot(n_rows, 2*n_cols, 2*plot_idx);
+    % Plot all traces with transparency
+    if ~isempty(baseline_traces)
+        x_frames = 1:size(baseline_traces, 1);
+        for s = 1:size(baseline_traces, 2)
+            plot(x_frames, baseline_traces(:, s), 'r-', 'LineWidth', 1, 'Alpha', 0.3);
+        end
+        % Overlay mean
+        mean_trace = mean(baseline_traces, 2, 'omitnan');
+        plot(x_frames, mean_trace, 'r-', 'LineWidth', 2.5);
+    end
+    
+    hold off;
+    set(gca, 'YLim', heatmap_clim, 'LineWidth', 1.5, 'FontSize', 10);
+    ylabel('dF/F', 'FontSize', 10);
+    title(sprintf('ROI %d - Baseline (SNR=%.2f)', roi_idx, mean_snr_base(roi_idx)), ...
+          'FontSize', 11, 'FontWeight', 'bold');
+    grid on;
+    box on;
+    
+    % ===== DRUG RESPONSES (Right) =====
+    ax_drug = subplot(n_rows, 2, 2*plot_num);
+    
     hold on;
-    for stim_idx = 1:min(3, n_matched)  % Show up to 3 stimulus presentations
-        drug_st = max(1, drug_stim_frames(stim_idx) - drug_frame_before);
-        drug_en = min(size(drug_dff, 2), drug_stim_frames(stim_idx) + drug_frame_after);
-        if drug_en > drug_st
-            window_data = drug_dff(roi_idx, drug_st:drug_en);
-            x_axis = 1:numel(window_data);
-            plot(x_axis, window_data, 'b-', 'Alpha', 0.5);
+    drug_traces = [];
+    
+    for stim_idx = 1:n_matched
+        if ~isempty(drug_stim_frame_ranges{stim_idx})
+            st_frame = drug_stim_frame_ranges{stim_idx}(1);
+            en_frame = drug_stim_frame_ranges{stim_idx}(2);
+            
+            % Extract selected frames from this stimulus window
+            disp_st = st_frame + stim_frame_start - 1;
+            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+            
+            if disp_en > disp_st && disp_st >= 1 && disp_en <= size(drug_dff, 2)
+                trace = drug_dff(roi_idx, disp_st:disp_en);
+                drug_traces(:, stim_idx) = trace';
+            end
         end
     end
+    
+    % Plot all traces with transparency
+    if ~isempty(drug_traces)
+        x_frames = 1:size(drug_traces, 1);
+        for s = 1:size(drug_traces, 2)
+            plot(x_frames, drug_traces(:, s), 'b-', 'LineWidth', 1, 'Alpha', 0.3);
+        end
+        % Overlay mean
+        mean_trace = mean(drug_traces, 2, 'omitnan');
+        plot(x_frames, mean_trace, 'b-', 'LineWidth', 2.5);
+    end
+    
     hold off;
-    ylabel('dF/F');
-    title(sprintf('ROI %d Drug (SNR=%.2f)', roi_idx, mean_snr_drug(roi_idx)));
-    set(gca, 'YLim', heatmap_clim);
+    set(gca, 'YLim', heatmap_clim, 'LineWidth', 1.5, 'FontSize', 10);
+    ylabel('dF/F', 'FontSize', 10);
+    title(sprintf('ROI %d - Drug (SNR=%.2f)', roi_idx, mean_snr_drug(roi_idx)), ...
+          'FontSize', 11, 'FontWeight', 'bold');
     grid on;
+    box on;
 end
 
-sgtitle(sprintf('Highest SNR Responses - Stimulus Type: %s', selected_stimulus_type));
+sgtitle(sprintf('High SNR dFF Responses - %s (frames %d-%d)', ...
+    selected_stimulus_type, stim_frame_start, stim_frame_start + stim_frame_count - 1), ...
+    'FontSize', 13, 'FontWeight', 'bold');
 
 %% PLOT 2: HEATMAP SORTED BY SNR
 figure('Name', sprintf('SNR-Sorted Heatmap - %s', selected_stimulus_type), ...
        'NumberTitle', 'off', 'Position', [100 100 1300 600]);
 
-% Build heatmap matrices from all stimulus presentations
+% Build heatmap matrices from selected frames within each stimulus window
 base_heatmap = [];
 drug_heatmap = [];
 
 for stim_idx = 1:n_matched
-    base_st = max(1, base_stim_frames(stim_idx) - base_frame_before);
-    base_en = min(size(base_dff, 2), base_stim_frames(stim_idx) + base_frame_after);
-    if base_en > base_st
-        base_heatmap = [base_heatmap, base_dff(:, base_st:base_en)];
+    % Baseline heatmap
+    if ~isempty(base_stim_frame_ranges{stim_idx})
+        st_frame = base_stim_frame_ranges{stim_idx}(1);
+        en_frame = base_stim_frame_ranges{stim_idx}(2);
+        
+        disp_st = st_frame + stim_frame_start - 1;
+        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+        
+        if disp_en > disp_st && disp_st >= 1 && disp_en <= size(base_dff, 2)
+            base_heatmap = [base_heatmap, base_dff(:, disp_st:disp_en)];
+        end
     end
     
-    drug_st = max(1, drug_stim_frames(stim_idx) - drug_frame_before);
-    drug_en = min(size(drug_dff, 2), drug_stim_frames(stim_idx) + drug_frame_after);
-    if drug_en > drug_st
-        drug_heatmap = [drug_heatmap, drug_dff(:, drug_st:drug_en)];
+    % Drug heatmap
+    if ~isempty(drug_stim_frame_ranges{stim_idx})
+        st_frame = drug_stim_frame_ranges{stim_idx}(1);
+        en_frame = drug_stim_frame_ranges{stim_idx}(2);
+        
+        disp_st = st_frame + stim_frame_start - 1;
+        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+        
+        if disp_en > disp_st && disp_st >= 1 && disp_en <= size(drug_dff, 2)
+            drug_heatmap = [drug_heatmap, drug_dff(:, disp_st:disp_en)];
+        end
     end
 end
 
@@ -297,29 +391,33 @@ end
 
 % Baseline heatmap
 subplot(1, 2, 1);
-imagesc(base_heatmap(sort_idx_base, :));
-colormap(flipud(gray));
-set(gca, 'YDir', 'reverse');
+if ~isempty(base_heatmap)
+    imagesc(base_heatmap(sort_idx_base, :));
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+end
 c = colorbar;
 caxis(heatmap_clim);
 ylabel(c, 'dF/F');
 xlabel('Frame');
 ylabel('ROI (sorted by SNR)');
-title(sprintf('Baseline - %s\n(n=%d ROIs, %d stim presentations)', ...
-    selected_stimulus_type, size(base_dff, 1), n_matched));
+title(sprintf('Baseline - %s', selected_stimulus_type), 'FontSize', 11, 'FontWeight', 'bold');
+set(gca, 'LineWidth', 1.5, 'FontSize', 10);
 
 % Drug heatmap
 subplot(1, 2, 2);
-imagesc(drug_heatmap(sort_idx_drug, :));
-colormap(flipud(gray));
-set(gca, 'YDir', 'reverse');
+if ~isempty(drug_heatmap)
+    imagesc(drug_heatmap(sort_idx_drug, :));
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+end
 c = colorbar;
 caxis(heatmap_clim);
 ylabel(c, 'dF/F');
 xlabel('Frame');
 ylabel('ROI (sorted by SNR)');
-title(sprintf('Drug - %s\n(n=%d ROIs, %d stim presentations)', ...
-    selected_stimulus_type, size(drug_dff, 1), n_matched));
+title(sprintf('Drug - %s', selected_stimulus_type), 'FontSize', 11, 'FontWeight', 'bold');
+set(gca, 'LineWidth', 1.5, 'FontSize', 10);
 
 
 %% ------------------------- LOCAL FUNCTIONS -------------------------
@@ -380,31 +478,20 @@ function stim_frames = find_stimulus_presentations(Stimuli, stim_type)
     stim_frames = stim_frames(:);
 end
 
-function snr_roi = calculate_snr(response_window, stim_start_idx)
+function snr_roi = calculate_snr_window(response_window)
 % Calculate signal-to-noise ratio for a response window.
-% Assumes stimulus starts at stim_start_idx.
+% Assumes the entire window is stimulus response (no pre-stimulus period).
 %
 % response_window: matrix of dFF responses (nROIs x nFrames)
-% stim_start_idx: frame index where stimulus starts (1-based index into window)
 % snr_roi: SNR for each ROI (nROIs x 1)
     
-    [n_rois, n_frames] = size(response_window);
-    snr_roi = zeros(n_rois, 1);
+    [n_rois, ~] = size(response_window);
     
-    if stim_start_idx < 1 || stim_start_idx > n_frames
-        snr_roi = nan(n_rois, 1);
-        return;
-    end
+    % Signal: mean response across entire window
+    signal = mean(response_window, 2);
     
-    % Signal: mean response during stimulus (from stim_start to end of window)
-    signal = mean(response_window(:, stim_start_idx:end), 2);
-    
-    % Noise: std dev of response before stimulus
-    if stim_start_idx > 1
-        noise = std(response_window(:, 1:stim_start_idx-1), [], 2);
-    else
-        noise = std(response_window, [], 2);
-    end
+    % Noise: std dev of response across entire window
+    noise = std(response_window, [], 2);
     
     % SNR = signal / noise
     snr_roi = signal ./ (noise + eps);  % Add eps to avoid division by zero
