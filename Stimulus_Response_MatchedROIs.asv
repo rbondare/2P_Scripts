@@ -173,7 +173,7 @@ subplot(1,2,1);
     fill([base_time fliplr(base_time)], [trace_base + sem_base fliplr(trace_base - sem_base)], ...
         'r', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
     hold on;
-    plot(base_time, trace_base, 'r');
+    plot(base_time, trace_base, 'r', 'LineWid);
     xlabel('Time (s)'); ylabel('Mean dF/F');
     title(sprintf('Baseline: Mean ± SEM (%d matched ROIs)', size(base_dff, 1)));
     legend;
@@ -185,7 +185,7 @@ subplot(1,2,2);
     fill([drug_time fliplr(drug_time)], [trace_drug + sem_drug fliplr(trace_drug - sem_drug)], ...
         'b', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
     hold on;
-    plot(drug_time, trace_drug, 'b-');
+    plot(drug_time, trace_drug, 'b-', 'LineWidth', 2, 'Label', 'Mean');
     xlabel('Time (s)'); ylabel('Mean dF/F');
     title(sprintf('Drug: Mean ± SEM (%d matched ROIs)', size(drug_dff, 1)));
     legend;
@@ -201,9 +201,9 @@ figure('Name', 'Individual ROI Traces (Sample)', 'NumberTitle', 'off', 'Position
 subplot(1,2,1);
     hold on;
     for i = show_idx
-        plot(base_time, base_dff(i, :), 'r-');
+        plot(base_time, base_dff(i, :), 'r-', 'Alpha', 0.4, 'LineWidth', 0.5);
     end
-    plot(base_time, trace_base, 'k-');
+    plot(base_time, trace_base, 'k-', 'LineWidth', 2, 'Label', 'Population mean');
     xlabel('Time (s)'); ylabel('dF/F');
     title(sprintf('Baseline: %d of %d ROIs shown', n_show, size(base_dff, 1)));
     legend;
@@ -212,9 +212,9 @@ subplot(1,2,1);
 subplot(1,2,2);
     hold on;
     for i = show_idx
-        plot(drug_time, drug_dff(i, :), 'b-');
+        plot(drug_time, drug_dff(i, :), 'b-', 'Alpha', 0.4, 'LineWidth', 0.5);
     end
-    plot(drug_time, trace_drug, 'k-');
+    plot(drug_time, trace_drug, 'k-', 'LineWidth', 2, 'Label', 'Population mean');
     xlabel('Time (s)'); ylabel('dF/F');
     title(sprintf('Drug: %d of %d ROIs shown', n_show, size(drug_dff, 1)));
     legend;
