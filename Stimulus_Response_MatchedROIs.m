@@ -164,49 +164,194 @@ else
     warning('No stimulus data in baseline file.');
 end
 
-%% PLOT 1: AVERAGE TRACE ACROSS MATCHED ROIS
-figure('Name', 'Matched ROI Mean Traces', 'NumberTitle', 'off');
-subplot(2,1,1);
-    trace_base = mean(base_dff, 1);
-    plot(base_time, trace_base, 'r', 'LineWidth', 1.5);
-    xlabel('Time (s)'); ylabel('Mean dF/F');
-    title(sprintf('Baseline mean trace (%d matched ROIs, %d frames)', size(base_dff, 1), size(base_dff, 2)));
-    grid on;
-    ylim([min(trace_base) - 0.5, max(trace_base) + 0.5]);
+%% PLOT 1: MEAN TRACES WITH SEM SHADING
+figure('Name', 'Matched ROI Mean Traces with SEM', 'NumberTitle', 'off', 'Position', [100 100 1200 600]);
 
-subplot(2,1,2);
-    trace_drug = mean(drug_dff, 1);
-    plot(drug_time, trace_drug, 'b', 'LineWidth', 1.5);
-    xlabel('Time (s)'); ylabel('Mean dF/F');
-    title(sprintf('Drug mean trace (%d matched ROIs, %d frames)', size(drug_dff, 1), size(drug_dff, 2)));
-    grid on;
-    ylim([min(trace_drug) - 0.5, max(trace_drug) + 0.5]);
-
-%% PLOT 2: HEATMAPS OF MATCHED ROIS
-figure('Name', 'Matched ROI Heatmaps', 'NumberTitle', 'off');
 subplot(1,2,1);
-    imagesc(base_dff(:, plot_idx));
-    axis tight;
-    colormap(flipud(gray));
-    set(gca, 'YDir', 'reverse');
-    c = colorbar;
-    caxis(heatmap_clim);
-    ylabel(c, 'dF/F');
-    xlabel('Frame (from frame ' + string(plot_frame_start) + ')');
-    ylabel('Matched ROI');
-    title(sprintf('Baseline matched ROIs (frames %d-%d)', plot_frame_start, plot_frame_end));
+    trace_base = mean(base_dff, 1);
+    sem_base = std(base_dff, [], 1) / sqrt(size(base_dff, 1));
+    fill([base_time fliplr(base_time)], [trace_base + sem_base fliplr(trace_base - sem_base)], ...
+        'r', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+    hold on;
+    plot(base_time, trace_base, 'r-', 'LineWidth', 2, 'Label', 'Mean');
+    xlabel('Time (s)'); ylabel('Mean dF/F');
+    title(sprintf('Baseline: Mean ± SEM (%d matched ROIs)', size(base_dff, 1)));
+    legend;
+    grid on;
 
 subplot(1,2,2);
-    imagesc(drug_dff(:, plot_idx));
-    axis tight;
+    trace_drug = mean(drug_dff, 1);
+    sem_drug = std(drug_dff, [], 1) / sqrt(size(drug_dff, 1));
+    fill([drug_time fliplr(drug_time)], [trace_drug + sem_drug fliplr(trace_drug - sem_drug)], ...
+        'b', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+    hold on;
+    plot(drug_time, trace_drug, 'b-', 'LineWidth', 2, 'Label', 'Mean');
+    xlabel('Time (s)'); ylabel('Mean dF/F');
+    title(sprintf('Drug: Mean ± SEM (%d matched ROIs)', size(drug_dff, 1)));
+    legend;
+    grid on;
+
+%% PLOT 2: INDIVIDUAL ROI TRACES (subset for clarity)
+% Show ~20 randomly selected individual traces overlaid
+n_show = min(20, size(base_dff, 1));
+show_idx = randperm(size(base_dff, 1), n_show);
+
+figure('Name', 'Individual ROI Traces (Sample)', 'NumberTitle', 'off', 'Position', [100 100 1200 600]);
+
+subplot(1,2,1);
+    hold on;
+    for i = show_idx
+        plot(base_time, base_dff(i, :), 'r-', 'Alpha', 0.4, 'LineWidth', 0.5);
+    end
+    plot(base_time, trace_base, 'k-', 'LineWidth', 2, 'Label', 'Population mean');
+    xlabel('Time (s)'); ylabel('dF/F');
+    title(sprintf('Baseline: %d of %d ROIs shown', n_show, size(base_dff, 1)));
+    legend;
+    grid on;
+
+subplot(1,2,2);
+    hold on;
+    for i = show_idx
+        plot(drug_time, drug_dff(i, :), 'b-', 'Alpha', 0.4, 'LineWidth', 0.5);
+    end
+    plot(drug_time, trace_drug, 'k-', 'LineWidth', 2, 'Label', 'Population mean');
+    xlabel('Time (s)'); ylabel('dF/F');
+    title(sprintf('Drug: %d of %d ROIs shown', n_show, size(drug_dff, 1)));
+    legend;
+    grid on;
+
+%% PLOT 3: HEATMAPS (sorted by response magnitude)
+% Sort by mean response for better visualization
+[~, sort_idx_base] = sort(base_metrics.mean_stim, 'descend');
+[~, sort_idx_drug] = sort(drug_metrics.mean_stim, 'descend');
+
+figure('Name', 'Heatmaps Sorted by Response', 'NumberTitle', 'off', 'Position', [100 100 1400 600]);
+
+subplot(1,2,1);
+    imagesc(base_dff(sort_idx_base, plot_idx));
     colormap(flipud(gray));
     set(gca, 'YDir', 'reverse');
     c = colorbar;
     caxis(heatmap_clim);
     ylabel(c, 'dF/F');
-    xlabel('Frame (from frame ' + string(plot_frame_start) + ')');
-    ylabel('Matched ROI');
-    title(sprintf('Drug matched ROIs (frames %d-%d)', plot_frame_start, plot_frame_end));
+    xlabel('Frame');
+    ylabel('ROI (sorted by response)');
+    title(sprintf('Baseline Heatmap (frames %d-%d, n=%d)', plot_frame_start, plot_frame_end, size(base_dff, 1)));
+
+subplot(1,2,2);
+    imagesc(drug_dff(sort_idx_drug, plot_idx));
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+    c = colorbar;
+    caxis(heatmap_clim);
+    ylabel(c, 'dF/F');
+    xlabel('Frame');
+    ylabel('ROI (sorted by response)');
+    title(sprintf('Drug Heatmap (frames %d-%d, n=%d)', plot_frame_start, plot_frame_end, size(drug_dff, 1)));
+
+%% PLOT 4: RESPONSE AMPLITUDE DISTRIBUTIONS
+figure('Name', 'Response Distributions', 'NumberTitle', 'off', 'Position', [100 100 1400 800]);
+
+% Mean stimulus response
+subplot(2,3,1);
+    valid_mean = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+    boxplot([base_metrics.mean_stim(valid_mean)', drug_metrics.mean_stim(valid_mean)'], ...
+        'Labels', {'Baseline', 'Drug'});
+    ylabel('Mean dF/F during stimulus');
+    title('Response Amplitude');
+    grid on;
+
+subplot(2,3,2);
+    hold on;
+    histogram(base_metrics.mean_stim(valid_mean), 15, 'FaceColor', 'r', 'FaceAlpha', 0.6, 'EdgeColor', 'k');
+    histogram(drug_metrics.mean_stim(valid_mean), 15, 'FaceColor', 'b', 'FaceAlpha', 0.6, 'EdgeColor', 'k');
+    xlabel('Mean dF/F');
+    ylabel('Number of ROIs');
+    legend('Baseline', 'Drug');
+    title('Distribution of Mean Response');
+    grid on;
+
+% Evoked response (stimulus - baseline)
+subplot(2,3,3);
+    valid_delta = ~isnan(base_metrics.delta_stim) & ~isnan(drug_metrics.delta_stim);
+    violin_data = [base_metrics.delta_stim(valid_delta)', drug_metrics.delta_stim(valid_delta)'];
+    plot_violin(violin_data, {'Baseline', 'Drug'});
+    ylabel('Evoked Response (ΔdF/F)');
+    title('Evoked Response Magnitude');
+    grid on;
+
+% Response reliability (% responsive ROIs)
+subplot(2,3,4);
+    resp_threshold = 0.5; % dF/F threshold for "responsive"
+    base_resp_pct = 100 * sum(base_metrics.mean_stim > resp_threshold) / size(base_dff, 1);
+    drug_resp_pct = 100 * sum(drug_metrics.mean_stim > resp_threshold) / size(drug_dff, 1);
+    bar([base_resp_pct, drug_resp_pct], 'FaceColor', [0.7 0.7 0.7], 'EdgeColor', 'k', 'LineWidth', 2);
+    set(gca, 'XTickLabel', {'Baseline', 'Drug'});
+    ylabel('% Responsive ROIs');
+    title(sprintf('Responsiveness (threshold = %.1f dF/F)', resp_threshold));
+    ylim([0 100]);
+    grid on;
+
+% Cumulative distribution
+subplot(2,3,5);
+    [sorted_base, idx_base] = sort(base_metrics.mean_stim(valid_mean));
+    [sorted_drug, idx_drug] = sort(drug_metrics.mean_stim(valid_mean));
+    cdf_x = linspace(0, max([sorted_base; sorted_drug]), 100);
+    plot(cdf_x, ksdensity(sorted_base, cdf_x, 'cumulative'), 'r-', 'LineWidth', 2, 'Label', 'Baseline');
+    hold on;
+    plot(cdf_x, ksdensity(sorted_drug, cdf_x, 'cumulative'), 'b-', 'LineWidth', 2, 'Label', 'Drug');
+    xlabel('Mean dF/F');
+    ylabel('Cumulative Probability');
+    title('Cumulative Distribution of Responses');
+    legend;
+    grid on;
+
+% Modulation index (drug vs baseline)
+subplot(2,3,6);
+    mod_idx = (drug_metrics.mean_stim(valid_mean) - base_metrics.mean_stim(valid_mean)) ./ ...
+              (abs(drug_metrics.mean_stim(valid_mean)) + abs(base_metrics.mean_stim(valid_mean)) + eps);
+    histogram(mod_idx, 20, 'FaceColor', [0.5 0.5 0.5], 'EdgeColor', 'k');
+    xlabel('Modulation Index [(Drug-Base)/(|Drug|+|Base|)]');
+    ylabel('Number of ROIs');
+    title('Response Modulation by Drug');
+    hold on;
+    yl = ylim;
+    plot([0 0], yl, 'k--', 'LineWidth', 2, 'Label', 'No modulation');
+    hold off;
+    grid on;
+
+%% PLOT 5: PAIRED RESPONSE COMPARISON SCATTER
+figure('Name', 'Paired Response Scatter', 'NumberTitle', 'off', 'Position', [100 100 1200 500]);
+
+subplot(1,2,1);
+    valid_idx = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+    scatter(base_metrics.mean_stim(valid_idx), drug_metrics.mean_stim(valid_idx), ...
+        50, 'o', 'filled', 'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'k');
+    hold on;
+    lims = [min([base_metrics.mean_stim(valid_idx); drug_metrics.mean_stim(valid_idx)]), ...
+            max([base_metrics.mean_stim(valid_idx); drug_metrics.mean_stim(valid_idx)])];
+    plot(lims, lims, 'k--', 'LineWidth', 1, 'Label', 'No change');
+    xlabel('Baseline Mean dF/F');
+    ylabel('Drug Mean dF/F');
+    title(sprintf('Paired ROI Response (n=%d)', sum(valid_idx)));
+    legend;
+    axis equal;
+    grid on;
+
+subplot(1,2,2);
+    valid_delta = ~isnan(base_metrics.delta_stim) & ~isnan(drug_metrics.delta_stim);
+    scatter(base_metrics.delta_stim(valid_delta), drug_metrics.delta_stim(valid_delta), ...
+        50, 'o', 'filled', 'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'k');
+    hold on;
+    lims = [min([base_metrics.delta_stim(valid_delta); drug_metrics.delta_stim(valid_delta)]), ...
+            max([base_metrics.delta_stim(valid_delta); drug_metrics.delta_stim(valid_delta)])];
+    plot(lims, lims, 'k--', 'LineWidth', 1, 'Label', 'No change');
+    xlabel('Baseline Evoked Response (ΔdF/F)');
+    ylabel('Drug Evoked Response (ΔdF/F)');
+    title(sprintf('Paired ROI Evoked Response (n=%d)', sum(valid_delta)));
+    legend;
+    axis equal;
+    grid on;
 
 %% RESPONSE METRICS 
 % Uses mean dF/F during stimulus minus pre-stimulus baseline.
@@ -225,62 +370,95 @@ if n_valid < size(base_dff, 1) * 0.5
     warning('Less than 50%% of ROIs have valid responses. Check stimulus timing alignment.');
 end
 
-%% PLOT 3: PAIRED RESPONSE COMPARISON
-% Only plot valid (non-NaN) data
-valid_idx = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+%% COMPREHENSIVE STATISTICS
+fprintf('\n');
+fprintf('====================================================================\n');
+fprintf('STIMULUS RESPONSE ANALYSIS: Baseline vs Drug Manipulation\n');
+fprintf('====================================================================\n');
+fprintf('Analysis Date: %s\n', datetime('now'));
+fprintf('Matched ROI Pairs: %d\n', size(base_dff, 1));
+fprintf('Selected Plane: suite2p plane%d\n', selected_plane_s2p);
+fprintf('Stimulus Type(s): %s\n', strjoin(stimulus_types, ', '));
+fprintf('Baseline frames: %d | Drug frames: %d\n', size(base_dff, 2), size(drug_dff, 2));
 
-figure('Name', 'Matched ROI Response Comparison', 'NumberTitle', 'off');
-subplot(1,2,1);
-    if sum(valid_idx) > 0
-        plot([1 2], [base_metrics.mean_stim(valid_idx), drug_metrics.mean_stim(valid_idx)]', '-o', 'Color', [0.7 0.7 0.7]);
-        hold on;
-        plot([1 2], [mean(base_metrics.mean_stim(valid_idx)), mean(drug_metrics.mean_stim(valid_idx))], ...
-            'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
-    else
-        warning('No valid data for mean stimulus response plot.');
-    end
-    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-    ylabel('Mean dF/F during stimulus');
-    title(sprintf('Per-ROI stimulus mean (n=%d)', sum(valid_idx)));
-    grid on;
+% Response metrics summary
+valid_mean = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
+valid_delta = ~isnan(base_metrics.delta_stim) & ~isnan(drug_metrics.delta_stim);
+n_valid_mean = sum(valid_mean);
+n_valid_delta = sum(valid_delta);
 
-subplot(1,2,2);
-    valid_delta_idx = ~isnan(base_metrics.delta_stim) & ~isnan(drug_metrics.delta_stim);
-    if sum(valid_delta_idx) > 0
-        plot([1 2], [base_metrics.delta_stim(valid_delta_idx), drug_metrics.delta_stim(valid_delta_idx)]', '-o', 'Color', [0.7 0.7 0.7]);
-        hold on;
-        plot([1 2], [mean(base_metrics.delta_stim(valid_delta_idx)), mean(drug_metrics.delta_stim(valid_delta_idx))], ...
-            'k-o', 'LineWidth', 2, 'MarkerFaceColor', 'k');
-    else
-        warning('No valid data for delta response plot.');
-    end
-    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-    ylabel('Stimulus - pre-stimulus dF/F');
-    title(sprintf('Per-ROI evoked delta (n=%d)', sum(valid_delta_idx)));
-    grid on;
+fprintf('\n--- RESPONSE AMPLITUDE ---\n');
+fprintf('Baseline Mean dF/F:  %.4f ± %.4f (mean ± std, n=%d)\n', ...
+    mean(base_metrics.mean_stim(valid_mean)), std(base_metrics.mean_stim(valid_mean)), n_valid_mean);
+fprintf('Drug Mean dF/F:      %.4f ± %.4f (mean ± std, n=%d)\n', ...
+    mean(drug_metrics.mean_stim(valid_mean)), std(drug_metrics.mean_stim(valid_mean)), n_valid_mean);
+fprintf('Median difference: %.4f dF/F\n', ...
+    median(drug_metrics.mean_stim(valid_mean) - base_metrics.mean_stim(valid_mean)));
 
-%% BASIC STATS OUTPUT
-% Only compute statistics on valid (non-NaN) paired data
-valid_pairs = ~isnan(base_metrics.mean_stim) & ~isnan(drug_metrics.mean_stim);
-if sum(valid_pairs) < 3
-    fprintf('WARNING: Fewer than 3 valid paired ROIs for statistics. Skipping statistical tests.\\n');
+fprintf('\n--- EVOKED RESPONSE (Stimulus - Baseline) ---\n');
+fprintf('Baseline Evoked:     %.4f ± %.4f (mean ± std, n=%d)\n', ...
+    mean(base_metrics.delta_stim(valid_delta)), std(base_metrics.delta_stim(valid_delta)), n_valid_delta);
+fprintf('Drug Evoked:         %.4f ± %.4f (mean ± std, n=%d)\n', ...
+    mean(drug_metrics.delta_stim(valid_delta)), std(drug_metrics.delta_stim(valid_delta)), n_valid_delta);
+fprintf('Median difference: %.4f dF/F\n', ...
+    median(drug_metrics.delta_stim(valid_delta) - base_metrics.delta_stim(valid_delta)));
+
+% Responsiveness
+resp_threshold = 0.5;
+base_resp = sum(base_metrics.mean_stim > resp_threshold) / size(base_dff, 1) * 100;
+drug_resp = sum(drug_metrics.mean_stim > resp_threshold) / size(drug_dff, 1) * 100;
+fprintf('\n--- RESPONSIVENESS (threshold: %.1f dF/F) ---\n', resp_threshold);
+fprintf('Baseline: %.1f%% responsive (%d / %d ROIs)\n', base_resp, ...
+    sum(base_metrics.mean_stim > resp_threshold), size(base_dff, 1));
+fprintf('Drug:     %.1f%% responsive (%d / %d ROIs)\n', drug_resp, ...
+    sum(drug_metrics.mean_stim > resp_threshold), size(drug_dff, 1));
+
+% Statistical tests
+fprintf('\n--- STATISTICAL TESTS (Wilcoxon Signed-Rank) ---\n');
+if n_valid_mean < 3
+    fprintf('WARNING: Fewer than 3 valid ROI pairs. Skipping statistical tests.\n');
 else
-    [p_mean, ~, stats_mean] = signrank(base_metrics.mean_stim(valid_pairs), drug_metrics.mean_stim(valid_pairs));
-    [p_delta, ~, stats_delta] = signrank(base_metrics.delta_stim(valid_pairs), drug_metrics.delta_stim(valid_pairs));
-    
-    fprintf('\\n=== Response Summary (Matched ROIs, n=%d valid pairs) ===\\n', sum(valid_pairs));
-    fprintf('Baseline mean(stim): %.4f ± %.4f\\n', mean(base_metrics.mean_stim(valid_pairs), 'omitnan'), ...
-            std(base_metrics.mean_stim(valid_pairs), 'omitnan'));
-    fprintf('Drug mean(stim):     %.4f ± %.4f\\n', mean(drug_metrics.mean_stim(valid_pairs), 'omitnan'), ...
-            std(drug_metrics.mean_stim(valid_pairs), 'omitnan'));
-    fprintf('signrank p (mean_stim): %.3g, signed-rank=%g\\n', p_mean, stats_mean.signedrank);
-    
-    fprintf('\\nBaseline mean(delta): %.4f ± %.4f\\n', mean(base_metrics.delta_stim(valid_pairs), 'omitnan'), ...
-            std(base_metrics.delta_stim(valid_pairs), 'omitnan'));
-    fprintf('Drug mean(delta):     %.4f ± %.4f\\n', mean(drug_metrics.delta_stim(valid_pairs), 'omitnan'), ...
-            std(drug_metrics.delta_stim(valid_pairs), 'omitnan'));
-    fprintf('signrank p (delta): %.3g, signed-rank=%g\\n', p_delta, stats_delta.signedrank);
+    [p_mean, ~, stats_mean] = signrank(base_metrics.mean_stim(valid_mean), drug_metrics.mean_stim(valid_mean));
+    fprintf('Mean stimulus response:\n');
+    fprintf('  p-value: %.4g (significant at α=0.05: %s)\n', p_mean, iif(p_mean < 0.05, 'YES', 'NO'));
+    fprintf('  Signed-rank statistic: %d\n', stats_mean.signedrank);
+    fprintf('  Median effect: %.4f dF/F\n', ...
+        median(drug_metrics.mean_stim(valid_mean)) - median(base_metrics.mean_stim(valid_mean)));
 end
+
+if n_valid_delta < 3
+    fprintf('WARNING: Fewer than 3 valid ROI pairs for delta. Skipping delta test.\n');
+else
+    [p_delta, ~, stats_delta] = signrank(base_metrics.delta_stim(valid_delta), drug_metrics.delta_stim(valid_delta));
+    fprintf('\nEvoked response (delta):\n');
+    fprintf('  p-value: %.4g (significant at α=0.05: %s)\n', p_delta, iif(p_delta < 0.05, 'YES', 'NO'));
+    fprintf('  Signed-rank statistic: %d\n', stats_delta.signedrank);
+    fprintf('  Median effect: %.4f dF/F\n', ...
+        median(drug_metrics.delta_stim(valid_delta)) - median(base_metrics.delta_stim(valid_delta)));
+end
+
+% Effect sizes (percent change)
+fprintf('\n--- EFFECT SIZES ---\n');
+pct_change_mean = 100 * (mean(drug_metrics.mean_stim(valid_mean)) - mean(base_metrics.mean_stim(valid_mean))) / ...
+                       (abs(mean(base_metrics.mean_stim(valid_mean))) + eps);
+pct_change_delta = 100 * (mean(drug_metrics.delta_stim(valid_delta)) - mean(base_metrics.delta_stim(valid_delta))) / ...
+                        (abs(mean(base_metrics.delta_stim(valid_delta))) + eps);
+fprintf('Mean response change: %+.1f%%\n', pct_change_mean);
+fprintf('Evoked response change: %+.1f%%\n', pct_change_delta);
+
+% ROI-level modulation
+mod_idx = (drug_metrics.mean_stim(valid_mean) - base_metrics.mean_stim(valid_mean)) ./ ...
+          (abs(drug_metrics.mean_stim(valid_mean)) + abs(base_metrics.mean_stim(valid_mean)) + eps);
+n_increased = sum(mod_idx > 0.1); % >10% increase
+n_decreased = sum(mod_idx < -0.1); % >10% decrease
+n_unchanged = sum(abs(mod_idx) <= 0.1); % <10% change
+
+fprintf('\n--- ROI-LEVEL MODULATION ---\n');
+fprintf('Increased response (>10%%):  %d ROIs (%.1f%%)\n', n_increased, 100*n_increased/numel(mod_idx));
+fprintf('Decreased response (<-10%%): %d ROIs (%.1f%%)\n', n_decreased, 100*n_decreased/numel(mod_idx));
+fprintf('Unchanged (±10%%):           %d ROIs (%.1f%%)\n', n_unchanged, 100*n_unchanged/numel(mod_idx));
+
+fprintf('====================================================================\n\n');
 
 % Optional outputs in workspace
 matched_results = struct();
@@ -291,9 +469,50 @@ matched_results.base_row_idx = base_row_idx;
 matched_results.drug_row_idx = drug_row_idx;
 matched_results.base_metrics = base_metrics;
 matched_results.drug_metrics = drug_metrics;
+matched_results.base_dff = base_dff;
+matched_results.drug_dff = drug_dff;
+matched_results.base_time = base_time;
+matched_results.drug_time = drug_time;
+matched_results.stimulus_types = stimulus_types;
 
 
 %% ------------------------- LOCAL FUNCTIONS -------------------------
+
+function result = iif(condition, true_val, false_val)
+% Inline if function for concise ternary operations
+    if condition
+        result = true_val;
+    else
+        result = false_val;
+    end
+end
+
+function plot_violin(data, labels)
+% Simple violin plot visualization using boxplot with overlaid distributions
+% data: matrix where each column is a group (groups as columns)
+% labels: cell array of group labels
+    
+    if nargin < 2
+        labels = cellfun(@(x) sprintf('Group%d', x), num2cell(1:size(data,2)), 'UniformOutput', false);
+    end
+    
+    % Create boxplot
+    boxplot(data, 'Labels', labels, 'Widths', 0.5);
+    
+    % Overlay individual points with jitter
+    hold on;
+    for g = 1:size(data, 2)
+        group_data = data(~isnan(data(:,g)), g);
+        n = numel(group_data);
+        % Add small random jitter to x position
+        x_jitter = g + (rand(n,1)-0.5)*0.15;
+        plot(x_jitter, group_data, 'o', 'MarkerSize', 4, 'MarkerFaceAlpha', 0.5, ...
+            'MarkerEdgeColor', 'k', 'LineStyle', 'none');
+    end
+    hold off;
+    
+end
+
 function t = get_time_vector(TimeCa)
 % Handle either 1xN vector or 2xN format robustly.
     if isvector(TimeCa)
