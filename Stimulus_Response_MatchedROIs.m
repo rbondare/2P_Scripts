@@ -173,9 +173,6 @@ for i = 1:numel(B.Stimuli)
             st_frame = min(stim_frames(:));
             en_frame = max(stim_frames(:));
             base_stim_frame_ranges{end+1} = [st_frame, en_frame];
-            if numel(base_stim_frame_ranges) >= n_matched
-                break;
-            end
         end
     end
 end
@@ -187,9 +184,6 @@ for i = 1:numel(D.Stimuli)
             st_frame = min(stim_frames(:));
             en_frame = max(stim_frames(:));
             drug_stim_frame_ranges{end+1} = [st_frame, en_frame];
-            if numel(drug_stim_frame_ranges) >= n_matched
-                break;
-            end
         end
     end
 end
