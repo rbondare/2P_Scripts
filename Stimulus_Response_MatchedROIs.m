@@ -159,19 +159,11 @@ end
 %% STIMULUS ALIGNMENT AND SNR CALCULATION
 fprintf('\n--- ALIGNING STIMULUS RESPONSES ---\n');
 
-% Find stimulus presentations of selected type in both recordings
-base_stim_info = find_stimulus_presentations(B.Stimuli, selected_stimulus_type);
-drug_stim_info = find_stimulus_presentations(D.Stimuli, selected_stimulus_type);
-
-fprintf('Found %d presentations of "%s" in baseline.\n', numel(base_stim_info), selected_stimulus_type);
-fprintf('Found %d presentations of "%s" in drug.\n', numel(drug_stim_info), selected_stimulus_type);
-
-% Extract frame ranges for matched stimulus presentations
+% Extract frame ranges for stimulus presentations of selected type
 base_stim_frame_ranges = {};
 drug_stim_frame_ranges = {};
 
-n_matched = min(numel(base_stim_info), numel(drug_stim_info));
-fprintf('Using %d matched stimulus presentations.\n', n_matched);
+fprintf('Searching for "%s" stimulus presentations...\n', selected_stimulus_type);
 
 % Get TimeStimulusFrame for each stimulus of selected type
 for i = 1:numel(B.Stimuli)
@@ -263,7 +255,7 @@ for plot_num = 1:n_plots
     roi_idx = top_idx_display(plot_num);
     
     % ===== BASELINE RESPONSES (Left) =====
-    ax_base = subplot(n_rows, 2, 2*plot_num - 1);
+    subplot(n_rows, 2, 2*plot_num - 1);
     
     hold on;
     baseline_traces = [];
@@ -275,7 +267,7 @@ for plot_num = 1:n_plots
             
             % Extract selected frames from this stimulus window
             disp_st = st_frame + stim_frame_start - 1;
-            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 1, en_frame);
             
             if disp_en > disp_st && disp_st >= 1 && disp_en <= size(base_dff, 2)
                 trace = base_dff(roi_idx, disp_st:disp_en);
@@ -284,11 +276,16 @@ for plot_num = 1:n_plots
         end
     end
     
-    % Plot all traces with transparency
+    % Plot all traces with lighter colors
     if ~isempty(baseline_traces)
         x_frames = 1:size(baseline_traces, 1);
         for s = 1:size(baseline_traces, 2)
-            plot(x_frames, baseline_traces(:, s), 'r-', 'LineWidth', 1, 'Alpha', 0.3);
+            trace_s = baseline_traces(:, s);
+            % Only plot if trace is valid (not all NaN or empty)
+            if ~all(isnan(trace_s))
+                h = plot(x_frames, trace_s, 'r-', 'LineWidth', 0.8);
+                h.Color = [1 0.4 0.4];  % Light red
+            end
         end
         % Overlay mean
         mean_trace = mean(baseline_traces, 2, 'omitnan');
@@ -304,7 +301,7 @@ for plot_num = 1:n_plots
     box on;
     
     % ===== DRUG RESPONSES (Right) =====
-    ax_drug = subplot(n_rows, 2, 2*plot_num);
+    subplot(n_rows, 2, 2*plot_num);
     
     hold on;
     drug_traces = [];
@@ -316,7 +313,7 @@ for plot_num = 1:n_plots
             
             % Extract selected frames from this stimulus window
             disp_st = st_frame + stim_frame_start - 1;
-            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+            disp_en = min(st_frame + stim_frame_start + stim_frame_count - 1, en_frame);
             
             if disp_en > disp_st && disp_st >= 1 && disp_en <= size(drug_dff, 2)
                 trace = drug_dff(roi_idx, disp_st:disp_en);
@@ -325,11 +322,16 @@ for plot_num = 1:n_plots
         end
     end
     
-    % Plot all traces with transparency
+    % Plot all traces with lighter colors
     if ~isempty(drug_traces)
         x_frames = 1:size(drug_traces, 1);
         for s = 1:size(drug_traces, 2)
-            plot(x_frames, drug_traces(:, s), 'b-', 'LineWidth', 1, 'Alpha', 0.3);
+            trace_s = drug_traces(:, s);
+            % Only plot if trace is valid (not all NaN or empty)
+            if ~all(isnan(trace_s))
+                h = plot(x_frames, trace_s, 'b-', 'LineWidth', 0.8);
+                h.Color = [0.4 0.4 1];  % Light blue
+            end
         end
         % Overlay mean
         mean_trace = mean(drug_traces, 2, 'omitnan');
@@ -364,7 +366,7 @@ for stim_idx = 1:n_matched
         en_frame = base_stim_frame_ranges{stim_idx}(2);
         
         disp_st = st_frame + stim_frame_start - 1;
-        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 1, en_frame);
         
         if disp_en > disp_st && disp_st >= 1 && disp_en <= size(base_dff, 2)
             base_heatmap = [base_heatmap, base_dff(:, disp_st:disp_en)];
@@ -377,7 +379,7 @@ for stim_idx = 1:n_matched
         en_frame = drug_stim_frame_ranges{stim_idx}(2);
         
         disp_st = st_frame + stim_frame_start - 1;
-        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 2, en_frame);
+        disp_en = min(st_frame + stim_frame_start + stim_frame_count - 1, en_frame);
         
         if disp_en > disp_st && disp_st >= 1 && disp_en <= size(drug_dff, 2)
             drug_heatmap = [drug_heatmap, drug_dff(:, disp_st:disp_en)];
@@ -422,15 +424,6 @@ set(gca, 'LineWidth', 1.5, 'FontSize', 10);
 
 %% ------------------------- LOCAL FUNCTIONS -------------------------
 
-function result = iif(condition, true_val, false_val)
-% Inline if function for concise ternary operations
-    if condition
-        result = true_val;
-    else
-        result = false_val;
-    end
-end
-
 function t = get_time_vector(TimeCa)
 % Handle either 1xN vector or 2xN format robustly.
     if isvector(TimeCa)
@@ -442,50 +435,12 @@ function t = get_time_vector(TimeCa)
     end
 end
 
-function stim_frames = find_stimulus_presentations(Stimuli, stim_type)
-% Find all frame indices where a particular stimulus type is presented.
-% Returns a vector of frame indices (one per stimulus presentation).
-%
-% stim_type: stimulus type to search for (string, e.g., 'spontaneous', 'grating')
-% stim_frames: vector of frame indices where stimulus starts
-    
-    stim_frames = [];
-    
-    if isempty(Stimuli)
-        return;
-    end
-    
-    for i = 1:numel(Stimuli)
-        if ~isfield(Stimuli(i), 'type') || isempty(Stimuli(i).type)
-            continue;
-        end
-        
-        if ~strcmp(Stimuli(i).type, stim_type)
-            continue;
-        end
-        
-        if ~isfield(Stimuli(i), 'TimeStimulusFrame') || isempty(Stimuli(i).TimeStimulusFrame)
-            continue;
-        end
-        
-        % Get the first frame of this stimulus presentation
-        stim_frame_window = Stimuli(i).TimeStimulusFrame;
-        first_frame = min(round(stim_frame_window));
-        stim_frames = [stim_frames, first_frame]; %#ok<AGROW>
-    end
-    
-    % Return as column vector
-    stim_frames = stim_frames(:);
-end
-
 function snr_roi = calculate_snr_window(response_window)
 % Calculate signal-to-noise ratio for a response window.
 % Assumes the entire window is stimulus response (no pre-stimulus period).
 %
 % response_window: matrix of dFF responses (nROIs x nFrames)
 % snr_roi: SNR for each ROI (nROIs x 1)
-    
-    [n_rois, ~] = size(response_window);
     
     % Signal: mean response across entire window
     signal = mean(response_window, 2);
