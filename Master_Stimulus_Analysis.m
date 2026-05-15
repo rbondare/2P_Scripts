@@ -1,0 +1,594 @@
+%% COMPREHENSIVE STIMULUS-TRIGGERED ANALYSIS WITH MATCHED ROI TRACKING
+%
+% This script creates master response matrices for all neurons across stimuli,
+% generates population and matched-ROI heatmaps, and provides stimulus-specific analysis 
+
+%
+% STRUCTURE:
+%   1. Load and organize data
+%   2. Extract master response matrices (all neurons, full stimulus duration)
+%   3. Generate population heatmaps (all neurons, ranked by max activity)
+%   4. Generate matched ROI heatmaps (tracked pairs, baseline-ordered)
+%   5. Stimulus-specific analysis (gratings, bars, flashes, spontaneous)
+
+clear; clc; close all;
+
+%% ====================== CONFIGURATION ======================
+
+% Data files
+baseline_file = 'c:\Users\rbondarenko\projects\DATA_2P\Animal25_240716_1453_preprocessed.mat';
+drug_file = 'c:\Users\rbondarenko\projects\DATA_2P\Animal25_240717_1449_preprocessed.mat';
+roi_match_file = '';  % Optional: path to ROI matching struct
+
+% Analysis parameters
+ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
+selected_plane = 1;           % Plane index (1-based)
+stimulus_types_to_analyze = {'spontaneous', 'grating', 'moving_bar', 'full_field_flash', 'checkers2'};
+
+% Visualization
+max_neurons_display = 200;    % For heatmap readability
+caxis_lim = [0, 5];           % dF/F range for heatmaps
+colormap_type = 'flipud(gray)';
+
+%% ====================== LOAD DATA ======================
+
+fprintf('\n========== DATA LOADING ==========\n');
+
+fprintf('Loading baseline: %s\n', baseline_file);
+B = load(baseline_file);
+base_ca = B.CaData(selected_plane);
+base_dff = get_calcium_data(base_ca, ca_type);
+n_rois_base = size(base_dff, 1);
+n_frames_base = size(base_dff, 2);
+
+fprintf('Loading drug: %s\n', drug_file);
+D = load(drug_file);
+drug_ca = D.CaData(selected_plane);
+drug_dff = get_calcium_data(drug_ca, ca_type);
+n_rois_drug = size(drug_dff, 1);
+n_frames_drug = size(drug_dff, 2);
+
+fprintf('Baseline: %d ROIs × %d frames\n', n_rois_base, n_frames_base);
+fprintf('Drug:     %d ROIs × %d frames\n', n_rois_drug, n_frames_drug);
+
+% Load ROI matching if available
+matched_rois_available = false;
+if ~isempty(roi_match_file) && isfile(roi_match_file)
+    fprintf('Loading ROI matches: %s\n', roi_match_file);
+    M = load(roi_match_file);
+    if isfield(M, 'allSessionMapping')
+        base_match_idx = M.allSessionMapping(:, 1);
+        drug_match_idx = M.allSessionMapping(:, 2);
+        n_matched = length(base_match_idx);
+        matched_rois_available = true;
+        fprintf('Found %d matched ROI pairs\n', n_matched);
+    end
+end
+
+% Validate stimulus types
+available_stim_types = unique({B.Stimuli(:).type});
+fprintf('\nAvailable stimulus types: %s\n', strjoin(available_stim_types, ', '));
+
+%% ====================== EXTRACT MASTER RESPONSE MATRICES ======================
+
+fprintf('\n========== EXTRACTING MASTER RESPONSE MATRICES ==========\n');
+
+% Create master structs: one entry per stimulus type
+% Each contains: baseline_responses (neurons × time × presentations)
+%                drug_responses (neurons × time × presentations)
+%                frame_ranges, properties, etc.
+
+master_data = struct();
+
+for stim_idx = 1:length(stimulus_types_to_analyze)
+    stim_type = stimulus_types_to_analyze{stim_idx};
+    
+    % Check if this stimulus exists
+    stim_exists_base = any(strcmp({B.Stimuli(:).type}, stim_type));
+    stim_exists_drug = any(strcmp({D.Stimuli(:).type}, stim_type));
+    
+    if ~stim_exists_base || ~stim_exists_drug
+        fprintf('Skipping "%s" (not in both baseline and drug)\n', stim_type);
+        continue;
+    end
+    
+    fprintf('\nProcessing "%s"...\n', stim_type);
+    
+    % Extract full stimulus responses for baseline
+    [base_responses, base_frame_ranges, base_properties] = extract_full_stimulus_responses(...
+        B.Stimuli, base_dff, stim_type);
+    
+    % Extract full stimulus responses for drug
+    [drug_responses, drug_frame_ranges, drug_properties] = extract_full_stimulus_responses(...
+        D.Stimuli, drug_dff, stim_type);
+    
+    % Store in master struct
+    field_name = matlab.lang.makeValidName(stim_type);
+    master_data.(field_name).baseline_responses = base_responses;
+    master_data.(field_name).drug_responses = drug_responses;
+    master_data.(field_name).baseline_frame_ranges = base_frame_ranges;
+    master_data.(field_name).drug_frame_ranges = drug_frame_ranges;
+    master_data.(field_name).baseline_properties = base_properties;
+    master_data.(field_name).drug_properties = drug_properties;
+    master_data.(field_name).stimulus_type = stim_type;
+    
+    n_pres = size(base_responses, 3);
+    fprintf('  Extracted: %d neurons × variable time × %d presentations\n', ...
+        size(base_responses, 1), n_pres);
+end
+
+fprintf('\nMaster data matrices created successfully.\n');
+
+%% ====================== GENERATE POPULATION HEATMAPS ======================
+
+fprintf('\n========== GENERATING POPULATION HEATMAPS ==========\n');
+
+stim_fields = fieldnames(master_data);
+
+for field_idx = 1:length(stim_fields)
+    field_name = stim_fields{field_idx};
+    data = master_data.(field_name);
+    stim_type = data.stimulus_type;
+    
+    fprintf('Generating heatmap for "%s"\n', stim_type);
+    
+    % Create figure: left=baseline all neurons, right=drug all neurons
+    fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+        'Name', sprintf('Population Heatmap: %s', stim_type));
+    
+    % BASELINE - All neurons ranked by max activity
+    subplot(1, 2, 1);
+    baseline_heatmap = average_stimulus_presentations(data.baseline_responses);
+    [~, sort_idx_base] = sort(max(baseline_heatmap, [], 2), 'descend');
+    
+    % Limit display to max_neurons_display for clarity
+    display_idx_base = sort_idx_base(1:min(max_neurons_display, length(sort_idx_base)));
+    imagesc(baseline_heatmap(display_idx_base, :));
+    eval(['colormap(', colormap_type, ');']);
+    set(gca, 'YDir', 'reverse');
+    caxis(caxis_lim);
+    colorbar;
+    xlabel('Time (frames)');
+    ylabel('ROI (ranked by max activity)');
+    title(sprintf('Baseline - %s\n(%d/%d neurons shown)', stim_type, ...
+        length(display_idx_base), size(baseline_heatmap, 1)), 'FontWeight', 'bold');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    
+    % DRUG - All neurons ranked by max activity
+    subplot(1, 2, 2);
+    drug_heatmap = average_stimulus_presentations(data.drug_responses);
+    [~, sort_idx_drug] = sort(max(drug_heatmap, [], 2), 'descend');
+    
+    display_idx_drug = sort_idx_drug(1:min(max_neurons_display, length(sort_idx_drug)));
+    imagesc(drug_heatmap(display_idx_drug, :));
+    eval(['colormap(', colormap_type, ');']);
+    set(gca, 'YDir', 'reverse');
+    caxis(caxis_lim);
+    c = colorbar;
+    ylabel(c, 'dF/F');
+    xlabel('Time (frames)');
+    ylabel('ROI (ranked by max activity)');
+    title(sprintf('Drug - %s\n(%d/%d neurons shown)', stim_type, ...
+        length(display_idx_drug), size(drug_heatmap, 1)), 'FontWeight', 'bold');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    
+    sgtitle(sprintf('Population Heatmaps: %s', stim_type), 'FontSize', 12, 'FontWeight', 'bold');
+    
+    % Store sort indices for later use
+    data.population_sort_idx_baseline = sort_idx_base;
+    data.population_sort_idx_drug = sort_idx_drug;
+    master_data.(field_name) = data;
+end
+
+%% ====================== GENERATE MATCHED ROI HEATMAPS ======================
+
+if matched_rois_available
+    fprintf('\n========== GENERATING MATCHED ROI HEATMAPS ==========\n');
+    
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        fprintf('Generating matched ROI heatmap for "%s"\n', stim_type);
+        
+        % Convert cell arrays to 3D matrices first (for matched ROI extraction)
+        baseline_3d = cell_responses_to_3d(data.baseline_responses);
+        drug_3d = cell_responses_to_3d(data.drug_responses);
+        
+        if isempty(baseline_3d) || isempty(drug_3d)
+            fprintf('  (Skipping - insufficient data)\n');
+            continue;
+        end
+        
+        % Extract matched ROI responses
+        baseline_matched = baseline_3d(base_match_idx, :, :);
+        drug_matched = drug_3d(drug_match_idx, :, :);
+        
+        % Average across presentations
+        baseline_matched_avg = squeeze(mean(baseline_matched, 3));
+        drug_matched_avg = squeeze(mean(drug_matched, 3));
+        
+        % Ensure 2D
+        if isvector(baseline_matched_avg)
+            baseline_matched_avg = baseline_matched_avg(:)';
+        end
+        if isvector(drug_matched_avg)
+            drug_matched_avg = drug_matched_avg(:)';
+        end
+        
+        % Rank baseline by max activity
+        [~, sort_idx] = sort(max(baseline_matched_avg, [], 2), 'descend');
+        
+        % Create figure
+        fig = figure('Position', [100 100 1400 600], 'NumberTitle', 'off', ...
+            'Name', sprintf('Matched ROI Heatmap: %s', stim_type));
+        
+        % BASELINE MATCHED - Ranked by activity
+        subplot(1, 2, 1);
+        imagesc(baseline_matched_avg(sort_idx, :));
+        eval(['colormap(', colormap_type, ');']);
+        set(gca, 'YDir', 'reverse');
+        caxis(caxis_lim);
+        colorbar;
+        xlabel('Time (frames)');
+        ylabel('Matched ROI (ranked by baseline activity)');
+        title(sprintf('Baseline - %s\n(%d matched ROIs)', stim_type, n_matched), 'FontWeight', 'bold');
+        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        
+        % DRUG MATCHED - SAME ORDER AS BASELINE
+        subplot(1, 2, 2);
+        imagesc(drug_matched_avg(sort_idx, :));
+        eval(['colormap(', colormap_type, ');']);
+        set(gca, 'YDir', 'reverse');
+        caxis(caxis_lim);
+        c = colorbar;
+        ylabel(c, 'dF/F');
+        xlabel('Time (frames)');
+        ylabel('Matched ROI');
+        title(sprintf('Drug - %s\n(same ROI order)', stim_type), 'FontWeight', 'bold');
+        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        
+        sgtitle(sprintf('Matched ROI Heatmaps: %s', stim_type), 'FontSize', 12, 'FontWeight', 'bold');
+        
+        % Store for analysis
+        data.matched_baseline_avg = baseline_matched_avg;
+        data.matched_drug_avg = drug_matched_avg;
+        data.matched_sort_idx = sort_idx;
+        master_data.(field_name) = data;
+    end
+end
+
+%% ====================== STIMULUS-SPECIFIC ANALYSIS ======================
+
+fprintf('\n========== STIMULUS-SPECIFIC ANALYSIS ==========\n');
+
+% For each stimulus type, perform specialized analysis
+
+for field_idx = 1:length(stim_fields)
+    field_name = stim_fields{field_idx};
+    data = master_data.(field_name);
+    stim_type = data.stimulus_type;
+    
+    fprintf('\nAnalyzing "%s"...\n', stim_type);
+    
+    switch stim_type
+        case 'grating'
+            analyze_grating_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
+                data, base_match_idx, drug_match_idx, matched_rois_available);
+            
+        case 'moving_bar'
+            analyze_moving_bar_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
+                data, base_match_idx, drug_match_idx, matched_rois_available);
+            
+        case 'full_field_flash'
+            analyze_full_field_flash_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
+                data, base_match_idx, drug_match_idx, matched_rois_available);
+            
+        case 'spontaneous'
+            % Spontaneous activity: no specific trigger, but can analyze statistics
+            fprintf('  (Spontaneous activity - no stimulus-triggered analysis)\n');
+            
+        otherwise
+            fprintf('  (No specific analysis for this stimulus type)\n');
+    end
+end
+
+fprintf('\n========== ANALYSIS COMPLETE ==========\n');
+fprintf('Master data saved in "master_data" struct.\n');
+fprintf('Use master_data.stimulus_field.baseline/drug_responses for further analysis.\n');
+
+%% ====================== LOCAL FUNCTIONS ======================
+
+function dff = get_calcium_data(ca_data, ca_type)
+    % Extract calcium data by type
+    switch ca_type
+        case 1
+            dff = ca_data.Ca_dFF;
+        case 2
+            dff = ca_data.Ca_deconvolved;
+        case 3
+            dff = ca_data.Ca_F;
+        otherwise
+            error('Unknown calcium type: %d', ca_type);
+    end
+end
+
+function [responses, frame_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type)
+    % Extract full dF/F responses for all presentations of a stimulus type
+    % 
+    % Returns:
+    %   responses: (n_neurons × variable_time × n_presentations) cell array
+    %              Each cell contains the full stimulus response
+    %   frame_ranges: (n_presentations × 2) frame start/end indices
+    %   properties: struct array with stimulus properties
+    
+    n_neurons = size(dff, 1);
+    n_frames_max = size(dff, 2);
+    
+    responses = {};
+    frame_ranges = [];
+    properties = {};
+    
+    pres_count = 0;
+    
+    for i = 1:numel(Stimuli)
+        if ~isfield(Stimuli(i), 'type') || ~strcmp(Stimuli(i).type, stim_type)
+            continue;
+        end
+        
+        if ~isfield(Stimuli(i), 'TimeStimulusFrame') || isempty(Stimuli(i).TimeStimulusFrame)
+            continue;
+        end
+        
+        % Extract frame range
+        stim_frames = Stimuli(i).TimeStimulusFrame;
+        st_frame = min(stim_frames(:));
+        en_frame = max(stim_frames(:));
+        
+        % Validate
+        if st_frame < 1 || en_frame > n_frames_max || st_frame >= en_frame
+            continue;
+        end
+        
+        pres_count = pres_count + 1;
+        
+        % Extract response for all neurons
+        response_matrix = dff(:, st_frame:en_frame);
+        responses{pres_count, 1} = response_matrix;
+        frame_ranges = [frame_ranges; st_frame, en_frame];
+        
+        % Store properties
+        props = struct();
+        props.index = i;
+        props.stimulus_index_in_file = i;
+        
+        % Extract any available metadata
+        if isfield(Stimuli(i), 'specParams') && isstruct(Stimuli(i).specParams)
+            props.spec_params = Stimuli(i).specParams;
+        end
+        if isfield(Stimuli(i), 'trials')
+            props.trials = Stimuli(i).trials;
+        end
+        
+        properties{pres_count, 1} = props;
+    end
+    
+    % Convert to cell array format for flexibility
+    % Note: responses will have variable time dimensions per presentation
+end
+
+function avg_response = average_stimulus_presentations(response_cell)
+    % Average response across presentations (handles variable time lengths)
+    % Input: response_cell - cell array where each element is (n_neurons × time)
+    %
+    % For simplicity, interpolate all to same length then average
+    
+    if isempty(response_cell)
+        avg_response = [];
+        return;
+    end
+    
+    n_neurons = size(response_cell{1}, 1);
+    
+    % Find maximum time length
+    time_lengths = cellfun(@(x) size(x, 2), response_cell);
+    max_time = max(time_lengths);
+    
+    % Interpolate all to max length
+    interpolated = zeros(n_neurons, max_time, length(response_cell));
+    
+    for i = 1:length(response_cell)
+        original_time = size(response_cell{i}, 2);
+        if original_time < max_time
+            % Interpolate
+            x_orig = linspace(0, 1, original_time);
+            x_new = linspace(0, 1, max_time);
+            interpolated(:, :, i) = interp1(x_orig, response_cell{i}', x_new)';
+        else
+            interpolated(:, :, i) = response_cell{i}(:, 1:max_time);
+        end
+    end
+    
+    % Average across presentations
+    avg_response = mean(interpolated, 3);
+end
+
+function response_3d = cell_responses_to_3d(response_cell)
+    % Convert cell array of responses to 3D matrix
+    % Interpolates all presentations to common time length
+    % 
+    % Input: response_cell - cell array, each element is (n_neurons × time_i)
+    % Output: response_3d - (n_neurons × max_time × n_presentations)
+    
+    if isempty(response_cell)
+        response_3d = [];
+        return;
+    end
+    
+    n_neurons = size(response_cell{1}, 1);
+    n_presentations = length(response_cell);
+    
+    % Find maximum time length
+    time_lengths = cellfun(@(x) size(x, 2), response_cell);
+    max_time = max(time_lengths);
+    
+    % Initialize 3D array
+    response_3d = zeros(n_neurons, max_time, n_presentations);
+    
+    % Fill 3D array with interpolated responses
+    for i = 1:n_presentations
+        original_time = size(response_cell{i}, 2);
+        
+        if original_time == max_time
+            % Already correct length
+            response_3d(:, :, i) = response_cell{i};
+        else
+            % Interpolate to max_time
+            x_orig = linspace(0, 1, original_time);
+            x_new = linspace(0, 1, max_time);
+            response_3d(:, :, i) = interp1(x_orig, response_cell{i}', x_new)';
+        end
+    end
+end
+
+function analyze_grating_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
+    data, base_match_idx, drug_match_idx, matched_available)
+    % Analyze grating stimulus: find preferred directions, average responses
+    
+    fprintf('    - Extracting direction preferences\n');
+    
+    % Find all directions
+    directions = {};
+    for i = 1:length(B_Stimuli)
+        if isfield(B_Stimuli(i), 'type') && strcmp(B_Stimuli(i).type, 'grating')
+            if isfield(B_Stimuli(i), 'specParams') && isfield(B_Stimuli(i).specParams, 'direction')
+                dir_val = B_Stimuli(i).specParams.direction;
+                directions{end+1} = dir_val;
+            end
+        end
+    end
+    
+    if isempty(directions)
+        fprintf('      (Could not extract direction information)\n');
+        return;
+    end
+    
+    unique_dirs = unique(directions);
+    fprintf('    - Found %d unique directions: %s\n', length(unique_dirs), sprintf('%.0f° ', [unique_dirs{:}]));
+    
+    % For each direction, plot stimulus-triggered average at onset
+    % This would require syncing to stimulus onset - implementation depends on
+    % exact requirements for grating onset detection
+    fprintf('    - Direction-tuning analysis: available but requires stimulus onset detection\n');
+end
+
+function analyze_moving_bar_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
+    data, base_match_idx, drug_match_idx, matched_available)
+    % Analyze moving bar stimulus: extract stimulus-triggered responses at onset
+    
+    fprintf('    - Extracting moving bar onset responses\n');
+    
+    % Extract onset responses (first ~100 frames of each stimulus)
+    onset_window = 100;
+    
+    baseline_onsets = {};
+    drug_onsets = {};
+    
+    for i = 1:length(data.baseline_responses)
+        onset = data.baseline_responses{i}(:, 1:min(onset_window, size(data.baseline_responses{i}, 2)));
+        baseline_onsets{i} = onset;
+    end
+    
+    for i = 1:length(data.drug_responses)
+        onset = data.drug_responses{i}(:, 1:min(onset_window, size(data.drug_responses{i}, 2)));
+        drug_onsets{i} = onset;
+    end
+    
+    fprintf('    - Stimulus-triggered average: extracted %d baseline and %d drug presentations\n', ...
+        length(baseline_onsets), length(drug_onsets));
+end
+
+function analyze_full_field_flash_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
+    data, base_match_idx, drug_match_idx, matched_available)
+    % Analyze full-field flash: plot individual trial responses + averages
+    
+    fprintf('    - Analyzing full-field flash responses\n');
+    
+    % Create stimulus-triggered average plot
+    fig = figure('Position', [100 100 1200 700], 'NumberTitle', 'off', ...
+        'Name', 'Full-Field Flash Analysis');
+    
+    % Subplot 1: Baseline individual trials + mean
+    subplot(2, 2, 1);
+    baseline_responses = data.baseline_responses;
+    colors_base = repmat([1 0.4 0.4], length(baseline_responses), 1);
+    
+    max_len = max(cellfun(@(x) size(x, 2), baseline_responses));
+    
+    for trial = 1:min(length(baseline_responses), 5)  % Show up to 5 trials
+        resp = baseline_responses{trial};
+        % Get top 10 ROIs by max activity
+        [~, top_idx] = sort(max(resp, [], 2), 'descend');
+        top_resp = resp(top_idx(1:min(10, size(resp, 1))), :);
+        mean_resp = mean(top_resp, 1);
+        plot(mean_resp, 'Color', colors_base(trial, :) * 0.7, 'LineWidth', 1.5);
+        hold on;
+    end
+    xlabel('Time (frames)');
+    ylabel('dF/F');
+    title('Baseline - Individual Flash Responses (top 10 ROIs)');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    grid on;
+    
+    % Subplot 2: Drug individual trials + mean
+    subplot(2, 2, 2);
+    drug_responses = data.drug_responses;
+    colors_drug = repmat([0.4 0.4 1], length(drug_responses), 1);
+    
+    for trial = 1:min(length(drug_responses), 5)
+        resp = drug_responses{trial};
+        [~, top_idx] = sort(max(resp, [], 2), 'descend');
+        top_resp = resp(top_idx(1:min(10, size(resp, 1))), :);
+        mean_resp = mean(top_resp, 1);
+        plot(mean_resp, 'Color', colors_drug(trial, :) * 0.7, 'LineWidth', 1.5);
+        hold on;
+    end
+    xlabel('Time (frames)');
+    ylabel('dF/F');
+    title('Drug - Individual Flash Responses (top 10 ROIs)');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    grid on;
+    
+    % Subplot 3: Baseline heatmap
+    subplot(2, 2, 3);
+    baseline_avg = average_stimulus_presentations(baseline_responses);
+    [~, sort_idx] = sort(max(baseline_avg, [], 2), 'descend');
+    display_idx = sort_idx(1:min(50, length(sort_idx)));
+    imagesc(baseline_avg(display_idx, :));
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+    caxis([0 5]);
+    colorbar;
+    xlabel('Time (frames)');
+    ylabel('ROI (ranked by activity)');
+    title('Baseline - Flash Response Heatmap');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    
+    % Subplot 4: Drug heatmap
+    subplot(2, 2, 4);
+    drug_avg = average_stimulus_presentations(drug_responses);
+    [~, sort_idx] = sort(max(drug_avg, [], 2), 'descend');
+    display_idx = sort_idx(1:min(50, length(sort_idx)));
+    imagesc(drug_avg(display_idx, :));
+    colormap(flipud(gray));
+    set(gca, 'YDir', 'reverse');
+    caxis([0 5]);
+    colorbar;
+    xlabel('Time (frames)');
+    ylabel('ROI (ranked by activity)');
+    title('Drug - Flash Response Heatmap');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    
+    sgtitle('Full-Field Flash: Stimulus-Triggered Responses', 'FontSize', 12, 'FontWeight', 'bold');
+end
