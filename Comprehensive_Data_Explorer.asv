@@ -100,10 +100,11 @@ matched_rois_exist = ~isempty(roi_match_file) && isfile(roi_match_file);
 if matched_rois_exist
     fprintf('\n========== MATCHED ROI ANALYSIS ==========\n');
     load(roi_match_file);
-     
+    
+   roiMatchData.allSessionMapping  
     % Extract matched ROI indices
-    baseline_roi_idx = roiMatchData.allSessionMapping(:, 1);
-    drug_roi_idx = roiMatchData.allSessionMapping(:, 2);
+    baseline_roi_idx = allSessionMapping(:, 1);
+    drug_roi_idx = allSessionMapping(:, 2);
     
     n_matched = length(baseline_roi_idx);
     fprintf('Comparing %d matched ROIs\n', n_matched);
