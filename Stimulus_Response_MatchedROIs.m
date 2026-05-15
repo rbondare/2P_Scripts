@@ -33,14 +33,14 @@ ca_type = 1;
 
 %% STIMULUS ALIGNMENT SETTINGS
 % Stimulus type to focus on for detailed response analysis
-selected_stimulus_type = 'spontaneous';  % e.g., 'spontaneous', 'grating', 'moving_bar'
+selected_stimulus_type = 'sparse_local_global_flashes';  % e.g., 'spontaneous', 'grating', 'moving_bar'
 
 % Frame selection within stimulus window 
 stim_frame_start = 1;      % start frame within stimulus window (e.g., 1 to start from beginning)
 stim_frame_count = 1000;    % number of frames to show 
 
 % Plotting options
-n_top_snr = 8;             % number of top SNR ROIs to display 
+n_top_snr = 3;             % number of top SNR ROIs to display 
 heatmap_clim = [0 5];      % colorbar axis limits for heatmaps
 
 %% LOAD DATA
