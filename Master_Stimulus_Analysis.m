@@ -60,9 +60,9 @@ n_matched = 0;
 if ~isempty(roi_match_file) && isfile(roi_match_file)
     fprintf('Loading ROI matches: %s\n', roi_match_file);
     M = load(roi_match_file);
-    if isfield(M, 'allSessionMapping')
-        base_match_idx = M.allSessionMapping(:, 1);
-        drug_match_idx = M.allSessionMapping(:, 2);
+    if isfield(M.roiMatchData, 'allSessionMapping')
+        base_match_idx = M.roiMatchData.allSessionMapping(:, 1);
+        drug_match_idx = M.roiMatchData.allSessionMapping(:, 2);
         n_matched = length(base_match_idx);
         matched_rois_available = true;
         fprintf('Found %d matched ROI pairs\n', n_matched);
