@@ -16,17 +16,17 @@ clear; clc; close all;
 %% ====================== CONFIGURATION ======================
 
 % Data files
-baseline_file = 'c:\Users\rbondarenko\projects\DATA_2P\Animal25_240716_1453_preprocessed.mat';
-drug_file = 'c:\Users\rbondarenko\projects\DATA_2P\Animal25_240717_1449_preprocessed.mat';
-roi_match_file = '';  % Optional: path to ROI matching struct
+baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
+drug_file     = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
+roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
 
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane = 1;           % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous', 'grating', 'moving_bar', 'full_field_flash', 'checkers2'};
+stimulus_types_to_analyze = {'spontaneous', 'grating', 'moving_bar', 'sparse_local_global_flashes', 'checkers2'};
 
 % Visualization
-max_neurons_display = 200;    % For heatmap readability
+max_neurons_display = 500;    % For heatmap readability
 caxis_lim = [0, 5];           % dF/F range for heatmaps
 colormap_type = 'flipud(gray)';
 
@@ -95,12 +95,12 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     fprintf('\nProcessing "%s"...\n', stim_type);
     
     % Extract full stimulus responses for baseline
-    [base_responses, base_frame_ranges, base_properties] = extract_full_stimulus_responses(...
-        B.Stimuli, base_dff, stim_type);
+    [base_responses, base_frame_ranges, base_time_ranges, base_properties] = extract_full_stimulus_responses(...
+        B.Stimuli, base_dff, stim_type, B.TimeCa);
     
     % Extract full stimulus responses for drug
-    [drug_responses, drug_frame_ranges, drug_properties] = extract_full_stimulus_responses(...
-        D.Stimuli, drug_dff, stim_type);
+    [drug_responses, drug_frame_ranges, drug_time_ranges, drug_properties] = extract_full_stimulus_responses(...
+        D.Stimuli, drug_dff, stim_type, D.TimeCa);
     
     % Store in master struct
     field_name = matlab.lang.makeValidName(stim_type);
@@ -108,13 +108,17 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     master_data.(field_name).drug_responses = drug_responses;
     master_data.(field_name).baseline_frame_ranges = base_frame_ranges;
     master_data.(field_name).drug_frame_ranges = drug_frame_ranges;
+    master_data.(field_name).baseline_time_ranges = base_time_ranges;  % NEW: time in seconds
+    master_data.(field_name).drug_time_ranges = drug_time_ranges;      % NEW: time in seconds
     master_data.(field_name).baseline_properties = base_properties;
     master_data.(field_name).drug_properties = drug_properties;
     master_data.(field_name).stimulus_type = stim_type;
     
-    n_pres = size(base_responses, 3);
+    n_pres = length(base_responses);
     fprintf('  Extracted: %d neurons × variable time × %d presentations\n', ...
-        size(base_responses, 1), n_pres);
+        size(base_responses{1}, 1), n_pres);
+    fprintf('  Baseline timing: %.2f - %.2f sec\n', min(base_time_ranges(:,1)), max(base_time_ranges(:,2)));
+    fprintf('  Drug timing: %.2f - %.2f sec\n', min(drug_time_ranges(:,1)), max(drug_time_ranges(:,2)));
 end
 
 fprintf('\nMaster data matrices created successfully.\n');
@@ -314,20 +318,45 @@ function dff = get_calcium_data(ca_data, ca_type)
     end
 end
 
-function [responses, frame_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type)
+function [responses, frame_ranges, time_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type, TimeCa)
     % Extract full dF/F responses for all presentations of a stimulus type
     % 
+    % CRITICAL: TimeStimulusFrame contains TIME VALUES (same clock as TimeCa)
+    % NOT frame indices. Must match against TimeCa(1,:) to find frame indices.
+    %
+    % Inputs:
+    %   Stimuli: stimulus array from preprocessed file
+    %   dff: calcium data (n_neurons × n_frames)
+    %   stim_type: stimulus type to extract (string)
+    %   TimeCa: time matrix from preprocessed file (2×n_frames, row 1 = time)
+    %
     % Returns:
-    %   responses: (n_neurons × variable_time × n_presentations) cell array
-    %              Each cell contains the full stimulus response
-    %   frame_ranges: (n_presentations × 2) frame start/end indices
-    %   properties: struct array with stimulus properties
+    %   responses: cell array, each element is (n_neurons × stim_duration_frames)
+    %   frame_ranges: (n_presentations × 2) [frame_start, frame_end]
+    %   time_ranges: (n_presentations × 2) [time_start, time_end]
+    %   properties: struct array with stimulus metadata
     
     n_neurons = size(dff, 1);
     n_frames_max = size(dff, 2);
     
+    % Extract time vector from TimeCa
+    % TimeCa should be 2×n_frames where row 1 contains timestamps
+    if size(TimeCa, 1) < 1 || ~ismatrix(TimeCa)
+        error('TimeCa must be at least 1×n_frames (preferably 2×n_frames)');
+    end
+    if isvector(TimeCa)
+        time_vector = TimeCa(:)';
+    else
+        time_vector = TimeCa(1, :);  % First row contains time values
+    end
+    
+    if length(time_vector) ~= n_frames_max
+        error('TimeCa row 1 length (%d) must match dff columns (%d)', length(time_vector), n_frames_max);
+    end
+    
     responses = {};
     frame_ranges = [];
+    time_ranges = [];
     properties = {};
     
     pres_count = 0;
@@ -341,27 +370,45 @@ function [responses, frame_ranges, properties] = extract_full_stimulus_responses
             continue;
         end
         
-        % Extract frame range
-        stim_frames = Stimuli(i).TimeStimulusFrame;
-        st_frame = min(stim_frames(:));
-        en_frame = max(stim_frames(:));
+        % TimeStimulusFrame contains TIME VALUES (not frame indices!)
+        stim_time_values = Stimuli(i).TimeStimulusFrame;
+        time_start = min(stim_time_values(:));
+        time_end = max(stim_time_values(:));
+        
+        % Find frame indices where TimeCa matches stimulus time window
+        % CRITICAL: Use >= and <= to include boundary frames
+        % Stimulus timing from TimeStimulusFrame: find all frames within [time_start, time_end]
+        frame_idx = find(time_vector >= time_start & time_vector <= time_end);
         
         % Validate
-        if st_frame < 1 || en_frame > n_frames_max || st_frame >= en_frame
+        if isempty(frame_idx) || length(frame_idx) < 2
             continue;
         end
         
         pres_count = pres_count + 1;
         
-        % Extract response for all neurons
+        % Extract response for all neurons using FOUND FRAME INDICES
+        st_frame = frame_idx(1);
+        en_frame = frame_idx(end);
         response_matrix = dff(:, st_frame:en_frame);
         responses{pres_count, 1} = response_matrix;
+        
+        % Store frame indices (for reference)
         frame_ranges = [frame_ranges; st_frame, en_frame];
+        
+        % Store actual time ranges
+        time_ranges = [time_ranges; time_start, time_end];
         
         % Store properties
         props = struct();
-        props.index = i;
-        props.stimulus_index_in_file = i;
+        props.stimulus_index = i;
+        props.frame_start = st_frame;
+        props.frame_end = en_frame;
+        props.time_start_sec = time_start;
+        props.time_end_sec = time_end;
+        props.duration_frames = en_frame - st_frame + 1;
+        props.duration_sec = time_end - time_start;
+        props.n_frames_matched = length(frame_idx);
         
         % Extract any available metadata
         if isfield(Stimuli(i), 'specParams') && isstruct(Stimuli(i).specParams)
@@ -370,12 +417,12 @@ function [responses, frame_ranges, properties] = extract_full_stimulus_responses
         if isfield(Stimuli(i), 'trials')
             props.trials = Stimuli(i).trials;
         end
+        if isfield(Stimuli(i), 'stimulus_trial_t')
+            props.stimulus_trial_t = Stimuli(i).stimulus_trial_t;
+        end
         
         properties{pres_count, 1} = props;
     end
-    
-    % Convert to cell array format for flexibility
-    % Note: responses will have variable time dimensions per presentation
 end
 
 function avg_response = average_stimulus_presentations(response_cell)
