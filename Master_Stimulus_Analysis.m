@@ -321,8 +321,11 @@ end
 function [responses, frame_ranges, time_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type, TimeCa)
     % Extract full dF/F responses for all presentations of a stimulus type
     % 
-    % CRITICAL: TimeStimulusFrame contains TIME VALUES (same clock as TimeCa)
-    % NOT frame indices. Must match against TimeCa(1,:) to find frame indices.
+    % MATCHED TO USER'S PROVEN METHOD:
+    % - Uses TimeStimulusFrame(1) as start time
+    % - Calculates end time: stim_start + (stimulus_trial_t * trials)
+    % - Matches against TimeCa(1,:) using strict > and < (excludes boundaries)
+    % - Creates trial-chunked organization
     %
     % Inputs:
     %   Stimuli: stimulus array from preprocessed file
@@ -339,8 +342,7 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
     n_neurons = size(dff, 1);
     n_frames_max = size(dff, 2);
     
-    % Extract time vector from TimeCa
-    % TimeCa should be 2×n_frames where row 1 contains timestamps
+    % Extract time vector from TimeCa (row 1 contains time values)
     if size(TimeCa, 1) < 1 || ~ismatrix(TimeCa)
         error('TimeCa must be at least 1×n_frames (preferably 2×n_frames)');
     end
@@ -370,15 +372,24 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
             continue;
         end
         
-        % TimeStimulusFrame contains TIME VALUES (not frame indices!)
+        % === MATCHED TO USER'S PROVEN METHOD ===
+        % Extract start time from FIRST element of TimeStimulusFrame
         stim_time_values = Stimuli(i).TimeStimulusFrame;
-        time_start = min(stim_time_values(:));
-        time_end = max(stim_time_values(:));
+        time_start = stim_time_values(1);  % Use FIRST value as start
         
-        % Find frame indices where TimeCa matches stimulus time window
-        % CRITICAL: Use >= and <= to include boundary frames
-        % Stimulus timing from TimeStimulusFrame: find all frames within [time_start, time_end]
-        frame_idx = find(time_vector >= time_start & time_vector <= time_end);
+        % Calculate end time explicitly: start + (duration × num_trials)
+        % This matches user's: stim_end = stim_start + stim_total_time
+        if isfield(Stimuli(i), 'stimulus_trial_t') && isfield(Stimuli(i), 'trials')
+            stim_total_time = Stimuli(i).stimulus_trial_t * Stimuli(i).trials;
+            time_end = time_start + stim_total_time;
+        else
+            % Fallback if metadata missing
+            time_end = max(stim_time_values(:));
+        end
+        
+        % Find frame indices using STRICT inequalities (exclude boundaries)
+        % Matches user's: find(TimeCa(1,:) > stim_start & TimeCa(1,:) < stim_end)
+        frame_idx = find(time_vector > time_start & time_vector < time_end);
         
         % Validate
         if isempty(frame_idx) || length(frame_idx) < 2
@@ -387,7 +398,7 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
         
         pres_count = pres_count + 1;
         
-        % Extract response for all neurons using FOUND FRAME INDICES
+        % Extract response for all neurons using found frame indices
         st_frame = frame_idx(1);
         en_frame = frame_idx(end);
         response_matrix = dff(:, st_frame:en_frame);
@@ -396,7 +407,7 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
         % Store frame indices (for reference)
         frame_ranges = [frame_ranges; st_frame, en_frame];
         
-        % Store actual time ranges
+        % Store actual time ranges (matched to user's approach)
         time_ranges = [time_ranges; time_start, time_end];
         
         % Store properties
@@ -410,15 +421,15 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
         props.duration_sec = time_end - time_start;
         props.n_frames_matched = length(frame_idx);
         
-        % Extract any available metadata
-        if isfield(Stimuli(i), 'specParams') && isstruct(Stimuli(i).specParams)
-            props.spec_params = Stimuli(i).specParams;
+        % Extract metadata
+        if isfield(Stimuli(i), 'stimulus_trial_t')
+            props.stimulus_trial_t = Stimuli(i).stimulus_trial_t;
         end
         if isfield(Stimuli(i), 'trials')
             props.trials = Stimuli(i).trials;
         end
-        if isfield(Stimuli(i), 'stimulus_trial_t')
-            props.stimulus_trial_t = Stimuli(i).stimulus_trial_t;
+        if isfield(Stimuli(i), 'specParams') && isstruct(Stimuli(i).specParams)
+            props.spec_params = Stimuli(i).specParams;
         end
         
         properties{pres_count, 1} = props;
