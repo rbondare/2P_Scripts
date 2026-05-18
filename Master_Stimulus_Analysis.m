@@ -52,7 +52,11 @@ fprintf('Baseline: %d ROIs × %d frames\n', n_rois_base, n_frames_base);
 fprintf('Drug:     %d ROIs × %d frames\n', n_rois_drug, n_frames_drug);
 
 % Load ROI matching if available
-matched_rois_available = false;
+matched_rois_available = false;  % Default: no matched ROIs
+base_match_idx = [];
+drug_match_idx = [];
+n_matched = 0;
+
 if ~isempty(roi_match_file) && isfile(roi_match_file)
     fprintf('Loading ROI matches: %s\n', roi_match_file);
     M = load(roi_match_file);
@@ -62,6 +66,12 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
         n_matched = length(base_match_idx);
         matched_rois_available = true;
         fprintf('Found %d matched ROI pairs\n', n_matched);
+    else
+        fprintf('  Warning: allSessionMapping not found in ROI match file\n');
+    end
+else
+    if ~isempty(roi_match_file)
+        fprintf('  Warning: ROI match file not found: %s\n', roi_match_file);
     end
 end
 
