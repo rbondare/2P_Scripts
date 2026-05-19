@@ -39,7 +39,7 @@ fprintf('Loading baseline: %s\n', baseline_file);
 B = load(baseline_file);
 
 % Load baseline Ca_dFF and centroid data
-base_dff = B.CaData(1).Ca_dFF;
+base_dff = B.CaData(1).Ca_dFF;  % ALL ROIs (all planes)
 centroid = B.CaData(1).Ca_centroid_voxel;
 centroidX = centroid(:,1);
 centroidY = centroid(:,2);
@@ -49,30 +49,24 @@ centroidZ = centroid(:,3);
 unique_planes = unique(centroidZ);
 n_planes = length(unique_planes);
 
-% Organize ROIs by plane based on centroid Z values
-dff_plane_base = cell(n_planes, 1);  % dFF for each plane
-selected_rois_by_plane = cell(n_planes, 1);  % ROI indices for each plane
-
+% Find ROI indices (row numbers) for each plane
+plane_roi_indices = containers.Map();  % Map plane number to ROI indices
 for plane_idx = 1:n_planes
     plane_z_value = unique_planes(plane_idx);
     roi_indices = find(centroidZ == plane_z_value);
-    dff_plane_base{plane_idx} = base_dff(roi_indices, :);
-    selected_rois_by_plane{plane_idx} = roi_indices;
+    plane_roi_indices(num2str(plane_z_value)) = roi_indices;
 end
 
-% Extract ROIs for the selected plane
+% Get ROI indices for the selected plane (but keep full base_dff intact)
 selected_roi_idx = find(centroidZ == selected_plane);
-dff_plane = base_dff(selected_roi_idx, :);
-selected_rois = selected_roi_idx;
+n_rois_selected_plane = length(selected_roi_idx);
 
-% Create combined dFF for all planes (if needed for cross-plane analysis)
-dff_all = base_dff;  % All ROIs across all planes
-n_rois_all = size(dff_all, 1);
-
-n_rois_base = size(base_dff, 1);
+n_rois_base = size(base_dff, 1);  % ALL ROIs
 n_frames_base = size(base_dff, 2);
 
 fprintf('Number of planes detected: %d (from unique Z values: %s)\n', n_planes, sprintf('%d ', unique_planes));
+fprintf('Selected plane %d contains: %d ROIs (global indices: %d to %d)\n', ...
+    selected_plane, n_rois_selected_plane, min(selected_roi_idx), max(selected_roi_idx));
 
 
 
@@ -82,7 +76,7 @@ fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);
 
 % Load drug Ca_dFF and centroid data
-drug_ca_raw = D.CaData(1).Ca_dFF;
+drug_dff = D.CaData(1).Ca_dFF;  % ALL ROIs (all planes)
 drug_centroid = D.CaData(1).Ca_centroid_voxel;
 drug_centroidZ = drug_centroid(:, 3);
 
@@ -90,38 +84,27 @@ drug_centroidZ = drug_centroid(:, 3);
 unique_planes_drug = unique(drug_centroidZ);
 n_planes_drug = length(unique_planes_drug);
 
-% Organize drug ROIs by plane based on centroid Z values
-dff_plane_drug = cell(n_planes_drug, 1);  % dFF for each plane
-drug_rois_by_plane = cell(n_planes_drug, 1);  % ROI indices for each plane
-
+% Find ROI indices for drug
+drug_plane_roi_indices = containers.Map();
 for plane_idx = 1:n_planes_drug
     plane_z_value = unique_planes_drug(plane_idx);
     roi_indices = find(drug_centroidZ == plane_z_value);
-    dff_plane_drug{plane_idx} = drug_ca_raw(roi_indices, :);
-    drug_rois_by_plane{plane_idx} = roi_indices;
+    drug_plane_roi_indices(num2str(plane_z_value)) = roi_indices;
 end
 
-% Extract dFF for the selected plane with calcium data type conversion
-drug_dff_plane_idx = find(unique_planes_drug == selected_plane);
-if ~isempty(drug_dff_plane_idx)
-    drug_selected_rois = drug_rois_by_plane{drug_dff_plane_idx};
-    drug_dff_temp = dff_plane_drug{drug_dff_plane_idx};
-    % Apply calcium data type conversion
-    drug_dff = get_calcium_data_from_raw(D.CaData(1), drug_selected_rois, ca_type);
-else
-    drug_selected_rois = [];
-    drug_dff = [];
-end
+% Get ROI indices for the selected plane in drug (but keep full drug_dff intact)
+drug_selected_roi_idx = find(drug_centroidZ == selected_plane);
+n_rois_drug_selected_plane = length(drug_selected_roi_idx);
 
-% Create combined dFF for all drug planes (if needed for cross-plane analysis)
-drug_dff_all = drug_ca_raw;  % All ROIs across all drug planes
-n_rois_drug_all = size(drug_dff_all, 1);
-
-n_rois_drug = size(drug_dff, 1);
+n_rois_drug = size(drug_dff, 1);  % ALL ROIs
 n_frames_drug = size(drug_dff, 2);
 
-fprintf('Baseline: %d ROIs × %d frames (%d planes detected)\n', n_rois_base, n_frames_base, n_planes);
-fprintf('Drug:     %d ROIs × %d frames (%d planes detected)\n', n_rois_drug, n_frames_drug, n_planes_drug);
+fprintf('Baseline: %d ROIs total × %d frames (%d planes detected: %s)\n', ...
+    n_rois_base, n_frames_base, n_planes, sprintf('%d ', unique_planes));
+fprintf('Drug:     %d ROIs total × %d frames (%d planes detected: %s)\n', ...
+    n_rois_drug, n_frames_drug, n_planes_drug, sprintf('%d ', unique_planes_drug));
+fprintf('  Selected plane %d: %d ROIs in baseline, %d ROIs in drug\n', ...
+    selected_plane, n_rois_selected_plane, n_rois_drug_selected_plane);
 
 % Load ROI matching if available
 matched_rois_available = false;  % Default: no matched ROIs
@@ -176,13 +159,13 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     
     fprintf('\nProcessing "%s"...\n', stim_type);
     
-    % Extract full stimulus responses for baseline
+    % Extract full stimulus responses for baseline (selected plane only)
     [base_responses, base_frame_ranges, base_time_ranges, base_properties] = extract_full_stimulus_responses(...
-        B.Stimuli, base_dff, stim_type, B.TimeCa);
+        B.Stimuli, base_dff, stim_type, B.TimeCa, selected_roi_idx);
     
-    % Extract full stimulus responses for drug
+    % Extract full stimulus responses for drug (selected plane only)
     [drug_responses, drug_frame_ranges, drug_time_ranges, drug_properties] = extract_full_stimulus_responses(...
-        D.Stimuli, drug_dff, stim_type, D.TimeCa);
+        D.Stimuli, drug_dff, stim_type, D.TimeCa, drug_selected_roi_idx);
     
     % Store in master struct
     field_name = matlab.lang.makeValidName(stim_type);
@@ -400,7 +383,7 @@ function dff = get_calcium_data(ca_data, ca_type)
     end
 end
 
-function [responses, frame_ranges, time_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type, TimeCa)
+function [responses, frame_ranges, time_ranges, properties] = extract_full_stimulus_responses(Stimuli, dff, stim_type, TimeCa, roi_indices)
     % Extract full dF/F responses for all presentations of a stimulus type
     % 
     % MATCHED TO USER'S PROVEN METHOD:
@@ -411,15 +394,21 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
     %
     % Inputs:
     %   Stimuli: stimulus array from preprocessed file
-    %   dff: calcium data (n_neurons × n_frames)
+    %   dff: calcium data (n_neurons × n_frames, full dataset)
     %   stim_type: stimulus type to extract (string)
     %   TimeCa: time matrix from preprocessed file (2×n_frames, row 1 = time)
+    %   roi_indices: (optional) row indices to subset dff to specific plane (default: use all ROIs)
     %
     % Returns:
     %   responses: cell array, each element is (n_neurons × stim_duration_frames)
     %   frame_ranges: (n_presentations × 2) [frame_start, frame_end]
     %   time_ranges: (n_presentations × 2) [time_start, time_end]
     %   properties: struct array with stimulus metadata
+    
+    % If roi_indices provided, subset to those ROIs only
+    if nargin >= 5 && ~isempty(roi_indices)
+        dff = dff(roi_indices, :);
+    end
     
     n_neurons = size(dff, 1);
     n_frames_max = size(dff, 2);
