@@ -30,16 +30,30 @@ max_neurons_display = 500;    % For heatmap readability
 caxis_lim = [0, 5];           % dF/F range for heatmaps
 colormap_type = 'flipud(gray)';
 
+
 %% ====================== LOAD DATA ======================
 
 fprintf('\n========== DATA LOADING ==========\n');
 
 fprintf('Loading baseline: %s\n', baseline_file);
 B = load(baseline_file);
-base_ca = B.CaData(selected_plane);
-base_dff = get_calcium_data(base_ca, ca_type);
+
+base_dff = B.CaData(1).Ca_dFF;
+centroid = B.CaData(1).Ca_centroid_voxel;
+centroidX = centroid(:,1);
+centroidY = centroid(:,2);
+centroidZ = centroid(:,3);
+
+selected_roi = find(centroidZ == 1);
+
+
+
 n_rois_base = size(base_dff, 1);
 n_frames_base = size(base_dff, 2);
+
+
+
+
 
 fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);

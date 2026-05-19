@@ -1,4 +1,4 @@
-%% Analysis for 2P data with ROI MATCHED o
+%% Analysis for 2P data with ROI MATCHED OPTION and multi-recording comparison
 %
 % This script creates master response matrices for all neurons across stimuli,
 % generates population and matched-ROI heatmaps, and provides stimulus-specific analysis 
@@ -7,9 +7,9 @@
 % STRUCTURE:
 %   1. Load and organize data
 %   2. Extract master response matrices (all neurons, full stimulus duration)
-%   3. Generate population heatmaps (all neurons, ranked by max activity)
-%   4. Generate matched ROI heatmaps (tracked pairs, baseline-ordered)
-%   5. Stimulus-specific analysis (gratings, bars, flashes, spontaneous)
+%   3. Generate population heatmaps 
+%   4. Generate matched ROI heatmaps 
+%   5. Stimulus-specific analysis 
 
 clear; clc; close all;
 
@@ -30,16 +30,31 @@ max_neurons_display = 500;    % For heatmap readability
 caxis_lim = [0, 5];           % dF/F range for heatmaps
 colormap_type = 'flipud(gray)';
 
+
 %% ====================== LOAD DATA ======================
 
 fprintf('\n========== DATA LOADING ==========\n');
 
 fprintf('Loading baseline: %s\n', baseline_file);
 B = load(baseline_file);
-base_ca = B.CaData(selected_plane);
-base_dff = get_calcium_data(base_ca, ca_type);
+
+base_dff = B.CaData(1).Ca_dFF;
+centroid = B.CaData(1).Ca_centroid_voxel;
+centroidX = centroid(:,1);
+centroidY = centroid(:,2);
+centroidZ = centroid(:,3);
+
+base_dff_plane = base_dff
+
+
+
+
 n_rois_base = size(base_dff, 1);
 n_frames_base = size(base_dff, 2);
+
+
+
+
 
 fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);
