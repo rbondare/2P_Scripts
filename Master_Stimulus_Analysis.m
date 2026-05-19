@@ -38,15 +38,46 @@ fprintf('\n========== DATA LOADING ==========\n');
 fprintf('Loading baseline: %s\n', baseline_file);
 B = load(baseline_file);
 
-base_dff = B.CaData(1).Ca_dFF;
-centroid = B.CaData(1).Ca_centroid_voxel;
+% Extract calcium data and organize by plane
+n_planes = length(B.CaData);
+dff_plane_base = cell(n_planes, 1);  % dFF for each plane
+selected_rois_by_plane = cell(n_planes, 1);  % ROI indices for each plane
+
+% Process each plane
+for plane_idx = 1:n_planes
+    if ~isempty(B.CaData(plane_idx).Ca_dFF)
+        dff_plane_base{plane_idx} = B.CaData(plane_idx).Ca_dFF;
+        centroid = B.CaData(plane_idx).Ca_centroid_voxel;
+        centroidZ = centroid(:, 3);
+        selected_rois_by_plane{plane_idx} = find(centroidZ == plane_idx);
+    else
+        dff_plane_base{plane_idx} = [];
+        selected_rois_by_plane{plane_idx} = [];
+    end
+end
+
+% For backward compatibility: use selected_plane
+base_dff = B.CaData(selected_plane).Ca_dFF;
+centroid = B.CaData(selected_plane).Ca_centroid_voxel;
 centroidX = centroid(:,1);
 centroidY = centroid(:,2);
 centroidZ = centroid(:,3);
 
-selected_roi = find(centroidZ == 1);
+selected_roi = find(centroidZ == selected_plane);
 
+% Create full dFF (all ROIs from selected plane)
+dff_plane = dff_plane_base{selected_plane};
+selected_rois = selected_rois_by_plane{selected_plane};
 
+% Create combined dFF for all valid planes (if needed for cross-plane analysis)
+dff_all = [];  % Will contain concatenated dFF from all planes
+n_rois_all = 0;
+for plane_idx = 1:n_planes
+    if ~isempty(dff_plane_base{plane_idx})
+        dff_all = [dff_all; dff_plane_base{plane_idx}];
+        n_rois_all = n_rois_all + size(dff_plane_base{plane_idx}, 1);
+    end
+end
 
 n_rois_base = size(base_dff, 1);
 n_frames_base = size(base_dff, 2);
@@ -57,8 +88,40 @@ n_frames_base = size(base_dff, 2);
 
 fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);
-drug_ca = D.CaData(selected_plane);
-drug_dff = get_calcium_data(drug_ca, ca_type);
+
+% Extract drug calcium data and organize by plane
+n_planes_drug = length(D.CaData);
+dff_plane_drug = cell(n_planes_drug, 1);  % dFF for each plane
+drug_rois_by_plane = cell(n_planes_drug, 1);  % ROI indices for each plane
+
+% Process each plane for drug data
+for plane_idx = 1:n_planes_drug
+    if ~isempty(D.CaData(plane_idx).Ca_dFF)
+        dff_plane_drug{plane_idx} = D.CaData(plane_idx).Ca_dFF;
+        centroid = D.CaData(plane_idx).Ca_centroid_voxel;
+        centroidZ = centroid(:, 3);
+        drug_rois_by_plane{plane_idx} = find(centroidZ == plane_idx);
+    else
+        dff_plane_drug{plane_idx} = [];
+        drug_rois_by_plane{plane_idx} = [];
+    end
+end
+
+% For selected plane
+drug_dff = get_calcium_data(D.CaData(selected_plane), ca_type);
+drug_dff_plane = dff_plane_drug{selected_plane};
+drug_selected_rois = drug_rois_by_plane{selected_plane};
+
+% Create combined dFF for all valid planes (drug, if needed for cross-plane analysis)
+drug_dff_all = [];  % Will contain concatenated dFF from all drug planes
+n_rois_drug_all = 0;
+for plane_idx = 1:n_planes_drug
+    if ~isempty(dff_plane_drug{plane_idx})
+        drug_dff_all = [drug_dff_all; dff_plane_drug{plane_idx}];
+        n_rois_drug_all = n_rois_drug_all + size(dff_plane_drug{plane_idx}, 1);
+    end
+end
+
 n_rois_drug = size(drug_dff, 1);
 n_frames_drug = size(drug_dff, 2);
 
