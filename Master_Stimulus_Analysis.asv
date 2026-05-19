@@ -1,4 +1,4 @@
-%% Analysis for 2P data with ROI MATCHED OPTION and multi-recording comparison
+%% Analysis for 2P data with ROI MATCHED o
 %
 % This script creates master response matrices for all neurons across stimuli,
 % generates population and matched-ROI heatmaps, and provides stimulus-specific analysis 
@@ -7,9 +7,9 @@
 % STRUCTURE:
 %   1. Load and organize data
 %   2. Extract master response matrices (all neurons, full stimulus duration)
-%   3. Generate population heatmaps 
-%   4. Generate matched ROI heatmaps 
-%   5. Stimulus-specific analysis 
+%   3. Generate population heatmaps (all neurons, ranked by max activity)
+%   4. Generate matched ROI heatmaps (tracked pairs, baseline-ordered)
+%   5. Stimulus-specific analysis (gratings, bars, flashes, spontaneous)
 
 clear; clc; close all;
 
