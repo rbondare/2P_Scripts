@@ -60,8 +60,11 @@ for plane_idx = 1:n_planes
 end
 
 % Get data for selected plane
-selected_roi_idx = find(centroidZ == selected_plane_idx);
-base_dff = base_dff_plane{find(unique_planes == selected_plane_idx)};
+selected_roi_idx = find(centroidZ == unique_planes(selected_plane_idx));
+if isempty(selected_roi_idx)
+    error('ERROR: Selected plane %d not found in baseline data', unique_planes(selected_plane_idx));
+end
+base_dff = base_dff_plane{selected_plane_idx};
 n_rois_selected_plane = size(base_dff, 1);
 
 n_rois_base_full = size(base_dff_full, 1);  % Total ROIs across all planes
@@ -103,8 +106,14 @@ for plane_idx = 1:n_planes_drug
 end
 
 % Get data for selected plane
-drug_selected_roi_idx = find(drug_centroidZ == selected_plane_idx);
-drug_dff = drug_dff_plane{find(unique_planes_drug == selected_plane_idx)};
+if selected_plane_idx > length(unique_planes_drug)
+    error('ERROR: Selected plane %d exceeds number of planes in drug data (%d)', selected_plane_idx, n_planes_drug);
+end
+drug_selected_roi_idx = find(drug_centroidZ == unique_planes_drug(selected_plane_idx));
+if isempty(drug_selected_roi_idx)
+    error('ERROR: Selected plane %d not found in drug data', unique_planes_drug(selected_plane_idx));
+end
+drug_dff = drug_dff_plane{selected_plane_idx};
 n_rois_drug_selected_plane = size(drug_dff, 1);
 
 n_rois_drug_full = size(drug_dff_full, 1);  % Total ROIs across all planes
@@ -432,16 +441,28 @@ for field_idx = 1:length(stim_fields)
     drug_selected = data.selected_drug_raw;
     
     % Apply normalization: (dFF - min) / (max - min) * max per neuron (row-wise)
-    baseline_norm = (baseline_selected - min(baseline_selected, [], 2)) ./ ...
-        (max(baseline_selected, [], 2) - min(baseline_selected, [], 2)) .* ...
-        max(baseline_selected, [], 2);
-    drug_norm = (drug_selected - min(drug_selected, [], 2)) ./ ...
-        (max(drug_selected, [], 2) - min(drug_selected, [], 2)) .* ...
-        max(drug_selected, [], 2);
+    % Handle edge case: if row has all same values, set entire row to that value
+    baseline_min = min(baseline_selected, [], 2);
+    baseline_max = max(baseline_selected, [], 2);
+    baseline_range = baseline_max - baseline_min;
+    baseline_range(baseline_range == 0) = 1;  % Avoid division by zero
+    baseline_norm = (baseline_selected - baseline_min) ./ baseline_range .* baseline_max;
+    
+    drug_min = min(drug_selected, [], 2);
+    drug_max = max(drug_selected, [], 2);
+    drug_range = drug_max - drug_min;
+    drug_range(drug_range == 0) = 1;  % Avoid division by zero
+    drug_norm = (drug_selected - drug_min) ./ drug_range .* drug_max;
     
     % Sort BOTH baseline and drug by their respective max activity
-    [~, sort_idx_baseline] = sort(max(baseline_norm, [], 2), 'descend');
-    [~, sort_idx_drug] = sort(max(drug_norm, [], 2), 'descend');
+    % Handle NaN values from normalization
+    baseline_max_vals = max(baseline_norm, [], 2);
+    baseline_max_vals(isnan(baseline_max_vals)) = 0;  % Replace NaN with 0
+    [~, sort_idx_baseline] = sort(baseline_max_vals, 'descend');
+    
+    drug_max_vals = max(drug_norm, [], 2);
+    drug_max_vals(isnan(drug_max_vals)) = 0;  % Replace NaN with 0
+    [~, sort_idx_drug] = sort(drug_max_vals, 'descend');
     
     fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('Level3_Normalized: %s', stim_type));
@@ -532,8 +553,10 @@ if matched_rois_available && n_matched > 0
         fprintf('  Extracted %d matched neuron pairs\n', size(baseline_matched_avg, 1));
         fprintf('  Dimensions: %d neurons × %d timepoints\n', size(baseline_matched_avg, 1), size(baseline_matched_avg, 2));
         
-        % Rank baseline by max activity
-        [~, sort_idx] = sort(max(baseline_matched_avg, [], 2), 'descend');
+        % Rank baseline by max activity (handle NaN)
+        baseline_max_vals = max(baseline_matched_avg, [], 2);
+        baseline_max_vals(isnan(baseline_max_vals)) = 0;
+        [~, sort_idx] = sort(baseline_max_vals, 'descend');
         
         % Create figure: baseline and drug side-by-side, SAME NEURON ORDER
         fig4 = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
@@ -648,6 +671,17 @@ for field_idx = 1:length(stim_fields)
         drug_all = [drug_all; data.drug_responses{i}(:)];
     end
     
+    % Validate data - remove NaN and Inf
+    baseline_all = baseline_all(~isnan(baseline_all) & ~isinf(baseline_all));
+    drug_all = drug_all(~isnan(drug_all) & ~isinf(drug_all));
+    
+    % Skip if insufficient data
+    if length(baseline_all) < 2 || length(drug_all) < 2
+        fprintf('  WARNING: Insufficient valid data for "%s" (baseline: %d, drug: %d samples)\n', ...
+            stim_type, length(baseline_all), length(drug_all));
+        continue;
+    end
+    
     % Create clean 2-panel figure
     fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
         'Name', sprintf('AllNeurons_%s', stim_type));
@@ -660,12 +694,21 @@ for field_idx = 1:length(stim_fields)
     % ===== PANEL 1: Histogram =====
     subplot(1, 2, 1);
     combined_data = [baseline_all; drug_all];
-    bin_edges = linspace(prctile(combined_data, 1), prctile(combined_data, 99), hist_bins + 1);
+    p1 = prctile(combined_data, 1);
+    p99 = prctile(combined_data, 99);
+    
+    % Ensure bin edges have width (avoid zero-width bins for constant data)
+    if p1 == p99
+        bin_edges = linspace(p1 - 0.5, p1 + 0.5, hist_bins + 1);
+    else
+        bin_edges = linspace(p1, p99, hist_bins + 1);
+    end
+    
     hold on;
     histogram(baseline_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'darkred', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+        'EdgeColor', 'red', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
     histogram(drug_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'darkblue', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
+        'EdgeColor', 'blue', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
     ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
     xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
     title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
@@ -678,34 +721,46 @@ for field_idx = 1:length(stim_fields)
     hold on;
     
     % Compute density for baseline (x=1)
-    [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
-    f_bl = f_bl / max(f_bl) * 0.3;  % Normalize width
+    if length(baseline_all) >= 2
+        [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
+        f_bl = f_bl / max(f_bl) * 0.35;  % Normalize width
+        
+        % Create unified closed violin patch for baseline
+        x_violin_bl = [f_bl + 1, fliplr(-f_bl + 1)];
+        y_violin_bl = [xi_bl, fliplr(xi_bl)];
+        patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.7, 'EdgeColor', [0.6 0 0], 'LineWidth', 2.5);
+        
+        % Compute and plot quartiles for baseline
+        q1_bl = prctile(baseline_all, 25);
+        q3_bl = prctile(baseline_all, 75);
+        plot([0.6 1.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);  % Thick median line
+        plot([0.7 1.3], [q1_bl q1_bl], 'k-', 'LineWidth', 1.5);  % Q1
+        plot([0.7 1.3], [q3_bl q3_bl], 'k-', 'LineWidth', 1.5);  % Q3
+    end
     
     % Compute density for drug (x=2)
-    [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
-    f_dr = f_dr / max(f_dr) * 0.3;  % Normalize width
+    if length(drug_all) >= 2
+        [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
+        f_dr = f_dr / max(f_dr) * 0.35;  % Normalize width
+        
+        % Create unified closed violin patch for drug
+        x_violin_dr = [f_dr + 2, fliplr(-f_dr + 2)];
+        y_violin_dr = [xi_dr, fliplr(xi_dr)];
+        patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.7, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 2.5);
+        
+        % Compute and plot quartiles for drug
+        q1_dr = prctile(drug_all, 25);
+        q3_dr = prctile(drug_all, 75);
+        plot([1.6 2.4], [median(drug_all) median(drug_all)], 'k-', 'LineWidth', 3);  % Thick median line
+        plot([1.7 2.3], [q1_dr q1_dr], 'k-', 'LineWidth', 1.5);  % Q1
+        plot([1.7 2.3], [q3_dr q3_dr], 'k-', 'LineWidth', 1.5);  % Q3
+    end
     
-    % Draw violin for baseline using patch (supports FaceAlpha)
-    patch(f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
-    patch(-f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
-    
-    % Draw violin for drug using patch
-    patch(f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-    patch(-f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-    
-    % Overlay individual data points
-    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 15, 'r', 'filled', ...
-        'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
-    swarmchart(repmat(2, length(drug_all), 1), drug_all, 15, 'b', 'filled', ...
-        'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
-    
-    % Add mean markers
-    scatter(1, baseline_mean, 200, 'darkred', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
-    scatter(2, drug_mean, 200, 'darkblue', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
-    
-    % Add median markers (hollow diamonds)
-    scatter(1, baseline_median, 150, 'darkred', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
-    scatter(2, drug_median, 150, 'darkblue', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
+    % Overlay individual data points with better visibility
+    scatter(repmat(1, length(baseline_all), 1), baseline_all, 40, [0.4 0.4 0.4], 'o', ...
+        'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
+    scatter(repmat(2, length(drug_all), 1), drug_all, 40, [0.4 0.4 0.4], 'o', ...
+        'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
     
     set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
     xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
@@ -751,6 +806,17 @@ if matched_rois_available && n_matched > 0
             drug_matched_all = [drug_matched_all; matched_resp(:)];
         end
         
+        % Validate data - remove NaN and Inf
+        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all));
+        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all));
+        
+        % Skip if insufficient data
+        if length(baseline_matched_all) < 2 || length(drug_matched_all) < 2
+            fprintf('  WARNING: Insufficient valid matched data for "%s" (baseline: %d, drug: %d samples)\n', ...
+                stim_type, length(baseline_matched_all), length(drug_matched_all));
+            continue;
+        end
+        
         % Create clean 2-panel figure
         fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
             'Name', sprintf('Matched_%s', stim_type));
@@ -763,12 +829,21 @@ if matched_rois_available && n_matched > 0
         % ===== PANEL 1: Histogram =====
         subplot(1, 2, 1);
         combined_matched_data = [baseline_matched_all; drug_matched_all];
-        bin_edges_matched = linspace(prctile(combined_matched_data, 1), prctile(combined_matched_data, 99), hist_bins + 1);
+        p1_m = prctile(combined_matched_data, 1);
+        p99_m = prctile(combined_matched_data, 99);
+        
+        % Ensure bin edges have width
+        if p1_m == p99_m
+            bin_edges_matched = linspace(p1_m - 0.5, p1_m + 0.5, hist_bins + 1);
+        else
+            bin_edges_matched = linspace(p1_m, p99_m, hist_bins + 1);
+        end
+        
         hold on;
         histogram(baseline_matched_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'darkred', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+            'EdgeColor', 'red', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
         histogram(drug_matched_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'darkblue', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
+            'EdgeColor', 'blue', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
         ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
         xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
         title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
@@ -781,34 +856,46 @@ if matched_rois_available && n_matched > 0
         hold on;
         
         % Compute density for baseline (x=1)
-        [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
-        f_bl = f_bl / max(f_bl) * 0.3;  % Normalize width
+        if length(baseline_matched_all) >= 2
+            [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
+            f_bl = f_bl / max(f_bl) * 0.35;
+            
+            % Create unified closed violin patch for baseline
+            x_violin_bl = [f_bl + 1, fliplr(-f_bl + 1)];
+            y_violin_bl = [xi_bl, fliplr(xi_bl)];
+            patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.7, 'EdgeColor', [0.6 0 0], 'LineWidth', 2.5);
+            
+            % Compute and plot quartiles for baseline
+            q1_bl = prctile(baseline_matched_all, 25);
+            q3_bl = prctile(baseline_matched_all, 75);
+            plot([0.6 1.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);  % Thick median line
+            plot([0.7 1.3], [q1_bl q1_bl], 'k-', 'LineWidth', 1.5);  % Q1
+            plot([0.7 1.3], [q3_bl q3_bl], 'k-', 'LineWidth', 1.5);  % Q3
+        end
         
         % Compute density for drug (x=2)
-        [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
-        f_dr = f_dr / max(f_dr) * 0.3;  % Normalize width
+        if length(drug_matched_all) >= 2
+            [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
+            f_dr = f_dr / max(f_dr) * 0.35;
+            
+            % Create unified closed violin patch for drug
+            x_violin_dr = [f_dr + 2, fliplr(-f_dr + 2)];
+            y_violin_dr = [xi_dr, fliplr(xi_dr)];
+            patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.7, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 2.5);
+            
+            % Compute and plot quartiles for drug
+            q1_dr = prctile(drug_matched_all, 25);
+            q3_dr = prctile(drug_matched_all, 75);
+            plot([1.6 2.4], [median(drug_matched_all) median(drug_matched_all)], 'k-', 'LineWidth', 3);  % Thick median line
+            plot([1.7 2.3], [q1_dr q1_dr], 'k-', 'LineWidth', 1.5);  % Q1
+            plot([1.7 2.3], [q3_dr q3_dr], 'k-', 'LineWidth', 1.5);  % Q3
+        end
         
-        % Draw violin for baseline using patch (supports FaceAlpha)
-        patch(f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
-        patch(-f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
-        
-        % Draw violin for drug using patch
-        patch(f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-        patch(-f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-        
-        % Overlay individual data points
-        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 15, 'r', 'filled', ...
-            'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
-        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 15, 'b', 'filled', ...
-            'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
-        
-        % Add mean markers
-        scatter(1, baseline_mean, 200, 'darkred', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
-        scatter(2, drug_mean, 200, 'darkblue', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
-        
-        % Add median markers (hollow diamonds)
-        scatter(1, baseline_median, 150, 'darkred', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
-        scatter(2, drug_median, 150, 'darkblue', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
+        % Overlay individual data points with better visibility
+        scatter(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 40, [0.4 0.4 0.4], 'o', ...
+            'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
+        scatter(repmat(2, length(drug_matched_all), 1), drug_matched_all, 40, [0.4 0.4 0.4], 'o', ...
+            'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
         
         set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
         xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
