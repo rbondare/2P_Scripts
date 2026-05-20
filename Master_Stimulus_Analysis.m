@@ -39,34 +39,69 @@ fprintf('Loading baseline: %s\n', baseline_file);
 B = load(baseline_file);
 
 % Load baseline Ca_dFF and centroid data
-base_dff = B.CaData(1).Ca_dFF;  % ALL ROIs (all planes)
+base_dff_full = B.CaData(1).Ca_dFF;  % ALL ROIs (all planes combined)
 centroid = B.CaData(1).Ca_centroid_voxel;
-centroidX = centroid(:,1);
-centroidY = centroid(:,2);
-centroidZ = centroid(:,3);
+centroidZ = centroid(:, 3);
 
 % Determine number of planes from unique Z values in centroid
 unique_planes = unique(centroidZ);
 n_planes = length(unique_planes);
 
-% Find ROI indices (row numbers) for each plane
-plane_roi_indices = containers.Map();  % Map plane number to ROI indices
+% Create separate dFF matrix for each plane
+base_dff_plane = cell(n_planes, 1);
 for plane_idx = 1:n_planes
     plane_z_value = unique_planes(plane_idx);
     roi_indices = find(centroidZ == plane_z_value);
-    plane_roi_indices(num2str(plane_z_value)) = roi_indices;
+    base_dff_plane{plane_idx} = base_dff_full(roi_indices, :);
 end
 
-% Get ROI indices for the selected plane (but keep full base_dff intact)
+% Get data for selected plane
 selected_roi_idx = find(centroidZ == selected_plane);
-n_rois_selected_plane = length(selected_roi_idx);
+base_dff = base_dff_plane{find(unique_planes == selected_plane)};
+n_rois_selected_plane = size(base_dff, 1);
 
-n_rois_base = size(base_dff, 1);  % ALL ROIs
-n_frames_base = size(base_dff, 2);
+n_rois_base_full = size(base_dff_full, 1);  % Total ROIs across all planes
+n_frames_base = size(base_dff_full, 2);
 
-fprintf('Number of planes detected: %d (from unique Z values: %s)\n', n_planes, sprintf('%d ', unique_planes));
-fprintf('Selected plane %d contains: %d ROIs (global indices: %d to %d)\n', ...
-    selected_plane, n_rois_selected_plane, min(selected_roi_idx), max(selected_roi_idx));
+fprintf('Number of planes detected: %d (Z values: %s)\n', n_planes, sprintf('%d ', unique_planes));
+fprintf('\n--- PLANE ORGANIZATION DETAILS ---\n');
+for plane_idx = 1:n_planes
+    plane_z = unique_planes(plane_idx);
+    roi_indices = find(centroidZ == plane_z);
+    n_rois_plane = size(base_dff_plane{plane_idx}, 1);
+    fprintf('Plane %d (Z=%d): %d ROIs\n', plane_idx, plane_z, n_rois_plane);
+    fprintf('  Global ROI indices: %d to %d (example: [%s])\n', ...
+        min(roi_indices), max(roi_indices), sprintf('%d ', roi_indices(1:min(5, length(roi_indices)))));
+    fprintf('  Verification: base_dff_full(%d, :) shape = [%d × %d]\n', ...
+        roi_indices(1), length(roi_indices), n_frames_base);
+    fprintf('  After subsetting: base_dff_plane{%d} shape = [%d × %d]\n', ...
+        plane_idx, size(base_dff_plane{plane_idx}, 1), size(base_dff_plane{plane_idx}, 2));
+end
+
+fprintf('\n--- SELECTED PLANE %d EXTRACTION ---\n', selected_plane);
+selected_plane_idx = find(unique_planes == selected_plane);
+if isempty(selected_plane_idx)
+    error('Selected plane %d not found in data (available: %s)', selected_plane, sprintf('%d ', unique_planes));
+end
+fprintf('Selected plane %d found at index %d in unique_planes array\n', selected_plane, selected_plane_idx);
+fprintf('ROI indices for selected plane: %d to %d (total: %d ROIs)\n', ...
+    min(selected_roi_idx), max(selected_roi_idx), length(selected_roi_idx));
+fprintf('Extracting rows %d:%d from base_dff_full (8181 × %d) -> base_dff_plane{%d} (%d × %d)\n', ...
+    min(selected_roi_idx), max(selected_roi_idx), n_frames_base, selected_plane_idx, ...
+    size(base_dff_plane{selected_plane_idx}, 1), size(base_dff_plane{selected_plane_idx}, 2));
+
+% Verification: check that subsetting preserves calcium values correctly
+test_roi_global = selected_roi_idx(1);  % First ROI in selected plane
+test_roi_local = 1;  % This should be row 1 in base_dff_plane
+val_global = base_dff_full(test_roi_global, 1);  % First timepoint
+val_local = base_dff_plane{selected_plane_idx}(test_roi_local, 1);
+fprintf('Verification check: base_dff_full(%d, 1) = %.4f, base_dff_plane{%d}(%d, 1) = %.4f\n', ...
+    test_roi_global, val_global, selected_plane_idx, test_roi_local, val_local);
+if abs(val_global - val_local) < 1e-10
+    fprintf('  ✓ Values match - subsetting is correct!\n');
+else
+    fprintf('  ✗ ERROR: Values do not match - subsetting logic is broken!\n');
+end
 
 
 
@@ -76,7 +111,7 @@ fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);
 
 % Load drug Ca_dFF and centroid data
-drug_dff = D.CaData(1).Ca_dFF;  % ALL ROIs (all planes)
+drug_dff_full = D.CaData(1).Ca_dFF;  % ALL ROIs (all planes combined)
 drug_centroid = D.CaData(1).Ca_centroid_voxel;
 drug_centroidZ = drug_centroid(:, 3);
 
@@ -84,26 +119,51 @@ drug_centroidZ = drug_centroid(:, 3);
 unique_planes_drug = unique(drug_centroidZ);
 n_planes_drug = length(unique_planes_drug);
 
-% Find ROI indices for drug
-drug_plane_roi_indices = containers.Map();
+% Create separate dFF matrix for each plane
+drug_dff_plane = cell(n_planes_drug, 1);
 for plane_idx = 1:n_planes_drug
     plane_z_value = unique_planes_drug(plane_idx);
     roi_indices = find(drug_centroidZ == plane_z_value);
-    drug_plane_roi_indices(num2str(plane_z_value)) = roi_indices;
+    drug_dff_plane{plane_idx} = drug_dff_full(roi_indices, :);
 end
 
-% Get ROI indices for the selected plane in drug (but keep full drug_dff intact)
+% Get data for selected plane
 drug_selected_roi_idx = find(drug_centroidZ == selected_plane);
-n_rois_drug_selected_plane = length(drug_selected_roi_idx);
+drug_dff = drug_dff_plane{find(unique_planes_drug == selected_plane)};
+n_rois_drug_selected_plane = size(drug_dff, 1);
 
-n_rois_drug = size(drug_dff, 1);  % ALL ROIs
-n_frames_drug = size(drug_dff, 2);
+n_rois_drug_full = size(drug_dff_full, 1);  % Total ROIs across all planes
+n_frames_drug = size(drug_dff_full, 2);
 
-fprintf('Baseline: %d ROIs total × %d frames (%d planes detected: %s)\n', ...
-    n_rois_base, n_frames_base, n_planes, sprintf('%d ', unique_planes));
-fprintf('Drug:     %d ROIs total × %d frames (%d planes detected: %s)\n', ...
-    n_rois_drug, n_frames_drug, n_planes_drug, sprintf('%d ', unique_planes_drug));
-fprintf('  Selected plane %d: %d ROIs in baseline, %d ROIs in drug\n', ...
+fprintf('Drug plane details:\n');
+for plane_idx = 1:n_planes_drug
+    plane_z = unique_planes_drug(plane_idx);
+    n_rois_plane = size(drug_dff_plane{plane_idx}, 1);
+    fprintf('  Plane %d: %d ROIs\n', plane_z, n_rois_plane);
+end
+fprintf('Drug selected plane %d: %d ROIs (global indices: %d to %d)\n', ...
+    selected_plane, n_rois_drug_selected_plane, min(drug_selected_roi_idx), max(drug_selected_roi_idx));
+
+% Verification for drug data
+drug_selected_plane_idx = find(unique_planes_drug == selected_plane);
+if ~isempty(drug_selected_plane_idx)
+    test_roi_global_drug = drug_selected_roi_idx(1);
+    test_roi_local_drug = 1;
+    val_global_drug = drug_dff_full(test_roi_global_drug, 1);
+    val_local_drug = drug_dff_plane{drug_selected_plane_idx}(test_roi_local_drug, 1);
+    fprintf('Drug verification: drug_dff_full(%d, 1) = %.4f, drug_dff_plane{%d}(%d, 1) = %.4f\n', ...
+        test_roi_global_drug, val_global_drug, drug_selected_plane_idx, test_roi_local_drug, val_local_drug);
+    if abs(val_global_drug - val_local_drug) < 1e-10
+        fprintf('  ✓ Drug values match!\n');
+    else
+        fprintf('  ✗ ERROR: Drug values do not match!\n');
+    end
+end
+
+fprintf('\n--- SUMMARY ---\n');
+fprintf('Baseline: %d ROIs total across %d planes × %d frames\n', n_rois_base_full, n_planes, n_frames_base);
+fprintf('Drug:     %d ROIs total across %d planes × %d frames\n', n_rois_drug_full, n_planes_drug, n_frames_drug);
+fprintf('Selected plane %d for analysis: %d baseline ROIs, %d drug ROIs\n', ...
     selected_plane, n_rois_selected_plane, n_rois_drug_selected_plane);
 
 % Load ROI matching if available
@@ -121,6 +181,32 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
         n_matched = length(base_match_idx);
         matched_rois_available = true;
         fprintf('Found %d matched ROI pairs\n', n_matched);
+        
+        % DIAGNOSTIC: Check if matched indices are within valid range
+        fprintf('\n--- MATCHED ROI COMPATIBILITY CHECK ---\n');
+        fprintf('Matched baseline ROI indices: %d to %d\n', min(base_match_idx), max(base_match_idx));
+        fprintf('Matched drug ROI indices: %d to %d\n', min(drug_match_idx), max(drug_match_idx));
+        fprintf('Valid baseline ROI range: 1 to %d\n', n_rois_base_full);
+        fprintf('Valid drug ROI range: 1 to %d\n', n_rois_drug_full);
+        
+        % Check if ALL matched indices are valid
+        if max(base_match_idx) <= n_rois_base_full && max(drug_match_idx) <= n_rois_drug_full
+            fprintf('✓ All matched ROI indices are within valid range\n');
+        else
+            fprintf('✗ ERROR: Some matched ROI indices exceed data size!\n');
+            matched_rois_available = false;
+        end
+        
+        % Check if matched ROIs overlap with selected plane
+        base_in_plane = sum(ismember(base_match_idx, selected_roi_idx));
+        drug_in_plane = sum(ismember(drug_match_idx, drug_selected_roi_idx));
+        fprintf('Matched ROIs in selected plane %d:\n', selected_plane);
+        fprintf('  Baseline: %d of %d matched ROIs\n', base_in_plane, n_matched);
+        fprintf('  Drug: %d of %d matched ROIs\n', drug_in_plane, n_matched);
+        
+        if base_in_plane == 0 || drug_in_plane == 0
+            fprintf('⚠ WARNING: No matched ROIs found in selected plane!\n');
+        end
     else
         fprintf('  Warning: allSessionMapping not found in ROI match file\n');
     end
@@ -159,13 +245,34 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     
     fprintf('\nProcessing "%s"...\n', stim_type);
     
-    % Extract full stimulus responses for baseline (selected plane only)
-    [base_responses, base_frame_ranges, base_time_ranges, base_properties] = extract_full_stimulus_responses(...
-        B.Stimuli, base_dff, stim_type, B.TimeCa, selected_roi_idx);
+    % CRITICAL: Pass FULL dataset (base_dff_full) with global ROI indices to maintain numbering
+    % This ensures global ROI identities are preserved for matching later
+    fprintf('  Baseline: Extracting from base_dff_full (%d×%d) using selected_roi_idx (%d ROIs)\n', ...
+        size(base_dff_full, 1), size(base_dff_full, 2), length(selected_roi_idx));
+    fprintf('  Global indices: %d to %d\n', min(selected_roi_idx), max(selected_roi_idx));
     
-    % Extract full stimulus responses for drug (selected plane only)
+    % Extract stimulus responses for selected plane only
+    % Pass full dataset and roi_indices to maintain global ROI numbering
+    [base_responses, base_frame_ranges, base_time_ranges, base_properties] = extract_full_stimulus_responses(...
+        B.Stimuli, base_dff_full, stim_type, B.TimeCa, selected_roi_idx);
+    
+    fprintf('  Drug: Extracting from drug_dff_full (%d×%d) using drug_selected_roi_idx (%d ROIs)\n', ...
+        size(drug_dff_full, 1), size(drug_dff_full, 2), length(drug_selected_roi_idx));
+    fprintf('  Global indices: %d to %d\n', min(drug_selected_roi_idx), max(drug_selected_roi_idx));
+    
     [drug_responses, drug_frame_ranges, drug_time_ranges, drug_properties] = extract_full_stimulus_responses(...
-        D.Stimuli, drug_dff, stim_type, D.TimeCa, drug_selected_roi_idx);
+        D.Stimuli, drug_dff_full, stim_type, D.TimeCa, drug_selected_roi_idx);
+    
+    % Verify extraction
+    if ~isempty(base_responses) && ~isempty(drug_responses)
+        fprintf('  ✓ Extraction successful:\n');
+        fprintf('    Baseline responses: %d presentations, %d neurons per presentation\n', ...
+            length(base_responses), size(base_responses{1}, 1));
+        fprintf('    Drug responses: %d presentations, %d neurons per presentation\n', ...
+            length(drug_responses), size(drug_responses{1}, 1));
+    else
+        fprintf('  ✗ WARNING: Empty responses!\n');
+    end
     
     % Store in master struct
     field_name = matlab.lang.makeValidName(stim_type);
