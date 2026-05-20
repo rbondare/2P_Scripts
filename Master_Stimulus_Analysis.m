@@ -869,105 +869,49 @@ if matched_rois_available && n_matched > 0
         
         hold on;
         
-        % BASELINE VIOLIN (x=0)
+        % BASELINE VIOLIN (x=0) - Solid filled with scattered points
         if length(baseline_matched_all) >= 2
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
-            f_bl = f_bl / max(f_bl) * 0.4;  % Wider violin (0.8 total width)
+            f_bl = f_bl / max(f_bl) * 0.4;  % Violin half-width (0.8 total)
             
-            % Draw violin outline (no fill to see points through)
+            % Draw solid violin fill
             x_violin_bl = [f_bl, fliplr(-f_bl)];
             y_violin_bl = [xi_bl, fliplr(xi_bl)];
-            patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.3, 'EdgeColor', [0.6 0 0], 'LineWidth', 3);
+            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
             
-            % Compute quartiles
-            q1_bl = prctile(baseline_matched_all, 25);
-            q3_bl = prctile(baseline_matched_all, 75);
+            % Add thick median line
+            plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);
             
-            % Draw box plot overlay (quartile box)
-            box_height_bl = q3_bl - q1_bl;
-            rect_bl = rectangle('Position', [-0.15, q1_bl, 0.3, box_height_bl], ...
-                'EdgeColor', [0.3 0 0], 'LineWidth', 3, 'FaceColor', 'none');
-            
-            % Draw whiskers
-            whisker_extend = 1.5 * box_height_bl;
-            whisker_lower_bl = max(min(baseline_matched_all), q1_bl - whisker_extend);
-            whisker_upper_bl = min(max(baseline_matched_all), q3_bl + whisker_extend);
-            plot([-0.075 0.075], [whisker_lower_bl whisker_lower_bl], 'k-', 'LineWidth', 2);
-            plot([0 0], [whisker_lower_bl q1_bl], 'k-', 'LineWidth', 2);
-            plot([0 0], [q3_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
-            plot([-0.075 0.075], [whisker_upper_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
-            
-            % Draw thick median line
-            plot([-0.15 0.15], [baseline_median baseline_median], 'k-', 'LineWidth', 4);
-            
-            % Add horizontal grid at quartiles
-            plot(xlim, [q1_bl q1_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
-            plot(xlim, [baseline_median baseline_median], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
-            plot(xlim, [q3_bl q3_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
-            
-            % Jittered points with density coloring
+            % Add scattered points across violin
             n_baseline = length(baseline_matched_all);
-            x_jitter_bl = 0 + randn(n_baseline, 1) * 0.08;
-            x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);
+            x_jitter_bl = randn(n_baseline, 1) * 0.12;  % Wider horizontal spread
+            x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);  % Constrain within violin
             
-            % Compute local density for color mapping
-            [density_bl, ~] = ksdensity([x_jitter_bl, baseline_matched_all], [x_jitter_bl, baseline_matched_all]);
-            density_bl = density_bl / max(density_bl);
-            
-            scatter(x_jitter_bl, baseline_matched_all, 50, density_bl, 'o', ...
-                'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
-            colormap(gca, 'hot');
+            scatter(x_jitter_bl, baseline_matched_all, 30, [0.3 0.3 0.3], 'o', ...
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
         end
         
-        % DRUG VIOLIN (x=1)
+        % DRUG VIOLIN (x=1) - Solid filled with scattered points
         if length(drug_matched_all) >= 2
             [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
-            f_dr = f_dr / max(f_dr) * 0.4;
+            f_dr = f_dr / max(f_dr) * 0.4;  % Violin half-width
             
-            % Draw violin outline
+            % Draw solid violin fill
             x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
             y_violin_dr = [xi_dr, fliplr(xi_dr)];
-            patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.3, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 3);
+            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
             
-            % Compute quartiles
-            q1_dr = prctile(drug_matched_all, 25);
-            q3_dr = prctile(drug_matched_all, 75);
+            % Add thick median line
             drug_median_val = median(drug_matched_all);
+            plot([1 - 0.4 1 + 0.4], [drug_median_val drug_median_val], 'k-', 'LineWidth', 3);
             
-            % Draw box plot overlay
-            box_height_dr = q3_dr - q1_dr;
-            rect_dr = rectangle('Position', [1 - 0.15, q1_dr, 0.3, box_height_dr], ...
-                'EdgeColor', [0 0.15 0.5], 'LineWidth', 3, 'FaceColor', 'none');
-            
-            % Draw whiskers
-            whisker_extend = 1.5 * box_height_dr;
-            whisker_lower_dr = max(min(drug_matched_all), q1_dr - whisker_extend);
-            whisker_upper_dr = min(max(drug_matched_all), q3_dr + whisker_extend);
-            plot([1 - 0.075 1 + 0.075], [whisker_lower_dr whisker_lower_dr], 'k-', 'LineWidth', 2);
-            plot([1 1], [whisker_lower_dr q1_dr], 'k-', 'LineWidth', 2);
-            plot([1 1], [q3_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
-            plot([1 - 0.075 1 + 0.075], [whisker_upper_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
-            
-            % Draw thick median line
-            plot([1 - 0.15 1 + 0.15], [drug_median_val drug_median_val], 'k-', 'LineWidth', 4);
-            
-            % Add horizontal grid at quartiles
-            plot(xlim, [q1_dr q1_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
-            plot(xlim, [drug_median_val drug_median_val], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
-            plot(xlim, [q3_dr q3_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
-            
-            % Jittered points with density coloring
+            % Add scattered points across violin
             n_drug = length(drug_matched_all);
-            x_jitter_dr = 1 + randn(n_drug, 1) * 0.08;
-            x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);
+            x_jitter_dr = 1 + randn(n_drug, 1) * 0.12;  % Wider horizontal spread
+            x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);  % Constrain within violin
             
-            % Compute local density
-            [density_dr, ~] = ksdensity([x_jitter_dr, drug_matched_all], [x_jitter_dr, drug_matched_all]);
-            density_dr = density_dr / max(density_dr);
-            
-            scatter(x_jitter_dr, drug_matched_all, 50, density_dr, 'o', ...
-                'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
-            colormap(gca, 'hot');
+            scatter(x_jitter_dr, drug_matched_all, 30, [0.3 0.3 0.3], 'o', ...
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
         end
         
         set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
