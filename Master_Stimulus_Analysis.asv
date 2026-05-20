@@ -274,7 +274,7 @@ end
 
 fprintf('\nMaster data matrices created successfully.\n');
 
-%% ====================== HEATMAPS======================
+%% ====================== LEVEL 1: FULL dFF HEATMAPS (ALL NEURONS, ALL TIMEPOINTS) ======================
 
 fprintf('\n========== LEVEL 1: Full dFF Heatmaps (all neurons, all timepoints) ==========\n');
 
@@ -340,7 +340,7 @@ fprintf('\n========== LEVEL 2: Selected ROI Heatmaps (raw values, unsorted) ====
 
 % ===== Parameters for Level 2 (adjust as needed) =====
 L2_n_select = min(500, size(baseline_full, 1));          % Number of ROIs to select
-L2_frame_start = 200;                                       % Frame window start
+L2_frame_start = 1;                                       % Frame window start
 L2_frame_end = size(baseline_full, 2);                   % Frame window end (use all by default)
 L2_caxis_lim = [0, 5];                                   % Color axis limits
 
@@ -415,7 +415,7 @@ end
 fprintf('\n========== LEVEL 3: Normalized Heatmaps (sorted by max activity) ==========\n');
 
 % ===== Axis limits for Level 3 (adjust as needed) =====
-L3_caxis_lim = [0, 15];  % Color axis limits for normalized dF/F
+L3_caxis_lim = [0, 5];  % Color axis limits for normalized dF/F
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
