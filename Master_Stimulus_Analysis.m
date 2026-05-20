@@ -1045,7 +1045,7 @@ if matched_rois_available && n_matched > 0
             x_jitter_bl = x_pos + randn(n_baseline, 1) * 0.12;
             x_jitter_bl = max(min(x_jitter_bl, x_pos + 0.4), x_pos - 0.4);
             scatter(x_jitter_bl, baseline_matched_all, 25, [0.3 0.3 0.3], 'o', ...
-                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
         
         % DRUG VIOLIN at x_pos+1
@@ -1067,7 +1067,7 @@ if matched_rois_available && n_matched > 0
             x_jitter_dr = x_pos + 1 + randn(n_drug, 1) * 0.12;
             x_jitter_dr = max(min(x_jitter_dr, x_pos + 1 + 0.4), x_pos + 1 - 0.4);
             scatter(x_jitter_dr, drug_matched_all, 25, [0.3 0.3 0.3], 'o', ...
-                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
         
         x_pos = x_pos + 2.5;
