@@ -14,6 +14,9 @@
 
 clear; clc; close all;
 
+% Add violin plot utilities to path
+addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
+
 %% ====================== CONFIGURATION ======================
 
 % Data files
@@ -694,31 +697,34 @@ for field_idx = 1:length(stim_fields)
     box_data = [baseline_all; drug_all];
     box_groups = [ones(size(baseline_all)); 2*ones(size(drug_all))];
     bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
-        'OutlierSize', 3, 'Notch', 'on');
+        'OutlierSize', 5, 'Notch', 'on', 'PlotStyle', 'compact');
     set(bp, 'LineWidth', 1.5);
-    set(findobj(bp, 'Tag', 'Box'), 'FaceColor', [1 0.8 0.8], 'FaceAlpha', 0.6);
+    % Color the box plot lines
+    lines = findobj(bp, 'Type', 'line');
+    set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
     ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Box Plot with Outliers', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % ===== Kernel Density Estimate Plot =====
+    % ===== Violin Plot =====
     subplot(2, 2, 3);
-    hold on;
-    % Compute KDE for both conditions
-    [kde_baseline, x_baseline] = compute_kde(baseline_all);
-    [kde_drug, x_drug] = compute_kde(drug_all);
-    % Plot KDEs
-    fill([x_baseline fliplr(x_baseline)], [kde_baseline fliplr(zeros(size(kde_baseline)))], 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'LineWidth', 1.5, 'DisplayName', 'Baseline');
-    fill([x_drug fliplr(x_drug)], [kde_drug fliplr(zeros(size(kde_drug)))], 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'LineWidth', 1.5, 'DisplayName', 'Drug');
-    % Add mean lines
-    line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'darkred', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Mean');
-    line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'darkblue', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Drug Mean');
-    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    ylabel('Density', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Kernel Density Estimate', 'FontSize', 11, 'FontWeight', 'bold');
-    legend('FontSize', 9, 'Location', 'best');
+    % Prepare data for violinplot
+    data_all = [baseline_all; drug_all];
+    group_all = [ones(size(baseline_all)); 2*ones(size(drug_all))];
+    % Create violin plot with mean overlaid
+    vp = violinplot(data_all, group_all, 'ViolinColor', {[1 0.6 0.6], [0.6 0.6 1]}, 'ShowMean', true, 'ShowMedian', true);
+    % Customize appearance
+    set(vp(1).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+    set(vp(2).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+    if isfield(vp(1), 'MeanPlot')
+        set(vp(1).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
+        set(vp(2).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+    end
+    set(gca, 'XTickLabel', {'Baseline', 'Drug'});
+    xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
+    ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Violin Plot (Distribution Density)', 'FontSize', 11, 'FontWeight', 'bold');
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-    hold off;
     
     % ===== Statistics Summary Table =====
     subplot(2, 2, 4);
@@ -842,31 +848,34 @@ if matched_rois_available && n_matched > 0
         box_data = [baseline_matched_all; drug_matched_all];
         box_groups = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
         bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
-            'OutlierSize', 3, 'Notch', 'on');
+            'OutlierSize', 5, 'Notch', 'on', 'PlotStyle', 'compact');
         set(bp, 'LineWidth', 1.5);
-        set(findobj(bp, 'Tag', 'Box'), 'FaceColor', [1 0.8 0.8], 'FaceAlpha', 0.6);
+        % Color the box plot lines
+        lines = findobj(bp, 'Type', 'line');
+        set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
         ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Box Plot with Outliers', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         
-        % ===== Kernel Density Estimate Plot =====
+        % ===== Violin Plot =====
         subplot(2, 2, 3);
-        hold on;
-        % Compute KDE for both conditions
-        [kde_baseline, x_baseline] = compute_kde(baseline_matched_all);
-        [kde_drug, x_drug] = compute_kde(drug_matched_all);
-        % Plot KDEs
-        fill([x_baseline fliplr(x_baseline)], [kde_baseline fliplr(zeros(size(kde_baseline)))], 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'LineWidth', 1.5, 'DisplayName', 'Baseline');
-        fill([x_drug fliplr(x_drug)], [kde_drug fliplr(zeros(size(kde_drug)))], 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'LineWidth', 1.5, 'DisplayName', 'Drug');
-        % Add mean lines
-        line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'darkred', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Mean');
-        line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'darkblue', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Drug Mean');
-        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        ylabel('Density', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Kernel Density Estimate', 'FontSize', 11, 'FontWeight', 'bold');
-        legend('FontSize', 9, 'Location', 'best');
+        % Prepare data for violinplot
+        data_matched = [baseline_matched_all; drug_matched_all];
+        group_matched = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
+        % Create violin plot with mean overlaid
+        vp = violinplot(data_matched, group_matched, 'ViolinColor', {[1 0.6 0.6], [0.6 0.6 1]}, 'ShowMean', true, 'ShowMedian', true);
+        % Customize appearance
+        set(vp(1).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+        set(vp(2).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+        if isfield(vp(1), 'MeanPlot')
+            set(vp(1).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
+            set(vp(2).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+        end
+        set(gca, 'XTickLabel', {'Baseline', 'Drug'});
+        xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
+        ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Violin Plot (Distribution Density)', 'FontSize', 11, 'FontWeight', 'bold');
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-        hold off;
         
         % ===== Statistics Summary Table =====
         subplot(2, 2, 4);
@@ -987,39 +996,6 @@ fprintf('  ✓ Boundary handling: Strict inequalities (> and <)\n\n');
 fprintf('Master data saved in "master_data" struct.\n');
 
 %% ====================== LOCAL FUNCTIONS ======================
-
-function [kde_vals, x_vals] = compute_kde(data, n_points)
-    % Compute kernel density estimate using Gaussian kernel
-    % Handles large datasets efficiently
-    
-    if nargin < 2
-        n_points = 200;  % Number of evaluation points
-    end
-    
-    data = data(:);  % Ensure column vector
-    data = data(~isnan(data) & ~isinf(data));  % Remove NaN/Inf
-    
-    if isempty(data) || length(data) < 2
-        kde_vals = zeros(1, n_points);
-        x_vals = linspace(0, 1, n_points);
-        return;
-    end
-    
-    % Bandwidth selection: Silverman's rule
-    n = length(data);
-    bandwidth = 1.06 * std(data) * n^(-1/5);
-    
-    % Evaluation range: 1-99 percentile
-    x_min = prctile(data, 1);
-    x_max = prctile(data, 99);
-    x_vals = linspace(x_min, x_max, n_points);
-    
-    % Compute KDE using Gaussian kernel
-    kde_vals = zeros(1, n_points);
-    for i = 1:n_points
-        kde_vals(i) = mean(exp(-0.5 * ((x_vals(i) - data) / bandwidth).^2)) / (bandwidth * sqrt(2*pi));
-    end
-end
 
 function dff = get_calcium_data(ca_data, ca_type)
     % Extract calcium data by type
