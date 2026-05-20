@@ -701,9 +701,9 @@ for field_idx = 1:length(stim_fields)
     
     hold on;
     histogram(baseline_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'darkred', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Baseline');
+        'EdgeColor', 'red', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Baseline');
     histogram(drug_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'darkblue', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Drug');
+        'EdgeColor', 'blue', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Drug');
     
     % Add vertical lines for medians
     baseline_median = median(baseline_all);
@@ -901,9 +901,9 @@ if matched_rois_available && n_matched > 0
         
         hold on;
         histogram(baseline_matched_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'darkred', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Baseline');
+            'EdgeColor', 'red', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Baseline');
         histogram(drug_matched_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'darkblue', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Drug');
+            'EdgeColor', 'blue', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Drug');
         
         % Add vertical lines for medians
         baseline_median = median(baseline_matched_all);
