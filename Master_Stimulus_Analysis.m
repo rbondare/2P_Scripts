@@ -733,10 +733,10 @@ for field_idx = 1:length(stim_fields)
         [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
         f_bl = f_bl / max(f_bl) * 0.4;  % Violin half-width (0.8 total)
         
-        % Draw solid violin fill
+        % Draw solid violin fill with light outline
         x_violin_bl = [f_bl, fliplr(-f_bl)];
         y_violin_bl = [xi_bl, fliplr(xi_bl)];
-        patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+        patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
         
         % Add thick median line
         plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);
@@ -755,10 +755,10 @@ for field_idx = 1:length(stim_fields)
         [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
         f_dr = f_dr / max(f_dr) * 0.4;  % Violin half-width
         
-        % Draw solid violin fill
+        % Draw solid violin fill with light outline
         x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
         y_violin_dr = [xi_dr, fliplr(xi_dr)];
-        patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+        patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
         
         % Add thick median line
         drug_median = median(drug_all);
@@ -874,10 +874,10 @@ if matched_rois_available && n_matched > 0
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
             f_bl = f_bl / max(f_bl) * 0.4;  % Violin half-width (0.8 total)
             
-            % Draw solid violin fill
+            % Draw solid violin fill with light outline
             x_violin_bl = [f_bl, fliplr(-f_bl)];
             y_violin_bl = [xi_bl, fliplr(xi_bl)];
-            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
             
             % Add thick median line
             plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);
@@ -896,10 +896,10 @@ if matched_rois_available && n_matched > 0
             [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
             f_dr = f_dr / max(f_dr) * 0.4;  % Violin half-width
             
-            % Draw solid violin fill
+            % Draw solid violin fill with light outline
             x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
             y_violin_dr = [xi_dr, fliplr(xi_dr)];
-            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
             
             % Add thick median line
             drug_median_val = median(drug_matched_all);
@@ -1031,10 +1031,10 @@ if matched_rois_available && n_matched > 0
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
             f_bl = f_bl / max(f_bl) * 0.4;
             
-            % Draw solid violin
+            % Draw solid violin with light outline
             x_violin_bl = [f_bl + x_pos, fliplr(-f_bl + x_pos)];
             y_violin_bl = [xi_bl, fliplr(xi_bl)];
-            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
             
             % Median line
             baseline_median = median(baseline_matched_all);
@@ -1053,10 +1053,10 @@ if matched_rois_available && n_matched > 0
             [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
             f_dr = f_dr / max(f_dr) * 0.4;
             
-            % Draw solid violin
+            % Draw solid violin with light outline
             x_violin_dr = [f_dr + x_pos + 1, fliplr(-f_dr + x_pos + 1)];
             y_violin_dr = [xi_dr, fliplr(xi_dr)];
-            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
             
             % Median line
             drug_median = median(drug_matched_all);
