@@ -155,7 +155,7 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
             fprintf('Matched neuron pairs in selected plane: %d\n', n_matched);
             fprintf('Local baseline match indices: %d to %d\n', min(base_match_idx_local), max(base_match_idx_local));
             fprintf('Local drug match indices: %d to %d\n', min(drug_match_idx_local), max(drug_match_idx_local));
-            fprintf('✓ Ready for matched neuron analysis\n');
+            fprintf('Ready for matched neuron analysis\n');
             
             % Verify conversion: check first matched pair
             if n_matched > 0
@@ -166,23 +166,23 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
                 fprintf('\nVerification (first matched pair):\n');
                 fprintf('  Baseline: global ROI %d -> local row %d in base_dff(%d, :)\n', ...
                     base_global, base_local, size(base_dff, 1));
-                fprintf('  Drug: global ROI %d -> local row %d in drug_dff(%d, :)\n', ...
+                fprintf('Drug: global ROI %d -> local row %d in drug_dff(%d, :)\n', ...
                     drug_global, drug_local, size(drug_dff, 1));
                 
                 % Check that the global index is actually in selected_roi_idx
                 if selected_roi_idx(base_local) == base_global
-                    fprintf('  ✓ Baseline conversion verified\n');
+                    fprintf('Baseline conversion verified\n');
                 else
-                    fprintf('  ✗ ERROR: Baseline conversion mismatch!\n');
+                    fprintf('ERROR: Baseline conversion mismatch!\n');
                 end
                 if drug_selected_roi_idx(drug_local) == drug_global
-                    fprintf('  ✓ Drug conversion verified\n');
+                    fprintf('Drug conversion verified\n');
                 else
-                    fprintf('  ✗ ERROR: Drug conversion mismatch!\n');
+                    fprintf('Drug conversion mismatch!\n');
                 end
             end
         else
-            fprintf('⚠ WARNING: No matched ROIs found in selected plane %d!\n', selected_plane);
+            fprintf('WARNING: No matched ROIs found in selected plane %d!\n', selected_plane);
             fprintf('All %d matched pairs are either not in baseline plane or drug plane\n', ...
                 length(base_match_idx_global));
         end
@@ -259,8 +259,8 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     master_data.(field_name).drug_responses = drug_responses;
     master_data.(field_name).baseline_frame_ranges = base_frame_ranges;
     master_data.(field_name).drug_frame_ranges = drug_frame_ranges;
-    master_data.(field_name).baseline_time_ranges = base_time_ranges;  % NEW: time in seconds
-    master_data.(field_name).drug_time_ranges = drug_time_ranges;      % NEW: time in seconds
+    master_data.(field_name).baseline_time_ranges = base_time_ranges; 
+    master_data.(field_name).drug_time_ranges = drug_time_ranges;      
     master_data.(field_name).baseline_properties = base_properties;
     master_data.(field_name).drug_properties = drug_properties;
     master_data.(field_name).stimulus_type = stim_type;
