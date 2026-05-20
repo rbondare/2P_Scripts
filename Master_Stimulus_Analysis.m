@@ -707,23 +707,44 @@ for field_idx = 1:length(stim_fields)
     title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % ===== Swarmchart (Distribution with Individual Points) =====
+    % ===== Violin Plot with Overlaid Points =====
     subplot(2, 2, 3);
     hold on;
-    % Baseline: x=1, scatter all points
-    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
-    % Drug: x=2, scatter all points
-    swarmchart(repmat(2, length(drug_all), 1), drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
-    % Add mean lines
-    line([0.85 1.15], [baseline_mean baseline_mean], 'Color', 'darkred', 'LineWidth', 3);
-    line([1.85 2.15], [drug_mean drug_mean], 'Color', 'darkblue', 'LineWidth', 3);
-    % Add median lines (dashed)
-    line([0.85 1.15], [baseline_median baseline_median], 'Color', 'red', 'LineStyle', '--', 'LineWidth', 2);
-    line([1.85 2.15], [drug_median drug_median], 'Color', 'blue', 'LineStyle', '--', 'LineWidth', 2);
+    
+    % Create violin data
+    violin_data = [baseline_all; drug_all];
+    violin_groups = [ones(size(baseline_all)); 2*ones(size(drug_all))];
+    
+    % Plot violin for baseline (x=1)
+    baseline_vals = baseline_all;
+    [f_baseline, xi_baseline] = ksdensity(baseline_vals, 'NumPoints', 100);
+    f_baseline = f_baseline / max(f_baseline) * 0.35;  % Normalize width
+    
+    % Fill violin - baseline
+    fill(f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+    fill(-f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+    
+    % Plot violin for drug (x=2)
+    drug_vals = drug_all;
+    [f_drug, xi_drug] = ksdensity(drug_vals, 'NumPoints', 100);
+    f_drug = f_drug / max(f_drug) * 0.35;  % Normalize width
+    
+    % Fill violin - drug
+    fill(f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+    fill(-f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+    
+    % Overlay swarmchart points (semi-transparent)
+    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 25, 'r', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+    swarmchart(repmat(2, length(drug_all), 1), drug_all, 25, 'b', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+    
+    % Add mean markers (filled diamonds)
+    scatter(1, baseline_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+    scatter(2, drug_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+    
     set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
     xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
     ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Swarmchart (Individual Neurons)', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Violin Plot (Distribution & Individual Data)', 'FontSize', 11, 'FontWeight', 'bold');
     xlim([0.5 2.5]);
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     hold off;
@@ -860,23 +881,44 @@ if matched_rois_available && n_matched > 0
         title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         
-        % ===== Swarmchart (Distribution with Individual Points) =====
+        % ===== Violin Plot with Overlaid Points =====
         subplot(2, 2, 3);
         hold on;
-        % Baseline: x=1, scatter all points
-        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
-        % Drug: x=2, scatter all points
-        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
-        % Add mean lines
-        line([0.85 1.15], [baseline_mean baseline_mean], 'Color', 'darkred', 'LineWidth', 3);
-        line([1.85 2.15], [drug_mean drug_mean], 'Color', 'darkblue', 'LineWidth', 3);
-        % Add median lines (dashed)
-        line([0.85 1.15], [baseline_median baseline_median], 'Color', 'red', 'LineStyle', '--', 'LineWidth', 2);
-        line([1.85 2.15], [drug_median drug_median], 'Color', 'blue', 'LineStyle', '--', 'LineWidth', 2);
+        
+        % Create violin plot data structure
+        violin_data = [baseline_matched_all; drug_matched_all];
+        violin_groups = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
+        
+        % Plot violin for baseline (x=1)
+        baseline_vals = baseline_matched_all;
+        [f_baseline, xi_baseline] = ksdensity(baseline_vals, 'NumPoints', 100);
+        f_baseline = f_baseline / max(f_baseline) * 0.35;  % Normalize width
+        
+        % Fill violin - baseline
+        fill(f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+        fill(-f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+        
+        % Plot violin for drug (x=2)
+        drug_vals = drug_matched_all;
+        [f_drug, xi_drug] = ksdensity(drug_vals, 'NumPoints', 100);
+        f_drug = f_drug / max(f_drug) * 0.35;  % Normalize width
+        
+        % Fill violin - drug
+        fill(f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+        fill(-f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+        
+        % Overlay swarmchart points (semi-transparent)
+        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 25, 'r', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 25, 'b', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+        
+        % Add mean markers (filled diamonds)
+        scatter(1, baseline_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+        scatter(2, drug_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+        
         set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
         xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
         ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Swarmchart (Individual Neuron Pairs)', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Violin Plot (Distribution & Individual Data)', 'FontSize', 11, 'FontWeight', 'bold');
         xlim([0.5 2.5]);
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         hold off;
