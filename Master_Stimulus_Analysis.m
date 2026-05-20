@@ -711,14 +711,33 @@ for field_idx = 1:length(stim_fields)
     % Prepare data for violinplot
     data_all = [baseline_all; drug_all];
     group_all = [ones(size(baseline_all)); 2*ones(size(drug_all))];
-    % Create violin plot with mean overlaid
-    vp = violinplot(data_all, group_all, 'ViolinColor', {[1 0.6 0.6], [0.6 0.6 1]}, 'ShowMean', true, 'ShowMedian', true);
-    % Customize appearance
-    set(vp(1).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-    set(vp(2).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-    if isfield(vp(1), 'MeanPlot')
-        set(vp(1).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
-        set(vp(2).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+    % Create violin plot with mean and median overlaid
+    vp = violinplot(data_all, group_all, 'ShowMean', true, 'ShowMedian', true);
+    % Customize appearance - set colors and properties
+    try
+        set(vp(1).ViolinPlot, 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+        set(vp(2).ViolinPlot, 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+    catch
+        % If ViolinPlot property doesn't exist, try alternative properties
+        set(vp(1), 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5);
+        set(vp(2), 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5);
+    end
+    % Set mean/median colors if available
+    for i = 1:length(vp)
+        if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
+            if i == 1
+                set(vp(i).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
+            else
+                set(vp(i).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+            end
+        end
+        if isfield(vp(i), 'MedianPlot') && ~isempty(vp(i).MedianPlot)
+            if i == 1
+                set(vp(i).MedianPlot, 'Color', 'red', 'LineWidth', 2);
+            else
+                set(vp(i).MedianPlot, 'Color', 'blue', 'LineWidth', 2);
+            end
+        end
     end
     set(gca, 'XTickLabel', {'Baseline', 'Drug'});
     xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
@@ -862,14 +881,33 @@ if matched_rois_available && n_matched > 0
         % Prepare data for violinplot
         data_matched = [baseline_matched_all; drug_matched_all];
         group_matched = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
-        % Create violin plot with mean overlaid
-        vp = violinplot(data_matched, group_matched, 'ViolinColor', {[1 0.6 0.6], [0.6 0.6 1]}, 'ShowMean', true, 'ShowMedian', true);
-        % Customize appearance
-        set(vp(1).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-        set(vp(2).ViolinPlot, 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-        if isfield(vp(1), 'MeanPlot')
-            set(vp(1).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
-            set(vp(2).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+        % Create violin plot with mean and median overlaid
+        vp = violinplot(data_matched, group_matched, 'ShowMean', true, 'ShowMedian', true);
+        % Customize appearance - set colors and properties
+        try
+            set(vp(1).ViolinPlot, 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+            set(vp(2).ViolinPlot, 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
+        catch
+            % If ViolinPlot property doesn't exist, try alternative properties
+            set(vp(1), 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5);
+            set(vp(2), 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5);
+        end
+        % Set mean/median colors if available
+        for i = 1:length(vp)
+            if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
+                if i == 1
+                    set(vp(i).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
+                else
+                    set(vp(i).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
+                end
+            end
+            if isfield(vp(i), 'MedianPlot') && ~isempty(vp(i).MedianPlot)
+                if i == 1
+                    set(vp(i).MedianPlot, 'Color', 'red', 'LineWidth', 2);
+                else
+                    set(vp(i).MedianPlot, 'Color', 'blue', 'LineWidth', 2);
+                end
+            end
         end
         set(gca, 'XTickLabel', {'Baseline', 'Drug'});
         xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
