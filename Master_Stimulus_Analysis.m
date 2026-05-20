@@ -682,17 +682,12 @@ for field_idx = 1:length(stim_fields)
         continue;
     end
     
-    % Create clean 2-panel figure
-    fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
-        'Name', sprintf('AllNeurons_%s', stim_type));
+    % ===== Create SEPARATE FIGURES with enhanced visualization =====
     
-    baseline_mean = mean(baseline_all);
-    drug_mean = mean(drug_all);
-    baseline_median = median(baseline_all);
-    drug_median = median(drug_all);
+    % ===== FIGURE 1: HISTOGRAM (Large, Full-Width) =====
+    fig_hist = figure('Position', [100 150 1400 600], 'NumberTitle', 'off', ...
+        'Name', sprintf('Histogram_AllNeurons_%s', stim_type));
     
-    % ===== PANEL 1: Histogram =====
-    subplot(1, 2, 1);
     combined_data = [baseline_all; drug_all];
     p1 = prctile(combined_data, 1);
     p99 = prctile(combined_data, 99);
@@ -706,72 +701,142 @@ for field_idx = 1:length(stim_fields)
     
     hold on;
     histogram(baseline_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'red', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+        'EdgeColor', 'darkred', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Baseline');
     histogram(drug_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-        'EdgeColor', 'blue', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
-    ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
-    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
-    legend('FontSize', 10, 'Location', 'best');
-    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        'EdgeColor', 'darkblue', 'BinEdges', bin_edges, 'LineWidth', 2, 'DisplayName', 'Drug');
+    
+    % Add vertical lines for medians
+    baseline_median = median(baseline_all);
+    drug_median = median(drug_all);
+    plot([baseline_median baseline_median], ylim, 'r--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Median');
+    plot([drug_median drug_median], ylim, 'b--', 'LineWidth', 2.5, 'DisplayName', 'Drug Median');
+    
+    ylabel('Probability Density', 'FontSize', 13, 'FontWeight', 'bold');
+    xlabel('dF/F', 'FontSize', 13, 'FontWeight', 'bold');
+    title(sprintf('Distribution of Activity - %s (n=%d neurons)', stim_type, n_rois_selected_plane), ...
+        'FontSize', 14, 'FontWeight', 'bold');
+    legend('FontSize', 11, 'Location', 'best');
+    grid on; set(gca, 'LineWidth', 2, 'FontSize', 11);
     hold off;
     
-    % ===== PANEL 2: Violin Plot with Points =====
-    subplot(1, 2, 2);
+    % ===== FIGURE 2: VIOLIN PLOT (Large, Full-Width, Enhanced) =====
+    fig_violin = figure('Position', [100 150 1400 600], 'NumberTitle', 'off', ...
+        'Name', sprintf('Violin_AllNeurons_%s', stim_type));
+    
+    baseline_mean = mean(baseline_all);
+    drug_mean = mean(drug_all);
+    
     hold on;
     
-    % Compute density for baseline (x=1)
+    % BASELINE VIOLIN (x=0)
     if length(baseline_all) >= 2
         [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
-        f_bl = f_bl / max(f_bl) * 0.35;  % Normalize width
+        f_bl = f_bl / max(f_bl) * 0.4;  % Wider violin (0.8 total width)
         
-        % Create unified closed violin patch for baseline
-        x_violin_bl = [f_bl + 1, fliplr(-f_bl + 1)];
+        % Draw violin outline (no fill to see points through)
+        x_violin_bl = [f_bl, fliplr(-f_bl)];
         y_violin_bl = [xi_bl, fliplr(xi_bl)];
-        patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.7, 'EdgeColor', [0.6 0 0], 'LineWidth', 2.5);
+        patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.3, 'EdgeColor', [0.6 0 0], 'LineWidth', 3);
         
-        % Compute and plot quartiles for baseline
+        % Compute quartiles
         q1_bl = prctile(baseline_all, 25);
         q3_bl = prctile(baseline_all, 75);
-        plot([0.6 1.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);  % Thick median line
-        plot([0.7 1.3], [q1_bl q1_bl], 'k-', 'LineWidth', 1.5);  % Q1
-        plot([0.7 1.3], [q3_bl q3_bl], 'k-', 'LineWidth', 1.5);  % Q3
+        
+        % Draw box plot overlay (quartile box)
+        box_height_bl = q3_bl - q1_bl;
+        rect_bl = rectangle('Position', [-0.15, q1_bl, 0.3, box_height_bl], ...
+            'EdgeColor', [0.3 0 0], 'LineWidth', 3, 'FaceColor', 'none');
+        
+        % Draw whiskers (to 1.5*IQR or min/max)
+        whisker_extend = 1.5 * box_height_bl;
+        whisker_lower_bl = max(min(baseline_all), q1_bl - whisker_extend);
+        whisker_upper_bl = min(max(baseline_all), q3_bl + whisker_extend);
+        plot([-0.075 0.075], [whisker_lower_bl whisker_lower_bl], 'k-', 'LineWidth', 2);
+        plot([0 0], [whisker_lower_bl q1_bl], 'k-', 'LineWidth', 2);
+        plot([0 0], [q3_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
+        plot([-0.075 0.075], [whisker_upper_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
+        
+        % Draw thick median line
+        plot([-0.15 0.15], [baseline_median baseline_median], 'k-', 'LineWidth', 4);
+        
+        % Add horizontal grid at quartiles for easy comparison
+        plot(xlim, [q1_bl q1_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+        plot(xlim, [baseline_median baseline_median], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
+        plot(xlim, [q3_bl q3_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+        
+        % Jittered points with density coloring
+        n_baseline = length(baseline_all);
+        x_jitter_bl = 0 + randn(n_baseline, 1) * 0.08;  % Horizontal jitter, keeps within [-0.4, 0.4]
+        x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);  % Constrain to violin width
+        
+        % Compute local density for color mapping
+        [density_bl, ~] = ksdensity([x_jitter_bl, baseline_all], [x_jitter_bl, baseline_all]);
+        density_bl = density_bl / max(density_bl);  % Normalize to [0,1]
+        
+        scatter(x_jitter_bl, baseline_all, 50, density_bl, 'o', ...
+            'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
+        colormap(gca, 'hot');
     end
     
-    % Compute density for drug (x=2)
+    % DRUG VIOLIN (x=1)
     if length(drug_all) >= 2
         [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
-        f_dr = f_dr / max(f_dr) * 0.35;  % Normalize width
+        f_dr = f_dr / max(f_dr) * 0.4;  % Wider violin
         
-        % Create unified closed violin patch for drug
-        x_violin_dr = [f_dr + 2, fliplr(-f_dr + 2)];
+        % Draw violin outline
+        x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
         y_violin_dr = [xi_dr, fliplr(xi_dr)];
-        patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.7, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 2.5);
+        patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.3, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 3);
         
-        % Compute and plot quartiles for drug
+        % Compute quartiles
         q1_dr = prctile(drug_all, 25);
         q3_dr = prctile(drug_all, 75);
-        plot([1.6 2.4], [median(drug_all) median(drug_all)], 'k-', 'LineWidth', 3);  % Thick median line
-        plot([1.7 2.3], [q1_dr q1_dr], 'k-', 'LineWidth', 1.5);  % Q1
-        plot([1.7 2.3], [q3_dr q3_dr], 'k-', 'LineWidth', 1.5);  % Q3
+        drug_median = median(drug_all);
+        
+        % Draw box plot overlay
+        box_height_dr = q3_dr - q1_dr;
+        rect_dr = rectangle('Position', [1 - 0.15, q1_dr, 0.3, box_height_dr], ...
+            'EdgeColor', [0 0.15 0.5], 'LineWidth', 3, 'FaceColor', 'none');
+        
+        % Draw whiskers
+        whisker_extend = 1.5 * box_height_dr;
+        whisker_lower_dr = max(min(drug_all), q1_dr - whisker_extend);
+        whisker_upper_dr = min(max(drug_all), q3_dr + whisker_extend);
+        plot([1 - 0.075 1 + 0.075], [whisker_lower_dr whisker_lower_dr], 'k-', 'LineWidth', 2);
+        plot([1 1], [whisker_lower_dr q1_dr], 'k-', 'LineWidth', 2);
+        plot([1 1], [q3_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
+        plot([1 - 0.075 1 + 0.075], [whisker_upper_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
+        
+        % Draw thick median line
+        plot([1 - 0.15 1 + 0.15], [drug_median drug_median], 'k-', 'LineWidth', 4);
+        
+        % Add horizontal grid at quartiles
+        plot(xlim, [q1_dr q1_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+        plot(xlim, [drug_median drug_median], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
+        plot(xlim, [q3_dr q3_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+        
+        % Jittered points with density coloring
+        n_drug = length(drug_all);
+        x_jitter_dr = 1 + randn(n_drug, 1) * 0.08;
+        x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);
+        
+        % Compute local density
+        [density_dr, ~] = ksdensity([x_jitter_dr, drug_all], [x_jitter_dr, drug_all]);
+        density_dr = density_dr / max(density_dr);
+        
+        scatter(x_jitter_dr, drug_all, 50, density_dr, 'o', ...
+            'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
+        colormap(gca, 'hot');
     end
     
-    % Overlay individual data points with better visibility
-    scatter(repmat(1, length(baseline_all), 1), baseline_all, 40, [0.4 0.4 0.4], 'o', ...
-        'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
-    scatter(repmat(2, length(drug_all), 1), drug_all, 40, [0.4 0.4 0.4], 'o', ...
-        'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
-    
-    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
-    xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
-    ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Violin Plot with Individual Data', 'FontSize', 12, 'FontWeight', 'bold');
-    xlim([0.4 2.6]);
-    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
+    xlabel('Condition', 'FontSize', 13, 'FontWeight', 'bold');
+    ylabel('dF/F', 'FontSize', 13, 'FontWeight', 'bold');
+    title(sprintf('Violin Plot with Individual Data - %s (n=%d neurons)', stim_type, n_rois_selected_plane), ...
+        'FontSize', 14, 'FontWeight', 'bold');
+    xlim([-0.7 1.7]);
+    grid on; set(gca, 'LineWidth', 2, 'FontSize', 11);
     hold off;
-    
-    sgtitle(sprintf('%s (n=%d neurons)', stim_type, n_rois_selected_plane), ...
-        'FontSize', 13, 'FontWeight', 'bold');
 end
 
 %% ====================== HISTOGRAMS & VIOLIN PLOTS (MATCHED NEURONS ONLY) ======================
@@ -817,17 +882,12 @@ if matched_rois_available && n_matched > 0
             continue;
         end
         
-        % Create clean 2-panel figure
-        fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
-            'Name', sprintf('Matched_%s', stim_type));
+        % ===== Create SEPARATE FIGURES with enhanced visualization =====
         
-        baseline_mean = mean(baseline_matched_all);
-        drug_mean = mean(drug_matched_all);
-        baseline_median = median(baseline_matched_all);
-        drug_median = median(drug_matched_all);
+        % ===== FIGURE 1: HISTOGRAM (Large, Full-Width) =====
+        fig_hist = figure('Position', [100 150 1400 600], 'NumberTitle', 'off', ...
+            'Name', sprintf('Histogram_Matched_%s', stim_type));
         
-        % ===== PANEL 1: Histogram =====
-        subplot(1, 2, 1);
         combined_matched_data = [baseline_matched_all; drug_matched_all];
         p1_m = prctile(combined_matched_data, 1);
         p99_m = prctile(combined_matched_data, 99);
@@ -841,72 +901,139 @@ if matched_rois_available && n_matched > 0
         
         hold on;
         histogram(baseline_matched_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'red', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+            'EdgeColor', 'darkred', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Baseline');
         histogram(drug_matched_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
-            'EdgeColor', 'blue', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
-        ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
-        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
-        legend('FontSize', 10, 'Location', 'best');
-        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+            'EdgeColor', 'darkblue', 'BinEdges', bin_edges_matched, 'LineWidth', 2, 'DisplayName', 'Drug');
+        
+        % Add vertical lines for medians
+        baseline_median = median(baseline_matched_all);
+        drug_median = median(drug_matched_all);
+        plot([baseline_median baseline_median], ylim, 'r--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Median');
+        plot([drug_median drug_median], ylim, 'b--', 'LineWidth', 2.5, 'DisplayName', 'Drug Median');
+        
+        ylabel('Probability Density', 'FontSize', 13, 'FontWeight', 'bold');
+        xlabel('dF/F', 'FontSize', 13, 'FontWeight', 'bold');
+        title(sprintf('Distribution of Activity - %s (n=%d matched pairs)', stim_type, n_matched), ...
+            'FontSize', 14, 'FontWeight', 'bold');
+        legend('FontSize', 11, 'Location', 'best');
+        grid on; set(gca, 'LineWidth', 2, 'FontSize', 11);
         hold off;
         
-        % ===== PANEL 2: Violin Plot with Points =====
-        subplot(1, 2, 2);
+        % ===== FIGURE 2: VIOLIN PLOT (Large, Full-Width, Enhanced) =====
+        fig_violin = figure('Position', [100 150 1400 600], 'NumberTitle', 'off', ...
+            'Name', sprintf('Violin_Matched_%s', stim_type));
+        
         hold on;
         
-        % Compute density for baseline (x=1)
+        % BASELINE VIOLIN (x=0)
         if length(baseline_matched_all) >= 2
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
-            f_bl = f_bl / max(f_bl) * 0.35;
+            f_bl = f_bl / max(f_bl) * 0.4;  % Wider violin (0.8 total width)
             
-            % Create unified closed violin patch for baseline
-            x_violin_bl = [f_bl + 1, fliplr(-f_bl + 1)];
+            % Draw violin outline (no fill to see points through)
+            x_violin_bl = [f_bl, fliplr(-f_bl)];
             y_violin_bl = [xi_bl, fliplr(xi_bl)];
-            patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.7, 'EdgeColor', [0.6 0 0], 'LineWidth', 2.5);
+            patch(x_violin_bl, y_violin_bl, [0.8 0.2 0.2], 'FaceAlpha', 0.3, 'EdgeColor', [0.6 0 0], 'LineWidth', 3);
             
-            % Compute and plot quartiles for baseline
+            % Compute quartiles
             q1_bl = prctile(baseline_matched_all, 25);
             q3_bl = prctile(baseline_matched_all, 75);
-            plot([0.6 1.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);  % Thick median line
-            plot([0.7 1.3], [q1_bl q1_bl], 'k-', 'LineWidth', 1.5);  % Q1
-            plot([0.7 1.3], [q3_bl q3_bl], 'k-', 'LineWidth', 1.5);  % Q3
+            
+            % Draw box plot overlay (quartile box)
+            box_height_bl = q3_bl - q1_bl;
+            rect_bl = rectangle('Position', [-0.15, q1_bl, 0.3, box_height_bl], ...
+                'EdgeColor', [0.3 0 0], 'LineWidth', 3, 'FaceColor', 'none');
+            
+            % Draw whiskers
+            whisker_extend = 1.5 * box_height_bl;
+            whisker_lower_bl = max(min(baseline_matched_all), q1_bl - whisker_extend);
+            whisker_upper_bl = min(max(baseline_matched_all), q3_bl + whisker_extend);
+            plot([-0.075 0.075], [whisker_lower_bl whisker_lower_bl], 'k-', 'LineWidth', 2);
+            plot([0 0], [whisker_lower_bl q1_bl], 'k-', 'LineWidth', 2);
+            plot([0 0], [q3_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
+            plot([-0.075 0.075], [whisker_upper_bl whisker_upper_bl], 'k-', 'LineWidth', 2);
+            
+            % Draw thick median line
+            plot([-0.15 0.15], [baseline_median baseline_median], 'k-', 'LineWidth', 4);
+            
+            % Add horizontal grid at quartiles
+            plot(xlim, [q1_bl q1_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+            plot(xlim, [baseline_median baseline_median], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
+            plot(xlim, [q3_bl q3_bl], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+            
+            % Jittered points with density coloring
+            n_baseline = length(baseline_matched_all);
+            x_jitter_bl = 0 + randn(n_baseline, 1) * 0.08;
+            x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);
+            
+            % Compute local density for color mapping
+            [density_bl, ~] = ksdensity([x_jitter_bl, baseline_matched_all], [x_jitter_bl, baseline_matched_all]);
+            density_bl = density_bl / max(density_bl);
+            
+            scatter(x_jitter_bl, baseline_matched_all, 50, density_bl, 'o', ...
+                'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
+            colormap(gca, 'hot');
         end
         
-        % Compute density for drug (x=2)
+        % DRUG VIOLIN (x=1)
         if length(drug_matched_all) >= 2
             [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
-            f_dr = f_dr / max(f_dr) * 0.35;
+            f_dr = f_dr / max(f_dr) * 0.4;
             
-            % Create unified closed violin patch for drug
-            x_violin_dr = [f_dr + 2, fliplr(-f_dr + 2)];
+            % Draw violin outline
+            x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
             y_violin_dr = [xi_dr, fliplr(xi_dr)];
-            patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.7, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 2.5);
+            patch(x_violin_dr, y_violin_dr, [0.2 0.5 0.95], 'FaceAlpha', 0.3, 'EdgeColor', [0 0.2 0.6], 'LineWidth', 3);
             
-            % Compute and plot quartiles for drug
+            % Compute quartiles
             q1_dr = prctile(drug_matched_all, 25);
             q3_dr = prctile(drug_matched_all, 75);
-            plot([1.6 2.4], [median(drug_matched_all) median(drug_matched_all)], 'k-', 'LineWidth', 3);  % Thick median line
-            plot([1.7 2.3], [q1_dr q1_dr], 'k-', 'LineWidth', 1.5);  % Q1
-            plot([1.7 2.3], [q3_dr q3_dr], 'k-', 'LineWidth', 1.5);  % Q3
+            drug_median_val = median(drug_matched_all);
+            
+            % Draw box plot overlay
+            box_height_dr = q3_dr - q1_dr;
+            rect_dr = rectangle('Position', [1 - 0.15, q1_dr, 0.3, box_height_dr], ...
+                'EdgeColor', [0 0.15 0.5], 'LineWidth', 3, 'FaceColor', 'none');
+            
+            % Draw whiskers
+            whisker_extend = 1.5 * box_height_dr;
+            whisker_lower_dr = max(min(drug_matched_all), q1_dr - whisker_extend);
+            whisker_upper_dr = min(max(drug_matched_all), q3_dr + whisker_extend);
+            plot([1 - 0.075 1 + 0.075], [whisker_lower_dr whisker_lower_dr], 'k-', 'LineWidth', 2);
+            plot([1 1], [whisker_lower_dr q1_dr], 'k-', 'LineWidth', 2);
+            plot([1 1], [q3_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
+            plot([1 - 0.075 1 + 0.075], [whisker_upper_dr whisker_upper_dr], 'k-', 'LineWidth', 2);
+            
+            % Draw thick median line
+            plot([1 - 0.15 1 + 0.15], [drug_median_val drug_median_val], 'k-', 'LineWidth', 4);
+            
+            % Add horizontal grid at quartiles
+            plot(xlim, [q1_dr q1_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+            plot(xlim, [drug_median_val drug_median_val], 'k-', 'LineWidth', 1.5, 'Alpha', 0.5);
+            plot(xlim, [q3_dr q3_dr], 'k--', 'LineWidth', 1, 'Alpha', 0.3);
+            
+            % Jittered points with density coloring
+            n_drug = length(drug_matched_all);
+            x_jitter_dr = 1 + randn(n_drug, 1) * 0.08;
+            x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);
+            
+            % Compute local density
+            [density_dr, ~] = ksdensity([x_jitter_dr, drug_matched_all], [x_jitter_dr, drug_matched_all]);
+            density_dr = density_dr / max(density_dr);
+            
+            scatter(x_jitter_dr, drug_matched_all, 50, density_dr, 'o', ...
+                'MarkerFaceAlpha', 0.4, 'MarkerEdgeAlpha', 0.6, 'LineWidth', 0.5);
+            colormap(gca, 'hot');
         end
         
-        % Overlay individual data points with better visibility
-        scatter(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 40, [0.4 0.4 0.4], 'o', ...
-            'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
-        scatter(repmat(2, length(drug_matched_all), 1), drug_matched_all, 40, [0.4 0.4 0.4], 'o', ...
-            'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.4, 'LineWidth', 0.5);
-        
-        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
-        xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
-        ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Violin Plot with Individual Data', 'FontSize', 12, 'FontWeight', 'bold');
-        xlim([0.4 2.6]);
-        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
+        xlabel('Condition', 'FontSize', 13, 'FontWeight', 'bold');
+        ylabel('dF/F', 'FontSize', 13, 'FontWeight', 'bold');
+        title(sprintf('Violin Plot with Individual Data - %s (n=%d matched pairs)', stim_type, n_matched), ...
+            'FontSize', 14, 'FontWeight', 'bold');
+        xlim([-0.7 1.7]);
+        grid on; set(gca, 'LineWidth', 2, 'FontSize', 11);
         hold off;
-        
-        sgtitle(sprintf('%s (n=%d matched pairs)', stim_type, n_matched), ...
-            'FontSize', 13, 'FontWeight', 'bold');
     end
 end
 
