@@ -628,9 +628,7 @@ end
 
 fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (ALL NEURONS) ==========\n');
 
-% ===== Parameters for distribution plots =====
-hist_bins = 50;                    % Number of bins for histograms
-hist_range = [-2, 10];             % Range for histograms (dF/F)
+hist_bins = 50;  % Number of bins
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
@@ -639,148 +637,86 @@ for field_idx = 1:length(stim_fields)
     
     fprintf('Distribution plots for "%s": all %d neurons\n', stim_type, n_rois_selected_plane);
     
-    % Extract all activity values from baseline and drug
-    % Flatten all presentations into single distribution
-    baseline_responses = data.baseline_responses;
-    drug_responses = data.drug_responses;
-    
-    % Concatenate all presentations for each condition
+    % Extract responses
     baseline_all = [];
-    for i = 1:length(baseline_responses)
-        baseline_all = [baseline_all; baseline_responses{i}(:)];  % Flatten to column
+    for i = 1:length(data.baseline_responses)
+        baseline_all = [baseline_all; data.baseline_responses{i}(:)];
     end
     
     drug_all = [];
-    for i = 1:length(drug_responses)
-        drug_all = [drug_all; drug_responses{i}(:)];
+    for i = 1:length(data.drug_responses)
+        drug_all = [drug_all; data.drug_responses{i}(:)];
     end
     
-    % Create figure with 4 subplots for comprehensive distribution analysis
-    fig = figure('Position', [100 150 1600 1000], 'NumberTitle', 'off', ...
-        'Name', sprintf('AllNeurons_Distribution: %s', stim_type));
+    % Create clean 2-panel figure
+    fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
+        'Name', sprintf('AllNeurons_%s', stim_type));
     
-    % Calculate statistics
     baseline_mean = mean(baseline_all);
-    baseline_median = median(baseline_all);
-    baseline_std = std(baseline_all);
-    baseline_q1 = quantile(baseline_all, 0.25);
-    baseline_q3 = quantile(baseline_all, 0.75);
     drug_mean = mean(drug_all);
+    baseline_median = median(baseline_all);
     drug_median = median(drug_all);
-    drug_std = std(drug_all);
-    drug_q1 = quantile(drug_all, 0.25);
-    drug_q3 = quantile(drug_all, 0.75);
     
-    % ===== Histogram with statistics =====
-    subplot(2, 2, 1);
+    % ===== PANEL 1: Histogram =====
+    subplot(1, 2, 1);
     combined_data = [baseline_all; drug_all];
     bin_edges = linspace(prctile(combined_data, 1), prctile(combined_data, 99), hist_bins + 1);
     hold on;
-    histogram(baseline_all, 'Normalization', 'pdf', ...
-        'FaceColor', 'r', 'FaceAlpha', 0.5, 'EdgeColor', 'r', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
-    histogram(drug_all, 'Normalization', 'pdf', ...
-        'FaceColor', 'b', 'FaceAlpha', 0.5, 'EdgeColor', 'b', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
-    % Add mean and median lines
-    line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Baseline Mean');
-    line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Drug Mean');
-    line([baseline_median baseline_median], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', ':', 'LineWidth', 2);
-    line([drug_median drug_median], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', ':', 'LineWidth', 2);
-    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    histogram(baseline_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
+        'EdgeColor', 'darkred', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+    histogram(drug_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
+        'EdgeColor', 'darkblue', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
     ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Histogram (1-99th percentile)', 'FontSize', 11, 'FontWeight', 'bold');
-    legend('FontSize', 9, 'Location', 'best');
+    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
+    legend('FontSize', 10, 'Location', 'best');
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     hold off;
     
-    % ===== Box Plot =====
-    subplot(2, 2, 2);
-    box_data = [baseline_all; drug_all];
-    box_groups = [ones(size(baseline_all)); 2*ones(size(drug_all))];
-    bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
-        'OutlierSize', 5, 'Notch', 'on', 'PlotStyle', 'compact');
-    set(bp, 'LineWidth', 1.5);
-    % Color the box plot lines
-    lines = findobj(bp, 'Type', 'line');
-    set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
-    xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
-    ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
-    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-    
-    % ===== Violin Plot with Overlaid Points =====
-    subplot(2, 2, 3);
+    % ===== PANEL 2: Violin Plot with Points =====
+    subplot(1, 2, 2);
     hold on;
     
-    % Create violin data
-    violin_data = [baseline_all; drug_all];
-    violin_groups = [ones(size(baseline_all)); 2*ones(size(drug_all))];
+    % Compute density for baseline (x=1)
+    [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
+    f_bl = f_bl / max(f_bl) * 0.3;  % Normalize width
     
-    % Plot violin for baseline (x=1)
-    baseline_vals = baseline_all;
-    [f_baseline, xi_baseline] = ksdensity(baseline_vals, 'NumPoints', 100);
-    f_baseline = f_baseline / max(f_baseline) * 0.35;  % Normalize width
+    % Compute density for drug (x=2)
+    [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
+    f_dr = f_dr / max(f_dr) * 0.3;  % Normalize width
     
-    % Fill violin - baseline
-    fill(f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
-    fill(-f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+    % Draw violin for baseline using patch (supports FaceAlpha)
+    patch(f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
+    patch(-f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
     
-    % Plot violin for drug (x=2)
-    drug_vals = drug_all;
-    [f_drug, xi_drug] = ksdensity(drug_vals, 'NumPoints', 100);
-    f_drug = f_drug / max(f_drug) * 0.35;  % Normalize width
+    % Draw violin for drug using patch
+    patch(f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+    patch(-f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
     
-    % Fill violin - drug
-    fill(f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-    fill(-f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+    % Overlay individual data points
+    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 15, 'r', 'filled', ...
+        'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
+    swarmchart(repmat(2, length(drug_all), 1), drug_all, 15, 'b', 'filled', ...
+        'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
     
-    % Overlay swarmchart points (semi-transparent)
-    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 25, 'r', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
-    swarmchart(repmat(2, length(drug_all), 1), drug_all, 25, 'b', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+    % Add mean markers
+    scatter(1, baseline_mean, 200, 'darkred', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
+    scatter(2, drug_mean, 200, 'darkblue', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
     
-    % Add mean markers (filled diamonds)
-    scatter(1, baseline_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
-    scatter(2, drug_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+    % Add median markers (hollow diamonds)
+    scatter(1, baseline_median, 150, 'darkred', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
+    scatter(2, drug_median, 150, 'darkblue', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
     
-    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
+    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
     xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
     ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Violin Plot (Distribution & Individual Data)', 'FontSize', 11, 'FontWeight', 'bold');
-    xlim([0.5 2.5]);
+    title('Violin Plot with Individual Data', 'FontSize', 12, 'FontWeight', 'bold');
+    xlim([0.4 2.6]);
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     hold off;
     
-    % ===== Statistics Summary Table =====
-    subplot(2, 2, 4);
-    axis off;
-    stats_text = {
-        sprintf('BASELINE (n=%d samples)', length(baseline_all));
-        sprintf('  Mean: %.4f ± %.4f', baseline_mean, baseline_std);
-        sprintf('  Median: %.4f', baseline_median);
-        sprintf('  Q1-Q3: [%.4f, %.4f]', baseline_q1, baseline_q3);
-        '';
-        sprintf('DRUG (n=%d samples)', length(drug_all));
-        sprintf('  Mean: %.4f ± %.4f', drug_mean, drug_std);
-        sprintf('  Median: %.4f', drug_median);
-        sprintf('  Q1-Q3: [%.4f, %.4f]', drug_q1, drug_q3);
-        '';
-        'DIFFERENCE';
-        sprintf('  ΔMean: %.4f (%.2f%%)', drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps));
-        sprintf('  ΔMedian: %.4f', drug_median-baseline_median);
-    };
-    text(0.05, 0.95, stats_text, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'left', ...
-        'FontFamily', 'monospace', 'FontSize', 10, 'Interpreter', 'none', ...
-        'BackgroundColor', 'white', 'EdgeColor', 'black', 'Margin', 5);
-    
-    sgtitle(sprintf('Activity Distribution (All Neurons): %s (N=%d neurons)', stim_type, n_rois_selected_plane), ...
+    sgtitle(sprintf('%s (n=%d neurons)', stim_type, n_rois_selected_plane), ...
         'FontSize', 13, 'FontWeight', 'bold');
-    
-    % Print statistics
-    fprintf('  Baseline: mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
-        baseline_mean, baseline_median, baseline_std, length(baseline_all));
-    fprintf('  Drug:     mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
-        drug_mean, drug_median, drug_std, length(drug_all));
-    fprintf('  Difference: Δmean=%.4f (%.2f%%), Δmedian=%.4f\n', ...
-        drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps), drug_median-baseline_median);
 end
 
 %% ====================== HISTOGRAMS & VIOLIN PLOTS (MATCHED NEURONS ONLY) ======================
@@ -788,15 +724,11 @@ end
 if matched_rois_available && n_matched > 0
     fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (MATCHED NEURONS) ==========\n');
     
-    % ===== Parameters for distribution plots =====
-    % hist_bins and hist_range already defined above
-    
     for field_idx = 1:length(stim_fields)
         field_name = stim_fields{field_idx};
         data = master_data.(field_name);
         stim_type = data.stimulus_type;
         
-        % Check if this stimulus has matched data
         if ~isfield(data, 'matched_baseline_avg') || isempty(data.matched_baseline_avg)
             fprintf('Skipping "%s": no matched response data\n', stim_type);
             continue;
@@ -804,243 +736,94 @@ if matched_rois_available && n_matched > 0
         
         fprintf('Distribution plots for "%s": matched %d neuron pairs\n', stim_type, n_matched);
         
-        % Extract activity from matched neurons
-        baseline_responses = data.baseline_responses;
-        drug_responses = data.drug_responses;
-        
-        % Get local indices for matched neurons
-        base_match_local = data.base_match_idx_local;
-        drug_match_local = data.drug_match_idx_local;
-        
-        % Concatenate matched neuron activity only
+        % Extract matched neuron activity
         baseline_matched_all = [];
-        for i = 1:length(baseline_responses)
-            % Extract only matched neurons from this presentation
-            resp = baseline_responses{i};
-            matched_resp = resp(base_match_local, :);  % Get matched neurons
-            baseline_matched_all = [baseline_matched_all; matched_resp(:)];  % Flatten to column
+        for i = 1:length(data.baseline_responses)
+            resp = data.baseline_responses{i};
+            matched_resp = resp(data.base_match_idx_local, :);
+            baseline_matched_all = [baseline_matched_all; matched_resp(:)];
         end
         
         drug_matched_all = [];
-        for i = 1:length(drug_responses)
-            % Extract only matched neurons from this presentation
-            resp = drug_responses{i};
-            matched_resp = resp(drug_match_local, :);  % Get matched neurons
-            drug_matched_all = [drug_matched_all; matched_resp(:)];  % Flatten to column
+        for i = 1:length(data.drug_responses)
+            resp = data.drug_responses{i};
+            matched_resp = resp(data.drug_match_idx_local, :);
+            drug_matched_all = [drug_matched_all; matched_resp(:)];
         end
         
-        % Create figure with 4 subplots for comprehensive distribution analysis
-        fig = figure('Position', [100 150 1600 1000], 'NumberTitle', 'off', ...
-            'Name', sprintf('MatchedNeurons_Distribution: %s', stim_type));
+        % Create clean 2-panel figure
+        fig = figure('Position', [100 150 1200 500], 'NumberTitle', 'off', ...
+            'Name', sprintf('Matched_%s', stim_type));
         
-        % Calculate statistics
         baseline_mean = mean(baseline_matched_all);
-        baseline_median = median(baseline_matched_all);
-        baseline_std = std(baseline_matched_all);
-        baseline_q1 = quantile(baseline_matched_all, 0.25);
-        baseline_q3 = quantile(baseline_matched_all, 0.75);
         drug_mean = mean(drug_matched_all);
+        baseline_median = median(baseline_matched_all);
         drug_median = median(drug_matched_all);
-        drug_std = std(drug_matched_all);
-        drug_q1 = quantile(drug_matched_all, 0.25);
-        drug_q3 = quantile(drug_matched_all, 0.75);
         
-        % ===== Histogram with statistics =====
-        subplot(2, 2, 1);
+        % ===== PANEL 1: Histogram =====
+        subplot(1, 2, 1);
         combined_matched_data = [baseline_matched_all; drug_matched_all];
         bin_edges_matched = linspace(prctile(combined_matched_data, 1), prctile(combined_matched_data, 99), hist_bins + 1);
         hold on;
-        histogram(baseline_matched_all, 'Normalization', 'pdf', ...
-            'FaceColor', 'r', 'FaceAlpha', 0.5, 'EdgeColor', 'r', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
-        histogram(drug_matched_all, 'Normalization', 'pdf', ...
-            'FaceColor', 'b', 'FaceAlpha', 0.5, 'EdgeColor', 'b', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
-        % Add mean and median lines
-        line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Baseline Mean');
-        line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Drug Mean');
-        line([baseline_median baseline_median], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', ':', 'LineWidth', 2);
-        line([drug_median drug_median], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', ':', 'LineWidth', 2);
-        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        histogram(baseline_matched_all, 'Normalization', 'pdf', 'FaceColor', 'r', 'FaceAlpha', 0.5, ...
+            'EdgeColor', 'darkred', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+        histogram(drug_matched_all, 'Normalization', 'pdf', 'FaceColor', 'b', 'FaceAlpha', 0.5, ...
+            'EdgeColor', 'darkblue', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
         ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Histogram (1-99th percentile)', 'FontSize', 11, 'FontWeight', 'bold');
-        legend('FontSize', 9, 'Location', 'best');
+        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Distribution of Activity', 'FontSize', 12, 'FontWeight', 'bold');
+        legend('FontSize', 10, 'Location', 'best');
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         hold off;
         
-        % ===== Box Plot =====
-        subplot(2, 2, 2);
-        box_data = [baseline_matched_all; drug_matched_all];
-        box_groups = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
-        bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
-            'OutlierSize', 5, 'Notch', 'on', 'PlotStyle', 'compact');
-        set(bp, 'LineWidth', 1.5);
-        % Color the box plot lines
-        lines = findobj(bp, 'Type', 'line');
-        set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
-        xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
-        ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
-        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-        
-        % ===== Violin Plot with Overlaid Points =====
-        subplot(2, 2, 3);
+        % ===== PANEL 2: Violin Plot with Points =====
+        subplot(1, 2, 2);
         hold on;
         
-        % Create violin plot data structure
-        violin_data = [baseline_matched_all; drug_matched_all];
-        violin_groups = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
+        % Compute density for baseline (x=1)
+        [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
+        f_bl = f_bl / max(f_bl) * 0.3;  % Normalize width
         
-        % Plot violin for baseline (x=1)
-        baseline_vals = baseline_matched_all;
-        [f_baseline, xi_baseline] = ksdensity(baseline_vals, 'NumPoints', 100);
-        f_baseline = f_baseline / max(f_baseline) * 0.35;  % Normalize width
+        % Compute density for drug (x=2)
+        [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
+        f_dr = f_dr / max(f_dr) * 0.3;  % Normalize width
         
-        % Fill violin - baseline
-        fill(f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
-        fill(-f_baseline + 1, xi_baseline, 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'darkred', 'LineWidth', 2);
+        % Draw violin for baseline using patch (supports FaceAlpha)
+        patch(f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
+        patch(-f_bl + 1, xi_bl, [1 0.4 0.4], 'FaceAlpha', 0.5, 'EdgeColor', 'darkred', 'LineWidth', 2);
         
-        % Plot violin for drug (x=2)
-        drug_vals = drug_matched_all;
-        [f_drug, xi_drug] = ksdensity(drug_vals, 'NumPoints', 100);
-        f_drug = f_drug / max(f_drug) * 0.35;  % Normalize width
+        % Draw violin for drug using patch
+        patch(f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+        patch(-f_dr + 2, xi_dr, [0.4 0.7 1], 'FaceAlpha', 0.5, 'EdgeColor', 'darkblue', 'LineWidth', 2);
         
-        % Fill violin - drug
-        fill(f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
-        fill(-f_drug + 2, xi_drug, 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'darkblue', 'LineWidth', 2);
+        % Overlay individual data points
+        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 15, 'r', 'filled', ...
+            'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
+        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 15, 'b', 'filled', ...
+            'MarkerFaceAlpha', 0.2, 'MarkerEdgeAlpha', 0.05);
         
-        % Overlay swarmchart points (semi-transparent)
-        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 25, 'r', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
-        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 25, 'b', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0.1);
+        % Add mean markers
+        scatter(1, baseline_mean, 200, 'darkred', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
+        scatter(2, drug_mean, 200, 'darkblue', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
         
-        % Add mean markers (filled diamonds)
-        scatter(1, baseline_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
-        scatter(2, drug_mean, 150, 'k', 'd', 'filled', 'LineWidth', 2, 'MarkerEdgeColor', 'k');
+        % Add median markers (hollow diamonds)
+        scatter(1, baseline_median, 150, 'darkred', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkred');
+        scatter(2, drug_median, 150, 'darkblue', 'd', 'LineWidth', 2, 'MarkerEdgeColor', 'darkblue');
         
-        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
+        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 11);
         xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
         ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Violin Plot (Distribution & Individual Data)', 'FontSize', 11, 'FontWeight', 'bold');
-        xlim([0.5 2.5]);
+        title('Violin Plot with Individual Data', 'FontSize', 12, 'FontWeight', 'bold');
+        xlim([0.4 2.6]);
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         hold off;
         
-        % ===== Statistics Summary Table =====
-        subplot(2, 2, 4);
-        axis off;
-        stats_text = {
-            sprintf('BASELINE (n=%d samples)', length(baseline_matched_all));
-            sprintf('  Mean: %.4f ± %.4f', baseline_mean, baseline_std);
-            sprintf('  Median: %.4f', baseline_median);
-            sprintf('  Q1-Q3: [%.4f, %.4f]', baseline_q1, baseline_q3);
-            '';
-            sprintf('DRUG (n=%d samples)', length(drug_matched_all));
-            sprintf('  Mean: %.4f ± %.4f', drug_mean, drug_std);
-            sprintf('  Median: %.4f', drug_median);
-            sprintf('  Q1-Q3: [%.4f, %.4f]', drug_q1, drug_q3);
-            '';
-            'DIFFERENCE';
-            sprintf('  ΔMean: %.4f (%.2f%%)', drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps));
-            sprintf('  ΔMedian: %.4f', drug_median-baseline_median);
-        };
-        text(0.05, 0.95, stats_text, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'left', ...
-            'FontFamily', 'monospace', 'FontSize', 10, 'Interpreter', 'none', ...
-            'BackgroundColor', 'white', 'EdgeColor', 'black', 'Margin', 5);
-        
-        sgtitle(sprintf('Activity Distribution (Matched Neurons): %s (N=%d matched pairs)', stim_type, n_matched), ...
+        sgtitle(sprintf('%s (n=%d matched pairs)', stim_type, n_matched), ...
             'FontSize', 13, 'FontWeight', 'bold');
-        
-        % Print statistics
-        fprintf('  Baseline: mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
-            baseline_mean, baseline_median, baseline_std, length(baseline_matched_all));
-        fprintf('  Drug:     mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
-            drug_mean, drug_median, drug_std, length(drug_matched_all));
-        fprintf('  Difference: Δmean=%.4f (%.2f%%), Δmedian=%.4f\n', ...
-            drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps), drug_median-baseline_median);
     end
 end
 
-fprintf('\n========== ANALYSIS COMPLETE ==========\n');
-fprintf('\nGENERATED VISUALIZATIONS:\n\n');
 
-fprintf('HEATMAPS (4 Levels per stimulus):\n');
-fprintf('  ✓ Level 1: Full dFF (all neurons, all timepoints)\n');
-fprintf('  ✓ Level 2: Selected ROI (raw values, unsorted, custom frame window)\n');
-fprintf('  ✓ Level 3: Normalized (sorted by max in baseline AND drug independently)\n');
-fprintf('  ✓ Level 4: Matched ROI (baseline sorted, drug matched to baseline)\n\n');
-
-fprintf('ACTIVITY DISTRIBUTIONS (Histograms & Violin Plots per stimulus):\n');
-fprintf('  ✓ All Neurons: Histograms comparing baseline vs drug activity\n');
-fprintf('    - %d bins, range [%.1f, %.1f] dF/F\n', hist_bins, hist_range(1), hist_range(2));
-fprintf('    - Statistics: mean, median, std, Δmean, Δmedian\n');
-fprintf('  ✓ All Neurons: Violin plots with individual point overlay\n');
-if matched_rois_available && n_matched > 0
-    fprintf('  ✓ Matched Neurons Only: Histograms (%d neuron pairs)\n', n_matched);
-    fprintf('  ✓ Matched Neurons Only: Violin plots with individual point overlay\n');
-end
-fprintf('\n');
-
-fprintf('FOUR-LEVEL HEATMAP HIERARCHY (INDEPENDENT SECTIONS):\n\n');
-fprintf('LEVEL 1 - Full dFF Heatmaps:\n');
-fprintf('  • All %d neurons in selected plane\n', n_rois_selected_plane);
-fprintf('  • All timepoints (averaged across presentations)\n');
-fprintf('  • Baseline and drug side-by-side (raw dF/F)\n');
-fprintf('  • NO filtering, NO sorting\n');
-fprintf('  • Axis limits: L1_caxis_lim (adjust at top of Level 1 section)\n\n');
-
-fprintf('LEVEL 2 - Selected ROI Heatmaps (Raw, Unsorted):\n');
-fprintf('  • First N neurons (default: %d) in order they appear\n', L2_n_select);
-fprintf('  • Custom timeframe window: frames %d:%d\n', L2_frame_start, L2_frame_end);
-fprintf('  • Baseline and drug side-by-side (raw dF/F)\n');
-fprintf('  • NO sorting applied\n');
-fprintf('  • Parameters to adjust (top of Level 2 section):\n');
-fprintf('    - L2_n_select: number of ROIs to display\n');
-fprintf('    - L2_frame_start, L2_frame_end: timeframe window\n');
-fprintf('    - L2_caxis_lim: color axis limits\n\n');
-
-fprintf('LEVEL 3 - Normalized Heatmaps (Sorted by Max Activity):\n');
-fprintf('  • Same N neurons as Level 2\n');
-fprintf('  • Same timeframe window as Level 2\n');
-fprintf('  • Normalization formula: (dFF - min) / (max - min) * max\n');
-fprintf('  • Baseline sorted by descending max (normalized)\n');
-fprintf('  • Drug sorted independently by descending max (normalized)\n');
-fprintf('  • Emphasizes temporal dynamics regardless of baseline level\n');
-fprintf('  • Axis limits: L3_caxis_lim (adjust at top of Level 3 section)\n\n');
-
-if matched_rois_available && n_matched > 0
-    fprintf('LEVEL 4 - Matched ROI Heatmaps:\n');
-    fprintf('  • %d matched neuron pairs between baseline and drug\n', n_matched);
-    fprintf('  • Baseline sorted by descending max activity\n');
-    fprintf('  • Drug neurons MATCHED to baseline by pairing index\n');
-    fprintf('  • Each row = one matched neuron pair (baseline ↔ drug)\n');
-    fprintf('  • Enables direct baseline vs drug comparison\n\n');
-else
-    fprintf('LEVEL 4 - Matched ROI Heatmaps:\n');
-    fprintf('  • (Not available - no matched ROIs in plane %d)\n\n', selected_plane_idx ...
-        );
-end
-
-fprintf('RUNNING LEVELS INDEPENDENTLY:\n');
-fprintf('  • Each level (%%1-%%4) is a separate section\n');
-fprintf('  • Run individual sections by highlighting and pressing Ctrl+Enter\n');
-fprintf('  • Adjust parameters at the TOP of each section before running\n');
-fprintf('  • Level 1, 2, 3 require Level 1 and 2 data to be stored in master_data\n\n');
-
-fprintf('DATA ACCESS FROM master_data:\n');
-fprintf('  master_data.STIMULUS_NAME.full_baseline_heatmap     (Level 1)\n');
-fprintf('  master_data.STIMULUS_NAME.full_drug_heatmap         (Level 1)\n');
-fprintf('  master_data.STIMULUS_NAME.selected_baseline_raw     (Level 2)\n');
-fprintf('  master_data.STIMULUS_NAME.selected_drug_raw         (Level 2)\n');
-fprintf('  master_data.STIMULUS_NAME.normalized_baseline       (Level 3)\n');
-fprintf('  master_data.STIMULUS_NAME.normalized_drug           (Level 3)\n');
-fprintf('  master_data.STIMULUS_NAME.matched_baseline_avg      (Level 4)\n');
-fprintf('  master_data.STIMULUS_NAME.matched_drug_avg          (Level 4)\n\n');
-
-fprintf('TIMING EXTRACTION (verified against axon_analysis_V1):\n');
-fprintf('  ✓ Start time: TimeStimulusFrame(1)\n');
-fprintf('  ✓ End time: start + (stimulus_trial_t × trials)\n');
-fprintf('  ✓ Frame matching: find(TimeCa(1,:) > start & TimeCa(1,:) < end)\n');
-fprintf('  ✓ Boundary handling: Strict inequalities (> and <)\n\n');
-
-fprintf('Master data saved in "master_data" struct.\n');
 
 %% ====================== LOCAL FUNCTIONS ======================
 
