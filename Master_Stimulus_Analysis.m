@@ -117,44 +117,74 @@ fprintf('Drug selected plane %d: %d ROIs (global indices: %d to %d)\n', ...
 
 % Load ROI matching if available
 matched_rois_available = false;  % Default: no matched ROIs
-base_match_idx = [];
-drug_match_idx = [];
+base_match_idx_global = [];      % Global ROI indices (from file)
+drug_match_idx_global = [];      % Global ROI indices (from file)
+base_match_idx_local = [];       % Local row indices in base_dff
+drug_match_idx_local = [];       % Local row indices in drug_dff
 n_matched = 0;
 
 if ~isempty(roi_match_file) && isfile(roi_match_file)
     fprintf('Loading ROI matches: %s\n', roi_match_file);
     M = load(roi_match_file);
     if isfield(M.roiMatchData, 'allSessionMapping')
-        base_match_idx = M.roiMatchData.allSessionMapping(:, 1);
-        drug_match_idx = M.roiMatchData.allSessionMapping(:, 2);
-        n_matched = length(base_match_idx);
-        matched_rois_available = true;
-        fprintf('Found %d matched ROI pairs\n', n_matched);
+        base_match_idx_global = M.roiMatchData.allSessionMapping(:, 1);
+        drug_match_idx_global = M.roiMatchData.allSessionMapping(:, 2);
+        fprintf('Found %d matched ROI pairs (global indices)\n', length(base_match_idx_global));
         
-        % DIAGNOSTIC: Check if matched indices are within valid range
-        fprintf('\n--- MATCHED ROI COMPATIBILITY CHECK ---\n');
-        fprintf('Matched baseline ROI indices: %d to %d\n', min(base_match_idx), max(base_match_idx));
-        fprintf('Matched drug ROI indices: %d to %d\n', min(drug_match_idx), max(drug_match_idx));
-        fprintf('Valid baseline ROI range: 1 to %d\n', n_rois_base_full);
-        fprintf('Valid drug ROI range: 1 to %d\n', n_rois_drug_full);
+        % Convert global ROI indices to LOCAL indices within selected plane
+        % For baseline: find which row index in base_dff corresponds to each global index
+        [~, base_match_idx_local] = ismember(base_match_idx_global, selected_roi_idx);
+        [~, drug_match_idx_local] = ismember(drug_match_idx_global, drug_selected_roi_idx);
         
-        % Check if ALL matched indices are valid
-        if max(base_match_idx) <= n_rois_base_full && max(drug_match_idx) <= n_rois_drug_full
-            fprintf('✓ All matched ROI indices are within valid range\n');
+        % Filter to keep only matches where BOTH neurons are in the selected plane
+        valid_matches = (base_match_idx_local > 0) & (drug_match_idx_local > 0);
+        base_match_idx_local = base_match_idx_local(valid_matches);
+        drug_match_idx_local = drug_match_idx_local(valid_matches);
+        base_match_idx_global = base_match_idx_global(valid_matches);
+        drug_match_idx_global = drug_match_idx_global(valid_matches);
+        
+        n_matched = length(base_match_idx_local);
+        
+        if n_matched > 0
+            matched_rois_available = true;
+            fprintf('\n--- MATCHED ROI ANALYSIS ---\n');
+            fprintf('Baseline selected plane (Z=%d): %d local neuron indices found\n', ...
+                selected_plane, n_rois_selected_plane);
+            fprintf('Drug selected plane (Z=%d): %d local neuron indices found\n', ...
+                selected_plane, n_rois_drug_selected_plane);
+            fprintf('Matched neuron pairs in selected plane: %d\n', n_matched);
+            fprintf('Local baseline match indices: %d to %d\n', min(base_match_idx_local), max(base_match_idx_local));
+            fprintf('Local drug match indices: %d to %d\n', min(drug_match_idx_local), max(drug_match_idx_local));
+            fprintf('✓ Ready for matched neuron analysis\n');
+            
+            % Verify conversion: check first matched pair
+            if n_matched > 0
+                base_global = base_match_idx_global(1);
+                base_local = base_match_idx_local(1);
+                drug_global = drug_match_idx_global(1);
+                drug_local = drug_match_idx_local(1);
+                fprintf('\nVerification (first matched pair):\n');
+                fprintf('  Baseline: global ROI %d -> local row %d in base_dff(%d, :)\n', ...
+                    base_global, base_local, size(base_dff, 1));
+                fprintf('  Drug: global ROI %d -> local row %d in drug_dff(%d, :)\n', ...
+                    drug_global, drug_local, size(drug_dff, 1));
+                
+                % Check that the global index is actually in selected_roi_idx
+                if selected_roi_idx(base_local) == base_global
+                    fprintf('  ✓ Baseline conversion verified\n');
+                else
+                    fprintf('  ✗ ERROR: Baseline conversion mismatch!\n');
+                end
+                if drug_selected_roi_idx(drug_local) == drug_global
+                    fprintf('  ✓ Drug conversion verified\n');
+                else
+                    fprintf('  ✗ ERROR: Drug conversion mismatch!\n');
+                end
+            end
         else
-            fprintf('✗ ERROR: Some matched ROI indices exceed data size!\n');
-            matched_rois_available = false;
-        end
-        
-        % Check if matched ROIs overlap with selected plane
-        base_in_plane = sum(ismember(base_match_idx, selected_roi_idx));
-        drug_in_plane = sum(ismember(drug_match_idx, drug_selected_roi_idx));
-        fprintf('Matched ROIs in selected plane %d:\n', selected_plane);
-        fprintf('  Baseline: %d of %d matched ROIs\n', base_in_plane, n_matched);
-        fprintf('  Drug: %d of %d matched ROIs\n', drug_in_plane, n_matched);
-        
-        if base_in_plane == 0 || drug_in_plane == 0
-            fprintf('⚠ WARNING: No matched ROIs found in selected plane!\n');
+            fprintf('⚠ WARNING: No matched ROIs found in selected plane %d!\n', selected_plane);
+            fprintf('All %d matched pairs are either not in baseline plane or drug plane\n', ...
+                length(base_match_idx_global));
         end
     else
         fprintf('  Warning: allSessionMapping not found in ROI match file\n');
@@ -307,7 +337,7 @@ end
 
 %% ====================== GENERATE MATCHED ROI HEATMAPS ======================
 
-if matched_rois_available
+if matched_rois_available && n_matched > 0
     fprintf('\n========== GENERATING MATCHED ROI HEATMAPS ==========\n');
     
     for field_idx = 1:length(stim_fields)
@@ -317,7 +347,8 @@ if matched_rois_available
         
         fprintf('Generating matched ROI heatmap for "%s"\n', stim_type);
         
-        % Convert cell arrays to 3D matrices first (for matched ROI extraction)
+        % Convert response cells to 3D matrices: (n_neurons × time × n_presentations)
+        % NOTE: These use LOCAL row indices (rows 1 to n_rois_in_plane)
         baseline_3d = cell_responses_to_3d(data.baseline_responses);
         drug_3d = cell_responses_to_3d(data.drug_responses);
         
@@ -326,30 +357,39 @@ if matched_rois_available
             continue;
         end
         
-        % Extract matched ROI responses
-        baseline_matched = baseline_3d(base_match_idx, :, :);
-        drug_matched = drug_3d(drug_match_idx, :, :);
+        % Extract matched ROI responses using LOCAL indices
+        % base_match_idx_local and drug_match_idx_local are row indices in base_3d/drug_3d
+        if any(base_match_idx_local > size(baseline_3d, 1)) || any(drug_match_idx_local > size(drug_3d, 1))
+            fprintf('  ✗ ERROR: Match indices exceed data dimensions!\n');
+            continue;
+        end
         
-        % Average across presentations
-        baseline_matched_avg = squeeze(mean(baseline_matched, 3));
-        drug_matched_avg = squeeze(mean(drug_matched, 3));
+        baseline_matched_3d = baseline_3d(base_match_idx_local, :, :);      % (n_matched × time × presentations)
+        drug_matched_3d = drug_3d(drug_match_idx_local, :, :);             % (n_matched × time × presentations)
         
-        % Ensure 2D
+        % Average across presentations to get (n_matched × time)
+        baseline_matched_avg = squeeze(mean(baseline_matched_3d, 3));
+        drug_matched_avg = squeeze(mean(drug_matched_3d, 3));
+        
+        % Handle edge case of single presentation
         if isvector(baseline_matched_avg)
-            baseline_matched_avg = baseline_matched_avg(:)';
+            baseline_matched_avg = baseline_matched_avg(:);
         end
         if isvector(drug_matched_avg)
-            drug_matched_avg = drug_matched_avg(:)';
+            drug_matched_avg = drug_matched_avg(:);
         end
+        
+        fprintf('  Extracted %d matched neuron pairs\n', size(baseline_matched_avg, 1));
+        fprintf('  Dimensions: %d neurons × %d timepoints\n', size(baseline_matched_avg, 1), size(baseline_matched_avg, 2));
         
         % Rank baseline by max activity
         [~, sort_idx] = sort(max(baseline_matched_avg, [], 2), 'descend');
         
-        % Create figure
+        % Create figure: baseline and drug side-by-side, same neuron order
         fig = figure('Position', [100 100 1400 600], 'NumberTitle', 'off', ...
             'Name', sprintf('Matched ROI Heatmap: %s', stim_type));
         
-        % BASELINE MATCHED - Ranked by activity
+        % BASELINE MATCHED - Ranked by max activity
         subplot(1, 2, 1);
         imagesc(baseline_matched_avg(sort_idx, :));
         eval(['colormap(', colormap_type, ');']);
@@ -358,10 +398,10 @@ if matched_rois_available
         colorbar;
         xlabel('Time (frames)');
         ylabel('Matched ROI (ranked by baseline activity)');
-        title(sprintf('Baseline - %s\n(%d matched ROIs)', stim_type, n_matched), 'FontWeight', 'bold');
+        title(sprintf('Baseline - %s\n(%d matched neurons)', stim_type, n_matched), 'FontWeight', 'bold');
         set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         
-        % DRUG MATCHED - SAME ORDER AS BASELINE
+        % DRUG MATCHED - SAME ORDER AS BASELINE (same neurons, not re-ranked)
         subplot(1, 2, 2);
         imagesc(drug_matched_avg(sort_idx, :));
         eval(['colormap(', colormap_type, ');']);
@@ -371,22 +411,99 @@ if matched_rois_available
         ylabel(c, 'dF/F');
         xlabel('Time (frames)');
         ylabel('Matched ROI');
-        title(sprintf('Drug - %s\n(same ROI order)', stim_type), 'FontWeight', 'bold');
+        title(sprintf('Drug - %s\n(same ROI order as baseline)', stim_type), 'FontWeight', 'bold');
         set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         
-        sgtitle(sprintf('Matched ROI Heatmaps: %s', stim_type), 'FontSize', 12, 'FontWeight', 'bold');
+        sgtitle(sprintf('Matched ROI Activity: %s', stim_type), 'FontSize', 12, 'FontWeight', 'bold');
         
-        % Store for analysis
+        % Store matched neuron data for further analysis
         data.matched_baseline_avg = baseline_matched_avg;
         data.matched_drug_avg = drug_matched_avg;
         data.matched_sort_idx = sort_idx;
+        data.n_matched_neurons = n_matched;
+        data.base_match_idx_local = base_match_idx_local;      % Local row indices for baseline
+        data.drug_match_idx_local = drug_match_idx_local;      % Local row indices for drug
+        data.base_match_idx_global = base_match_idx_global;    % Global ROI IDs for reference
+        data.drug_match_idx_global = drug_match_idx_global;    % Global ROI IDs for reference
         master_data.(field_name) = data;
+        
+        fprintf('  ✓ Heatmaps created\n');
     end
 end
 
-%% ====================== STIMULUS-SPECIFIC ANALYSIS ======================
+%% ====================== MATCHED NEURON PAIR ANALYSIS ======================
 
-fprintf('\n========== STIMULUS-SPECIFIC ANALYSIS ==========\n');
+if matched_rois_available && n_matched > 0
+    fprintf('\n========== MATCHED NEURON PAIR ANALYSIS ==========\n');
+    
+    % For first stimulus with matched data, show detailed paired comparisons
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        if ~isfield(data, 'matched_baseline_avg') || isempty(data.matched_baseline_avg)
+            continue;
+        end
+        
+        fprintf('Creating paired comparison plots for "%s"\n', stim_type);
+        
+        baseline_avg = data.matched_baseline_avg;
+        drug_avg = data.matched_drug_avg;
+        sort_idx = data.matched_sort_idx;
+        
+        % Show top matched neurons (first 12 ranked by baseline activity)
+        n_show = min(12, n_matched);
+        top_neurons = sort_idx(1:n_show);
+        
+        fig = figure('Position', [100 100 1600 900], 'NumberTitle', 'off', ...
+            'Name', sprintf('Matched Neuron Pairs: %s', stim_type));
+        
+        for neuron_plot_idx = 1:n_show
+            subplot(3, 4, neuron_plot_idx);
+            
+            neuron_idx = top_neurons(neuron_plot_idx);
+            baseline_resp = baseline_avg(neuron_idx, :);
+            drug_resp = drug_avg(neuron_idx, :);
+            
+            % Get global ROI IDs for reference
+            baseline_roi_global = data.base_match_idx_global(neuron_idx);
+            drug_roi_global = data.drug_match_idx_global(neuron_idx);
+            
+            time_axis = 1:length(baseline_resp);
+            
+            % Plot both responses
+            plot(time_axis, baseline_resp, 'r-', 'LineWidth', 2, 'DisplayName', 'Baseline');
+            hold on;
+            plot(time_axis, drug_resp, 'b-', 'LineWidth', 2, 'DisplayName', 'Drug');
+            
+            % Calculate and display statistics
+            baseline_max = max(baseline_resp);
+            drug_max = max(drug_resp);
+            max_change_pct = ((drug_max - baseline_max) / baseline_max) * 100;
+            
+            xlabel('Time (frames)');
+            ylabel('dF/F');
+            title(sprintf('Matched Pair %d\nBase:%d → Drug:%d (Δmax: %.1f%%)', ...
+                neuron_idx, baseline_roi_global, drug_roi_global, max_change_pct), ...
+                'FontSize', 9);
+            grid on;
+            set(gca, 'LineWidth', 1, 'FontSize', 8);
+            
+            if neuron_plot_idx == 1
+                legend('FontSize', 8);
+            end
+        end
+        
+        sgtitle(sprintf('Top %d Matched Neuron Pairs: %s (ranked by baseline activity)', n_show, stim_type), ...
+            'FontSize', 12, 'FontWeight', 'bold');
+        
+        break;  % Only show detailed comparison for first stimulus type
+    end
+    
+    fprintf('\n✓ Matched neuron analysis complete\n');
+    fprintf('Summary: %d matched neuron pairs across all stimuli\n', n_matched);
+end
 
 % For each stimulus type, perform specialized analysis
 
@@ -420,8 +537,30 @@ for field_idx = 1:length(stim_fields)
 end
 
 fprintf('\n========== ANALYSIS COMPLETE ==========\n');
-fprintf('Master data saved in "master_data" struct.\n');
-fprintf('Use master_data.stimulus_field.baseline/drug_responses for further analysis.\n');
+fprintf('Master data saved in "master_data" struct.\n\n');
+
+fprintf('KEY VARIABLES FOR EACH STIMULUS:\n');
+fprintf('  baseline_responses: cell array of stimulus presentations (neurons × time)\n');
+fprintf('  drug_responses: cell array of stimulus presentations (neurons × time)\n\n');
+
+if matched_rois_available && n_matched > 0
+    fprintf('MATCHED NEURON DATA:\n');
+    fprintf('  For any stimulus, access matched neuron activity via:\n');
+    fprintf('    matched_baseline = master_data.STIMULUS_NAME.matched_baseline_avg\n');
+    fprintf('    matched_drug = master_data.STIMULUS_NAME.matched_drug_avg\n\n');
+    fprintf('  Matrix dimensions: (n_matched=%d neurons) × (time frames)\n', n_matched);
+    fprintf('  Matched neuron order: rows ranked by baseline activity in heatmaps\n\n');
+    fprintf('  To get specific matched pair:\n');
+    fprintf('    local_idx = <row in matched_baseline/matched_drug>\n');
+    fprintf('    base_roi_id = master_data.STIMULUS_NAME.base_match_idx_global(local_idx)\n');
+    fprintf('    drug_roi_id = master_data.STIMULUS_NAME.drug_match_idx_global(local_idx)\n');
+    fprintf('    baseline_activity = master_data.STIMULUS_NAME.matched_baseline_avg(local_idx, :)\n');
+    fprintf('    drug_activity = master_data.STIMULUS_NAME.matched_drug_avg(local_idx, :)\n\n');
+else
+    fprintf('NO MATCHED NEURONS: ROI matching data not available or no matches in plane %d\n', selected_plane);
+end
+
+fprintf('Use master_data.STIMULUS_NAME.baseline/drug_responses for further analysis.\n');
 
 %% ====================== LOCAL FUNCTIONS ======================
 
