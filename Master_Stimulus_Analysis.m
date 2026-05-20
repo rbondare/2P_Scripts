@@ -747,7 +747,7 @@ for field_idx = 1:length(stim_fields)
         x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);  % Constrain within violin
         
         scatter(x_jitter_bl, baseline_all, 30, [0.3 0.3 0.3], 'o', ...
-            'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+            'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
     end
     
     % DRUG VIOLIN (x=1) - Solid filled with scattered points
@@ -770,7 +770,7 @@ for field_idx = 1:length(stim_fields)
         x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);  % Constrain within violin
         
         scatter(x_jitter_dr, drug_all, 30, [0.3 0.3 0.3], 'o', ...
-            'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+            'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
     end
     
     set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
@@ -888,7 +888,7 @@ if matched_rois_available && n_matched > 0
             x_jitter_bl = max(min(x_jitter_bl, 0.4), -0.4);  % Constrain within violin
             
             scatter(x_jitter_bl, baseline_matched_all, 30, [0.3 0.3 0.3], 'o', ...
-                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
         
         % DRUG VIOLIN (x=1) - Solid filled with scattered points
@@ -911,7 +911,7 @@ if matched_rois_available && n_matched > 0
             x_jitter_dr = max(min(x_jitter_dr, 1.4), 0.6);  % Constrain within violin
             
             scatter(x_jitter_dr, drug_matched_all, 30, [0.3 0.3 0.3], 'o', ...
-                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
         
         set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
