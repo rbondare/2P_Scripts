@@ -652,19 +652,22 @@ for field_idx = 1:length(stim_fields)
         drug_all = [drug_all; drug_responses{i}(:)];
     end
     
-    % Create figure with histogram and violin plot
+    % Create figure with histogram and swarmchart
     fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('AllNeurons_Distribution: %s', stim_type));
     
-    % ===== Histogram =====
+    % ===== Histogram with aligned bins =====
     subplot(1, 2, 1);
+    combined_data = [baseline_all; drug_all];
+    bin_edges = linspace(min(combined_data), max(combined_data), hist_bins + 1);
     hold on;
-    edges = linspace(hist_range(1), hist_range(2), hist_bins);
-    hist(baseline_all, edges, 'FaceColor', [1 0.5 0.5], 'EdgeColor', 'r', 'FaceAlpha', 0.6, 'DisplayName', 'Baseline');
-    hist(drug_all, edges, 'FaceColor', [0.5 0.5 1], 'EdgeColor', 'b', 'FaceAlpha', 0.6, 'DisplayName', 'Drug');
+    histogram(baseline_all, 'Normalization', 'pdf', ...
+        'FaceColor', 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'BinEdges', bin_edges, 'DisplayName', 'Baseline');
+    histogram(drug_all, 'Normalization', 'pdf', ...
+        'FaceColor', 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'BinEdges', bin_edges, 'DisplayName', 'Drug');
     xlabel('dF/F');
-    ylabel('Count');
-    title(sprintf('Histogram: %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
+    ylabel('Probability Density');
+    title(sprintf('Mean dF/F Distribution - %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
     legend('FontSize', 10, 'Location', 'best');
     grid on;
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
@@ -678,25 +681,18 @@ for field_idx = 1:length(stim_fields)
     drug_median = median(drug_all);
     drug_std = std(drug_all);
     
-    % ===== Violin Plot =====
+    % ===== Swarmchart =====
     subplot(1, 2, 2);
-    plot_data = [baseline_all; drug_all];
-    group_labels = [ones(length(baseline_all), 1); 2*ones(length(drug_all), 1)];
-    
-    % Simple violin plot using boxplot as basis
-    bp = boxplot(plot_data, group_labels, 'Labels', {'Baseline', 'Drug'}, 'Position', [1, 2]);
-    set(bp, 'LineWidth', 1.5);
-    
-    % Add data points with transparency
-    jitter_baseline = 1 + (rand(size(baseline_all)) - 0.5) * 0.15;
-    jitter_drug = 2 + (rand(size(drug_all)) - 0.5) * 0.15;
-    scatter(jitter_baseline, baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.3);
-    scatter(jitter_drug, drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.3);
-    
+    hold on;
+    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
+    swarmchart(repmat(2, length(drug_all), 1), drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
+    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
     ylabel('dF/F');
-    title(sprintf('Distribution: %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
+    title(sprintf('Activity Distribution - %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     grid on;
+    xlim([0.5 2.5]);
+    hold off;
     
     sgtitle(sprintf('Activity Distribution (All Neurons): %s', stim_type), ...
         'FontSize', 12, 'FontWeight', 'bold');
@@ -755,19 +751,22 @@ if matched_rois_available && n_matched > 0
             drug_matched_all = [drug_matched_all; matched_resp(:)];  % Flatten to column
         end
         
-        % Create figure with histogram and violin plot
+        % Create figure with histogram and swarmchart
         fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
             'Name', sprintf('MatchedNeurons_Distribution: %s', stim_type));
         
-        % ===== Histogram =====
+        % ===== Histogram with aligned bins =====
         subplot(1, 2, 1);
+        combined_matched_data = [baseline_matched_all; drug_matched_all];
+        bin_edges_matched = linspace(min(combined_matched_data), max(combined_matched_data), hist_bins + 1);
         hold on;
-        edges = linspace(hist_range(1), hist_range(2), hist_bins);
-        hist(baseline_matched_all, edges, 'FaceColor', [1 0.5 0.5], 'EdgeColor', 'r', 'FaceAlpha', 0.6, 'DisplayName', 'Baseline');
-        hist(drug_matched_all, edges, 'FaceColor', [0.5 0.5 1], 'EdgeColor', 'b', 'FaceAlpha', 0.6, 'DisplayName', 'Drug');
+        histogram(baseline_matched_all, 'Normalization', 'pdf', ...
+            'FaceColor', 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'BinEdges', bin_edges_matched, 'DisplayName', 'Baseline');
+        histogram(drug_matched_all, 'Normalization', 'pdf', ...
+            'FaceColor', 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'BinEdges', bin_edges_matched, 'DisplayName', 'Drug');
         xlabel('dF/F');
-        ylabel('Count');
-        title(sprintf('Histogram: %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
+        ylabel('Probability Density');
+        title(sprintf('Mean dF/F Distribution - %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
         legend('FontSize', 10, 'Location', 'best');
         grid on;
         set(gca, 'LineWidth', 1.5, 'FontSize', 10);
@@ -781,25 +780,18 @@ if matched_rois_available && n_matched > 0
         drug_median = median(drug_matched_all);
         drug_std = std(drug_matched_all);
         
-        % ===== Violin Plot =====
+        % ===== Swarmchart =====
         subplot(1, 2, 2);
-        plot_data = [baseline_matched_all; drug_matched_all];
-        group_labels = [ones(length(baseline_matched_all), 1); 2*ones(length(drug_matched_all), 1)];
-        
-        % Simple violin plot using boxplot as basis
-        bp = boxplot(plot_data, group_labels, 'Labels', {'Baseline', 'Drug'}, 'Position', [1, 2]);
-        set(bp, 'LineWidth', 1.5);
-        
-        % Add data points with transparency
-        jitter_baseline = 1 + (rand(size(baseline_matched_all)) - 0.5) * 0.15;
-        jitter_drug = 2 + (rand(size(drug_matched_all)) - 0.5) * 0.15;
-        scatter(jitter_baseline, baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.3);
-        scatter(jitter_drug, drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.3);
-        
+        hold on;
+        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
+        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
+        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
         ylabel('dF/F');
-        title(sprintf('Distribution: %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
+        title(sprintf('Activity Distribution - %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
         set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         grid on;
+        xlim([0.5 2.5]);
+        hold off;
         
         sgtitle(sprintf('Activity Distribution (Matched Neurons): %s', stim_type), ...
             'FontSize', 12, 'FontWeight', 'bold');
