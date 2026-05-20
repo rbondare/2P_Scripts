@@ -1,15 +1,16 @@
 %% Analysis for 2P data with ROI MATCHED OPTION and multi-recording comparison
 %
 % This script creates master response matrices for all neurons across stimuli,
-% generates population and matched-ROI heatmaps, and provides stimulus-specific analysis 
-
+% generates population and matched-ROI heatmaps, analyzes stimulus-specific
+% responses, and creates activity distribution histograms and violin plots.
 %
 % STRUCTURE:
 %   1. Load and organize data
 %   2. Extract master response matrices (all neurons, full stimulus duration)
-%   3. Generate population heatmaps 
-%   4. Generate matched ROI heatmaps 
-%   5. Stimulus-specific analysis 
+%   3. Generate 4-level progressive heatmaps (per stimulus)
+%   4. Generate activity distribution histograms (all neurons and matched neurons)
+%   5. Generate violin plots (all neurons and matched neurons)
+%   6. Stimulus-specific analysis 
 
 clear; clc; close all;
 
@@ -620,9 +621,219 @@ for field_idx = 1:length(stim_fields)
     end
 end
 
-fprintf('\n========== ANALYSIS COMPLETE ==========\n');
-fprintf('\nFOUR-LEVEL HEATMAP HIERARCHY (INDEPENDENT SECTIONS):\n\n');
+%% ====================== HISTOGRAMS & VIOLIN PLOTS (ALL NEURONS) ======================
 
+fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (ALL NEURONS) ==========\n');
+
+% ===== Parameters for distribution plots =====
+hist_bins = 50;                    % Number of bins for histograms
+hist_range = [-2, 10];             % Range for histograms (dF/F)
+
+for field_idx = 1:length(stim_fields)
+    field_name = stim_fields{field_idx};
+    data = master_data.(field_name);
+    stim_type = data.stimulus_type;
+    
+    fprintf('Distribution plots for "%s": all %d neurons\n', stim_type, n_rois_selected_plane);
+    
+    % Extract all activity values from baseline and drug
+    % Flatten all presentations into single distribution
+    baseline_responses = data.baseline_responses;
+    drug_responses = data.drug_responses;
+    
+    % Concatenate all presentations for each condition
+    baseline_all = [];
+    for i = 1:length(baseline_responses)
+        baseline_all = [baseline_all; baseline_responses{i}(:)];  % Flatten to column
+    end
+    
+    drug_all = [];
+    for i = 1:length(drug_responses)
+        drug_all = [drug_all; drug_responses{i}(:)];
+    end
+    
+    % Create figure with histogram and violin plot
+    fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+        'Name', sprintf('AllNeurons_Distribution: %s', stim_type));
+    
+    % ===== Histogram =====
+    subplot(1, 2, 1);
+    hold on;
+    edges = linspace(hist_range(1), hist_range(2), hist_bins);
+    hist(baseline_all, edges, 'FaceColor', [1 0.5 0.5], 'EdgeColor', 'r', 'FaceAlpha', 0.6, 'DisplayName', 'Baseline');
+    hist(drug_all, edges, 'FaceColor', [0.5 0.5 1], 'EdgeColor', 'b', 'FaceAlpha', 0.6, 'DisplayName', 'Drug');
+    xlabel('dF/F');
+    ylabel('Count');
+    title(sprintf('Histogram: %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
+    legend('FontSize', 10, 'Location', 'best');
+    grid on;
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    hold off;
+    
+    % Calculate statistics
+    baseline_mean = mean(baseline_all);
+    baseline_median = median(baseline_all);
+    baseline_std = std(baseline_all);
+    drug_mean = mean(drug_all);
+    drug_median = median(drug_all);
+    drug_std = std(drug_all);
+    
+    % ===== Violin Plot =====
+    subplot(1, 2, 2);
+    plot_data = [baseline_all; drug_all];
+    group_labels = [ones(length(baseline_all), 1); 2*ones(length(drug_all), 1)];
+    
+    % Simple violin plot using boxplot as basis
+    bp = boxplot(plot_data, group_labels, 'Labels', {'Baseline', 'Drug'}, 'Position', [1, 2]);
+    set(bp, 'LineWidth', 1.5);
+    
+    % Add data points with transparency
+    jitter_baseline = 1 + (rand(size(baseline_all)) - 0.5) * 0.15;
+    jitter_drug = 2 + (rand(size(drug_all)) - 0.5) * 0.15;
+    scatter(jitter_baseline, baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.3);
+    scatter(jitter_drug, drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.3);
+    
+    ylabel('dF/F');
+    title(sprintf('Distribution: %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
+    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    grid on;
+    
+    sgtitle(sprintf('Activity Distribution (All Neurons): %s', stim_type), ...
+        'FontSize', 12, 'FontWeight', 'bold');
+    
+    % Print statistics
+    fprintf('  Baseline: mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+        baseline_mean, baseline_median, baseline_std, length(baseline_all));
+    fprintf('  Drug:     mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+        drug_mean, drug_median, drug_std, length(drug_all));
+    fprintf('  Difference: Δmean=%.3f, Δmedian=%.3f\n', drug_mean-baseline_mean, drug_median-baseline_median);
+end
+
+%% ====================== HISTOGRAMS & VIOLIN PLOTS (MATCHED NEURONS ONLY) ======================
+
+if matched_rois_available && n_matched > 0
+    fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (MATCHED NEURONS) ==========\n');
+    
+    % ===== Parameters for distribution plots =====
+    % hist_bins and hist_range already defined above
+    
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        % Check if this stimulus has matched data
+        if ~isfield(data, 'matched_baseline_avg') || isempty(data.matched_baseline_avg)
+            fprintf('Skipping "%s": no matched response data\n', stim_type);
+            continue;
+        end
+        
+        fprintf('Distribution plots for "%s": matched %d neuron pairs\n', stim_type, n_matched);
+        
+        % Extract activity from matched neurons
+        baseline_responses = data.baseline_responses;
+        drug_responses = data.drug_responses;
+        
+        % Get local indices for matched neurons
+        base_match_local = data.base_match_idx_local;
+        drug_match_local = data.drug_match_idx_local;
+        
+        % Concatenate matched neuron activity only
+        baseline_matched_all = [];
+        for i = 1:length(baseline_responses)
+            % Extract only matched neurons from this presentation
+            resp = baseline_responses{i};
+            matched_resp = resp(base_match_local, :);  % Get matched neurons
+            baseline_matched_all = [baseline_matched_all; matched_resp(:)];  % Flatten to column
+        end
+        
+        drug_matched_all = [];
+        for i = 1:length(drug_responses)
+            % Extract only matched neurons from this presentation
+            resp = drug_responses{i};
+            matched_resp = resp(drug_match_local, :);  % Get matched neurons
+            drug_matched_all = [drug_matched_all; matched_resp(:)];  % Flatten to column
+        end
+        
+        % Create figure with histogram and violin plot
+        fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+            'Name', sprintf('MatchedNeurons_Distribution: %s', stim_type));
+        
+        % ===== Histogram =====
+        subplot(1, 2, 1);
+        hold on;
+        edges = linspace(hist_range(1), hist_range(2), hist_bins);
+        hist(baseline_matched_all, edges, 'FaceColor', [1 0.5 0.5], 'EdgeColor', 'r', 'FaceAlpha', 0.6, 'DisplayName', 'Baseline');
+        hist(drug_matched_all, edges, 'FaceColor', [0.5 0.5 1], 'EdgeColor', 'b', 'FaceAlpha', 0.6, 'DisplayName', 'Drug');
+        xlabel('dF/F');
+        ylabel('Count');
+        title(sprintf('Histogram: %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
+        legend('FontSize', 10, 'Location', 'best');
+        grid on;
+        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        hold off;
+        
+        % Calculate statistics
+        baseline_mean = mean(baseline_matched_all);
+        baseline_median = median(baseline_matched_all);
+        baseline_std = std(baseline_matched_all);
+        drug_mean = mean(drug_matched_all);
+        drug_median = median(drug_matched_all);
+        drug_std = std(drug_matched_all);
+        
+        % ===== Violin Plot =====
+        subplot(1, 2, 2);
+        plot_data = [baseline_matched_all; drug_matched_all];
+        group_labels = [ones(length(baseline_matched_all), 1); 2*ones(length(drug_matched_all), 1)];
+        
+        % Simple violin plot using boxplot as basis
+        bp = boxplot(plot_data, group_labels, 'Labels', {'Baseline', 'Drug'}, 'Position', [1, 2]);
+        set(bp, 'LineWidth', 1.5);
+        
+        % Add data points with transparency
+        jitter_baseline = 1 + (rand(size(baseline_matched_all)) - 0.5) * 0.15;
+        jitter_drug = 2 + (rand(size(drug_matched_all)) - 0.5) * 0.15;
+        scatter(jitter_baseline, baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.3);
+        scatter(jitter_drug, drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.3);
+        
+        ylabel('dF/F');
+        title(sprintf('Distribution: %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
+        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        grid on;
+        
+        sgtitle(sprintf('Activity Distribution (Matched Neurons): %s', stim_type), ...
+            'FontSize', 12, 'FontWeight', 'bold');
+        
+        % Print statistics
+        fprintf('  Baseline: mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+            baseline_mean, baseline_median, baseline_std, length(baseline_matched_all));
+        fprintf('  Drug:     mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+            drug_mean, drug_median, drug_std, length(drug_matched_all));
+        fprintf('  Difference: Δmean=%.3f, Δmedian=%.3f\n', drug_mean-baseline_mean, drug_median-baseline_median);
+    end
+end
+
+fprintf('\n========== ANALYSIS COMPLETE ==========\n');
+fprintf('\nGENERATED VISUALIZATIONS:\n\n');
+
+fprintf('HEATMAPS (4 Levels per stimulus):\n');
+fprintf('  ✓ Level 1: Full dFF (all neurons, all timepoints)\n');
+fprintf('  ✓ Level 2: Selected ROI (raw values, unsorted, custom frame window)\n');
+fprintf('  ✓ Level 3: Normalized (sorted by max in baseline AND drug independently)\n');
+fprintf('  ✓ Level 4: Matched ROI (baseline sorted, drug matched to baseline)\n\n');
+
+fprintf('ACTIVITY DISTRIBUTIONS (Histograms & Violin Plots per stimulus):\n');
+fprintf('  ✓ All Neurons: Histograms comparing baseline vs drug activity\n');
+fprintf('    - %d bins, range [%.1f, %.1f] dF/F\n', hist_bins, hist_range(1), hist_range(2));
+fprintf('    - Statistics: mean, median, std, Δmean, Δmedian\n');
+fprintf('  ✓ All Neurons: Violin plots with individual point overlay\n');
+if matched_rois_available && n_matched > 0
+    fprintf('  ✓ Matched Neurons Only: Histograms (%d neuron pairs)\n', n_matched);
+    fprintf('  ✓ Matched Neurons Only: Violin plots with individual point overlay\n');
+end
+fprintf('\n');
+
+fprintf('FOUR-LEVEL HEATMAP HIERARCHY (INDEPENDENT SECTIONS):\n\n');
 fprintf('LEVEL 1 - Full dFF Heatmaps:\n');
 fprintf('  • All %d neurons in selected plane\n', n_rois_selected_plane);
 fprintf('  • All timepoints (averaged across presentations)\n');
