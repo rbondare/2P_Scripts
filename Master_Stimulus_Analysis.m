@@ -652,57 +652,106 @@ for field_idx = 1:length(stim_fields)
         drug_all = [drug_all; drug_responses{i}(:)];
     end
     
-    % Create figure with histogram and swarmchart
-    fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+    % Create figure with 4 subplots for comprehensive distribution analysis
+    fig = figure('Position', [100 150 1600 1000], 'NumberTitle', 'off', ...
         'Name', sprintf('AllNeurons_Distribution: %s', stim_type));
-    
-    % ===== Histogram with aligned bins =====
-    subplot(1, 2, 1);
-    combined_data = [baseline_all; drug_all];
-    bin_edges = linspace(min(combined_data), max(combined_data), hist_bins + 1);
-    hold on;
-    histogram(baseline_all, 'Normalization', 'pdf', ...
-        'FaceColor', 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'BinEdges', bin_edges, 'DisplayName', 'Baseline');
-    histogram(drug_all, 'Normalization', 'pdf', ...
-        'FaceColor', 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'BinEdges', bin_edges, 'DisplayName', 'Drug');
-    xlabel('dF/F');
-    ylabel('Probability Density');
-    title(sprintf('Mean dF/F Distribution - %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
-    legend('FontSize', 10, 'Location', 'best');
-    grid on;
-    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-    hold off;
     
     % Calculate statistics
     baseline_mean = mean(baseline_all);
     baseline_median = median(baseline_all);
     baseline_std = std(baseline_all);
+    baseline_q1 = quantile(baseline_all, 0.25);
+    baseline_q3 = quantile(baseline_all, 0.75);
     drug_mean = mean(drug_all);
     drug_median = median(drug_all);
     drug_std = std(drug_all);
+    drug_q1 = quantile(drug_all, 0.25);
+    drug_q3 = quantile(drug_all, 0.75);
     
-    % ===== Swarmchart =====
-    subplot(1, 2, 2);
+    % ===== Histogram with statistics =====
+    subplot(2, 2, 1);
+    combined_data = [baseline_all; drug_all];
+    bin_edges = linspace(prctile(combined_data, 1), prctile(combined_data, 99), hist_bins + 1);
     hold on;
-    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
-    swarmchart(repmat(2, length(drug_all), 1), drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
-    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-    ylabel('dF/F');
-    title(sprintf('Activity Distribution - %s (All %d neurons)', stim_type, n_rois_selected_plane), 'FontWeight', 'bold');
-    set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-    grid on;
-    xlim([0.5 2.5]);
+    histogram(baseline_all, 'Normalization', 'pdf', ...
+        'FaceColor', 'r', 'FaceAlpha', 0.5, 'EdgeColor', 'r', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+    histogram(drug_all, 'Normalization', 'pdf', ...
+        'FaceColor', 'b', 'FaceAlpha', 0.5, 'EdgeColor', 'b', 'BinEdges', bin_edges, 'LineWidth', 1.5, 'DisplayName', 'Drug');
+    % Add mean and median lines
+    line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Baseline Mean');
+    line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Drug Mean');
+    line([baseline_median baseline_median], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', ':', 'LineWidth', 2);
+    line([drug_median drug_median], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', ':', 'LineWidth', 2);
+    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Histogram (1-99th percentile)', 'FontSize', 11, 'FontWeight', 'bold');
+    legend('FontSize', 9, 'Location', 'best');
+    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     hold off;
     
-    sgtitle(sprintf('Activity Distribution (All Neurons): %s', stim_type), ...
-        'FontSize', 12, 'FontWeight', 'bold');
+    % ===== Box Plot =====
+    subplot(2, 2, 2);
+    box_data = [baseline_all; drug_all];
+    box_groups = [ones(size(baseline_all)); 2*ones(size(drug_all))];
+    bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
+        'OutlierSize', 3, 'Notch', 'on');
+    set(bp, 'LineWidth', 1.5);
+    set(findobj(bp, 'Tag', 'Box'), 'FaceColor', [1 0.8 0.8], 'FaceAlpha', 0.6);
+    ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Box Plot with Outliers', 'FontSize', 11, 'FontWeight', 'bold');
+    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    
+    % ===== Kernel Density Estimate Plot =====
+    subplot(2, 2, 3);
+    hold on;
+    % Compute KDE for both conditions
+    [kde_baseline, x_baseline] = compute_kde(baseline_all);
+    [kde_drug, x_drug] = compute_kde(drug_all);
+    % Plot KDEs
+    fill([x_baseline fliplr(x_baseline)], [kde_baseline fliplr(zeros(size(kde_baseline)))], 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+    fill([x_drug fliplr(x_drug)], [kde_drug fliplr(zeros(size(kde_drug)))], 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'LineWidth', 1.5, 'DisplayName', 'Drug');
+    % Add mean lines
+    line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'darkred', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Mean');
+    line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'darkblue', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Drug Mean');
+    xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+    ylabel('Density', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Kernel Density Estimate', 'FontSize', 11, 'FontWeight', 'bold');
+    legend('FontSize', 9, 'Location', 'best');
+    grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    hold off;
+    
+    % ===== Statistics Summary Table =====
+    subplot(2, 2, 4);
+    axis off;
+    stats_text = {
+        sprintf('BASELINE (n=%d samples)', length(baseline_all));
+        sprintf('  Mean: %.4f ± %.4f', baseline_mean, baseline_std);
+        sprintf('  Median: %.4f', baseline_median);
+        sprintf('  Q1-Q3: [%.4f, %.4f]', baseline_q1, baseline_q3);
+        '';
+        sprintf('DRUG (n=%d samples)', length(drug_all));
+        sprintf('  Mean: %.4f ± %.4f', drug_mean, drug_std);
+        sprintf('  Median: %.4f', drug_median);
+        sprintf('  Q1-Q3: [%.4f, %.4f]', drug_q1, drug_q3);
+        '';
+        'DIFFERENCE';
+        sprintf('  ΔMean: %.4f (%.2f%%)', drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps));
+        sprintf('  ΔMedian: %.4f', drug_median-baseline_median);
+    };
+    text(0.05, 0.95, stats_text, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'left', ...
+        'FontFamily', 'monospace', 'FontSize', 10, 'Interpreter', 'none', ...
+        'BackgroundColor', 'white', 'EdgeColor', 'black', 'Margin', 5);
+    
+    sgtitle(sprintf('Activity Distribution (All Neurons): %s (N=%d neurons)', stim_type, n_rois_selected_plane), ...
+        'FontSize', 13, 'FontWeight', 'bold');
     
     % Print statistics
-    fprintf('  Baseline: mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+    fprintf('  Baseline: mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
         baseline_mean, baseline_median, baseline_std, length(baseline_all));
-    fprintf('  Drug:     mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+    fprintf('  Drug:     mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
         drug_mean, drug_median, drug_std, length(drug_all));
-    fprintf('  Difference: Δmean=%.3f, Δmedian=%.3f\n', drug_mean-baseline_mean, drug_median-baseline_median);
+    fprintf('  Difference: Δmean=%.4f (%.2f%%), Δmedian=%.4f\n', ...
+        drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps), drug_median-baseline_median);
 end
 
 %% ====================== HISTOGRAMS & VIOLIN PLOTS (MATCHED NEURONS ONLY) ======================
@@ -751,57 +800,106 @@ if matched_rois_available && n_matched > 0
             drug_matched_all = [drug_matched_all; matched_resp(:)];  % Flatten to column
         end
         
-        % Create figure with histogram and swarmchart
-        fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+        % Create figure with 4 subplots for comprehensive distribution analysis
+        fig = figure('Position', [100 150 1600 1000], 'NumberTitle', 'off', ...
             'Name', sprintf('MatchedNeurons_Distribution: %s', stim_type));
-        
-        % ===== Histogram with aligned bins =====
-        subplot(1, 2, 1);
-        combined_matched_data = [baseline_matched_all; drug_matched_all];
-        bin_edges_matched = linspace(min(combined_matched_data), max(combined_matched_data), hist_bins + 1);
-        hold on;
-        histogram(baseline_matched_all, 'Normalization', 'pdf', ...
-            'FaceColor', 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'BinEdges', bin_edges_matched, 'DisplayName', 'Baseline');
-        histogram(drug_matched_all, 'Normalization', 'pdf', ...
-            'FaceColor', 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'BinEdges', bin_edges_matched, 'DisplayName', 'Drug');
-        xlabel('dF/F');
-        ylabel('Probability Density');
-        title(sprintf('Mean dF/F Distribution - %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
-        legend('FontSize', 10, 'Location', 'best');
-        grid on;
-        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-        hold off;
         
         % Calculate statistics
         baseline_mean = mean(baseline_matched_all);
         baseline_median = median(baseline_matched_all);
         baseline_std = std(baseline_matched_all);
+        baseline_q1 = quantile(baseline_matched_all, 0.25);
+        baseline_q3 = quantile(baseline_matched_all, 0.75);
         drug_mean = mean(drug_matched_all);
         drug_median = median(drug_matched_all);
         drug_std = std(drug_matched_all);
+        drug_q1 = quantile(drug_matched_all, 0.25);
+        drug_q3 = quantile(drug_matched_all, 0.75);
         
-        % ===== Swarmchart =====
-        subplot(1, 2, 2);
+        % ===== Histogram with statistics =====
+        subplot(2, 2, 1);
+        combined_matched_data = [baseline_matched_all; drug_matched_all];
+        bin_edges_matched = linspace(prctile(combined_matched_data, 1), prctile(combined_matched_data, 99), hist_bins + 1);
         hold on;
-        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
-        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
-        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
-        ylabel('dF/F');
-        title(sprintf('Activity Distribution - %s (Matched %d pairs)', stim_type, n_matched), 'FontWeight', 'bold');
-        set(gca, 'LineWidth', 1.5, 'FontSize', 10);
-        grid on;
-        xlim([0.5 2.5]);
+        histogram(baseline_matched_all, 'Normalization', 'pdf', ...
+            'FaceColor', 'r', 'FaceAlpha', 0.5, 'EdgeColor', 'r', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+        histogram(drug_matched_all, 'Normalization', 'pdf', ...
+            'FaceColor', 'b', 'FaceAlpha', 0.5, 'EdgeColor', 'b', 'BinEdges', bin_edges_matched, 'LineWidth', 1.5, 'DisplayName', 'Drug');
+        % Add mean and median lines
+        line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Baseline Mean');
+        line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', '--', 'LineWidth', 2, 'DisplayName', 'Drug Mean');
+        line([baseline_median baseline_median], get(gca, 'YLim'), 'Color', 'r', 'LineStyle', ':', 'LineWidth', 2);
+        line([drug_median drug_median], get(gca, 'YLim'), 'Color', 'b', 'LineStyle', ':', 'LineWidth', 2);
+        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        ylabel('Probability Density', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Histogram (1-99th percentile)', 'FontSize', 11, 'FontWeight', 'bold');
+        legend('FontSize', 9, 'Location', 'best');
+        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         hold off;
         
-        sgtitle(sprintf('Activity Distribution (Matched Neurons): %s', stim_type), ...
-            'FontSize', 12, 'FontWeight', 'bold');
+        % ===== Box Plot =====
+        subplot(2, 2, 2);
+        box_data = [baseline_matched_all; drug_matched_all];
+        box_groups = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
+        bp = boxplot(box_data, box_groups, 'Labels', {'Baseline', 'Drug'}, 'Widths', 0.6, ...
+            'OutlierSize', 3, 'Notch', 'on');
+        set(bp, 'LineWidth', 1.5);
+        set(findobj(bp, 'Tag', 'Box'), 'FaceColor', [1 0.8 0.8], 'FaceAlpha', 0.6);
+        ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Box Plot with Outliers', 'FontSize', 11, 'FontWeight', 'bold');
+        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        
+        % ===== Kernel Density Estimate Plot =====
+        subplot(2, 2, 3);
+        hold on;
+        % Compute KDE for both conditions
+        [kde_baseline, x_baseline] = compute_kde(baseline_matched_all);
+        [kde_drug, x_drug] = compute_kde(drug_matched_all);
+        % Plot KDEs
+        fill([x_baseline fliplr(x_baseline)], [kde_baseline fliplr(zeros(size(kde_baseline)))], 'r', 'FaceAlpha', 0.4, 'EdgeColor', 'r', 'LineWidth', 1.5, 'DisplayName', 'Baseline');
+        fill([x_drug fliplr(x_drug)], [kde_drug fliplr(zeros(size(kde_drug)))], 'b', 'FaceAlpha', 0.4, 'EdgeColor', 'b', 'LineWidth', 1.5, 'DisplayName', 'Drug');
+        % Add mean lines
+        line([baseline_mean baseline_mean], get(gca, 'YLim'), 'Color', 'darkred', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Baseline Mean');
+        line([drug_mean drug_mean], get(gca, 'YLim'), 'Color', 'darkblue', 'LineStyle', '--', 'LineWidth', 2.5, 'DisplayName', 'Drug Mean');
+        xlabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
+        ylabel('Density', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Kernel Density Estimate', 'FontSize', 11, 'FontWeight', 'bold');
+        legend('FontSize', 9, 'Location', 'best');
+        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        hold off;
+        
+        % ===== Statistics Summary Table =====
+        subplot(2, 2, 4);
+        axis off;
+        stats_text = {
+            sprintf('BASELINE (n=%d samples)', length(baseline_matched_all));
+            sprintf('  Mean: %.4f ± %.4f', baseline_mean, baseline_std);
+            sprintf('  Median: %.4f', baseline_median);
+            sprintf('  Q1-Q3: [%.4f, %.4f]', baseline_q1, baseline_q3);
+            '';
+            sprintf('DRUG (n=%d samples)', length(drug_matched_all));
+            sprintf('  Mean: %.4f ± %.4f', drug_mean, drug_std);
+            sprintf('  Median: %.4f', drug_median);
+            sprintf('  Q1-Q3: [%.4f, %.4f]', drug_q1, drug_q3);
+            '';
+            'DIFFERENCE';
+            sprintf('  ΔMean: %.4f (%.2f%%)', drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps));
+            sprintf('  ΔMedian: %.4f', drug_median-baseline_median);
+        };
+        text(0.05, 0.95, stats_text, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'left', ...
+            'FontFamily', 'monospace', 'FontSize', 10, 'Interpreter', 'none', ...
+            'BackgroundColor', 'white', 'EdgeColor', 'black', 'Margin', 5);
+        
+        sgtitle(sprintf('Activity Distribution (Matched Neurons): %s (N=%d matched pairs)', stim_type, n_matched), ...
+            'FontSize', 13, 'FontWeight', 'bold');
         
         % Print statistics
-        fprintf('  Baseline: mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+        fprintf('  Baseline: mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
             baseline_mean, baseline_median, baseline_std, length(baseline_matched_all));
-        fprintf('  Drug:     mean=%.3f, median=%.3f, std=%.3f (n=%d samples)\n', ...
+        fprintf('  Drug:     mean=%.4f, median=%.4f, std=%.4f (n=%d samples)\n', ...
             drug_mean, drug_median, drug_std, length(drug_matched_all));
-        fprintf('  Difference: Δmean=%.3f, Δmedian=%.3f\n', drug_mean-baseline_mean, drug_median-baseline_median);
+        fprintf('  Difference: Δmean=%.4f (%.2f%%), Δmedian=%.4f\n', ...
+            drug_mean-baseline_mean, 100*(drug_mean-baseline_mean)/abs(baseline_mean+eps), drug_median-baseline_median);
     end
 end
 
@@ -889,6 +987,39 @@ fprintf('  ✓ Boundary handling: Strict inequalities (> and <)\n\n');
 fprintf('Master data saved in "master_data" struct.\n');
 
 %% ====================== LOCAL FUNCTIONS ======================
+
+function [kde_vals, x_vals] = compute_kde(data, n_points)
+    % Compute kernel density estimate using Gaussian kernel
+    % Handles large datasets efficiently
+    
+    if nargin < 2
+        n_points = 200;  % Number of evaluation points
+    end
+    
+    data = data(:);  % Ensure column vector
+    data = data(~isnan(data) & ~isinf(data));  % Remove NaN/Inf
+    
+    if isempty(data) || length(data) < 2
+        kde_vals = zeros(1, n_points);
+        x_vals = linspace(0, 1, n_points);
+        return;
+    end
+    
+    % Bandwidth selection: Silverman's rule
+    n = length(data);
+    bandwidth = 1.06 * std(data) * n^(-1/5);
+    
+    % Evaluation range: 1-99 percentile
+    x_min = prctile(data, 1);
+    x_max = prctile(data, 99);
+    x_vals = linspace(x_min, x_max, n_points);
+    
+    % Compute KDE using Gaussian kernel
+    kde_vals = zeros(1, n_points);
+    for i = 1:n_points
+        kde_vals(i) = mean(exp(-0.5 * ((x_vals(i) - data) / bandwidth).^2)) / (bandwidth * sqrt(2*pi));
+    end
+end
 
 function dff = get_calcium_data(ca_data, ca_type)
     % Extract calcium data by type
