@@ -78,6 +78,9 @@ else
 end
 
 
+
+
+
 fprintf('Loading drug: %s\n', drug_file);
 D = load(drug_file);
 
@@ -114,6 +117,28 @@ for plane_idx = 1:n_planes_drug
 end
 fprintf('Drug selected plane %d: %d ROIs (global indices: %d to %d)\n', ...
     selected_plane, n_rois_drug_selected_plane, min(drug_selected_roi_idx), max(drug_selected_roi_idx));
+
+% Verification for drug data
+drug_selected_plane_idx = find(unique_planes_drug == selected_plane);
+if ~isempty(drug_selected_plane_idx)
+    test_roi_global_drug = drug_selected_roi_idx(1);
+    test_roi_local_drug = 1;
+    val_global_drug = drug_dff_full(test_roi_global_drug, 1);
+    val_local_drug = drug_dff_plane{drug_selected_plane_idx}(test_roi_local_drug, 1);
+    fprintf('Drug verification: drug_dff_full(%d, 1) = %.4f, drug_dff_plane{%d}(%d, 1) = %.4f\n', ...
+        test_roi_global_drug, val_global_drug, drug_selected_plane_idx, test_roi_local_drug, val_local_drug);
+    if abs(val_global_drug - val_local_drug) < 1e-10
+        fprintf('  ✓ Drug values match!\n');
+    else
+        fprintf('  ✗ ERROR: Drug values do not match!\n');
+    end
+end
+
+fprintf('\n--- SUMMARY ---\n');
+fprintf('Baseline: %d ROIs total across %d planes × %d frames\n', n_rois_base_full, n_planes, n_frames_base);
+fprintf('Drug:     %d ROIs total across %d planes × %d frames\n', n_rois_drug_full, n_planes_drug, n_frames_drug);
+fprintf('Selected plane %d for analysis: %d baseline ROIs, %d drug ROIs\n', ...
+    selected_plane, n_rois_selected_plane, n_rois_drug_selected_plane);
 
 % Load ROI matching if available
 matched_rois_available = false;  % Default: no matched ROIs
