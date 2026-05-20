@@ -27,7 +27,7 @@ roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane_idx = 1;           % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous', 'grating', 'moving_bar', 'sparse_local_global_flashes', 'checkers2'};
+stimulus_types_to_analyze = {'spontaneous', 'moving_bar', 'sparse_local_global_flashes', 'checkers2'};
 
 % Visualization
 max_neurons_display = 500;    % For heatmap readability
@@ -60,8 +60,8 @@ for plane_idx = 1:n_planes
 end
 
 % Get data for selected plane
-selected_roi_idx = find(centroidZ == selected_plane);
-base_dff = base_dff_plane{find(unique_planes == selected_plane)};
+selected_roi_idx = find(centroidZ == selected_plane_idx);
+base_dff = base_dff_plane{find(unique_planes == selected_plane_idx)};
 n_rois_selected_plane = size(base_dff, 1);
 
 n_rois_base_full = size(base_dff_full, 1);  % Total ROIs across all planes
@@ -103,8 +103,8 @@ for plane_idx = 1:n_planes_drug
 end
 
 % Get data for selected plane
-drug_selected_roi_idx = find(drug_centroidZ == selected_plane);
-drug_dff = drug_dff_plane{find(unique_planes_drug == selected_plane)};
+drug_selected_roi_idx = find(drug_centroidZ == selected_plane_idx);
+drug_dff = drug_dff_plane{find(unique_planes_drug == selected_plane_idx)};
 n_rois_drug_selected_plane = size(drug_dff, 1);
 
 n_rois_drug_full = size(drug_dff_full, 1);  % Total ROIs across all planes
@@ -117,7 +117,7 @@ for plane_idx = 1:n_planes_drug
     fprintf('  Plane %d: %d ROIs\n', plane_z, n_rois_plane);
 end
 fprintf('Drug selected plane %d: %d ROIs (global indices: %d to %d)\n', ...
-    selected_plane, n_rois_drug_selected_plane, min(drug_selected_roi_idx), max(drug_selected_roi_idx));
+    selected_plane_idx, n_rois_drug_selected_plane, min(drug_selected_roi_idx), max(drug_selected_roi_idx));
 
 % Load ROI matching if available
 matched_rois_available = false;  % Default: no matched ROIs
@@ -153,9 +153,9 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
             matched_rois_available = true;
             fprintf('\n--- MATCHED ROI ANALYSIS ---\n');
             fprintf('Baseline selected plane (Z=%d): %d local neuron indices found\n', ...
-                selected_plane, n_rois_selected_plane);
+                selected_plane_idx, n_rois_selected_plane);
             fprintf('Drug selected plane (Z=%d): %d local neuron indices found\n', ...
-                selected_plane, n_rois_drug_selected_plane);
+                selected_plane_idx, n_rois_drug_selected_plane);
             fprintf('Matched neuron pairs in selected plane: %d\n', n_matched);
             fprintf('Local baseline match indices: %d to %d\n', min(base_match_idx_local), max(base_match_idx_local));
             fprintf('Local drug match indices: %d to %d\n', min(drug_match_idx_local), max(drug_match_idx_local));
@@ -186,7 +186,7 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
                 end
             end
         else
-            fprintf('WARNING: No matched ROIs found in selected plane %d!\n', selected_plane);
+            fprintf('WARNING: No matched ROIs found in selected plane %d!\n', selected_plane_idx);
             fprintf('All %d matched pairs are either not in baseline plane or drug plane\n', ...
                 length(base_match_idx_global));
         end
@@ -968,7 +968,8 @@ if matched_rois_available && n_matched > 0
     fprintf('  • Enables direct baseline vs drug comparison\n\n');
 else
     fprintf('LEVEL 4 - Matched ROI Heatmaps:\n');
-    fprintf('  • (Not available - no matched ROIs in plane %d)\n\n', selected_plane);
+    fprintf('  • (Not available - no matched ROIs in plane %d)\n\n', selected_plane_idx ...
+        );
 end
 
 fprintf('RUNNING LEVELS INDEPENDENTLY:\n');
