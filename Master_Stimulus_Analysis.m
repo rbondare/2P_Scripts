@@ -244,13 +244,13 @@ for stim_idx = 1:length(stimulus_types_to_analyze)
     
     % Verify extraction
     if ~isempty(base_responses) && ~isempty(drug_responses)
-        fprintf('  ✓ Extraction successful:\n');
-        fprintf('    Baseline responses: %d presentations, %d neurons per presentation\n', ...
+        fprintf('Extraction successful:\n');
+        fprintf('Baseline responses: %d presentations, %d neurons per presentation\n', ...
             length(base_responses), size(base_responses{1}, 1));
-        fprintf('    Drug responses: %d presentations, %d neurons per presentation\n', ...
+        fprintf('Drug responses: %d presentations, %d neurons per presentation\n', ...
             length(drug_responses), size(drug_responses{1}, 1));
     else
-        fprintf('  ✗ WARNING: Empty responses!\n');
+        fprintf('WARNING: Empty responses!\n');
     end
     
     % Store in master struct
@@ -274,7 +274,7 @@ end
 
 fprintf('\nMaster data matrices created successfully.\n');
 
-%% ====================== GENERATE HEATMAPS (4 LEVELS) ======================
+%% ====================== GENERATE HEATMAPS ======================
 
 fprintf('\n========== GENERATING PROGRESSIVE HEATMAPS ==========\n');
 
