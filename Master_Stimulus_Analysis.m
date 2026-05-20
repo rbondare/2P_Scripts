@@ -925,6 +925,179 @@ if matched_rois_available && n_matched > 0
     end
 end
 
+%% ====================== ALL STIMULI COMPARISON (MATCHED NEURONS ONLY) ======================
+
+if matched_rois_available && n_matched > 0
+    fprintf('\n========== GENERATING MULTI-STIMULUS COMPARISON (MATCHED NEURONS) ==========\n');
+    
+    % Create one large figure with all stimuli
+    fig_all_stim = figure('Position', [100 100 1800 800], 'NumberTitle', 'off', ...
+        'Name', 'AllStimuli_Matched_Comparison');
+    
+    n_stim = length(stim_fields);
+    x_pos = 0;  % Running x-position counter for all violins
+    all_y_limits = [];  % Collect all y-limits for unified scaling
+    stim_labels = {};
+    stim_x_positions = {};  % Store x-positions for each stimulus pair
+    
+    % PASS 1: Collect data and y-limits
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        if ~isfield(data, 'baseline_responses') || isempty(data.baseline_responses)
+            continue;
+        end
+        
+        % Extract matched neuron activity (same as before)
+        baseline_matched_all = [];
+        for i = 1:length(data.baseline_responses)
+            resp = data.baseline_responses{i};
+            matched_resp = resp(data.base_match_idx_local, :);
+            baseline_matched_all = [baseline_matched_all; matched_resp(:)];
+        end
+        
+        drug_matched_all = [];
+        for i = 1:length(data.drug_responses)
+            resp = data.drug_responses{i};
+            matched_resp = resp(data.drug_match_idx_local, :);
+            drug_matched_all = [drug_matched_all; matched_resp(:)];
+        end
+        
+        % Validate
+        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all));
+        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all));
+        
+        if length(baseline_matched_all) < 2 || length(drug_matched_all) < 2
+            continue;
+        end
+        
+        % Collect y-limits
+        all_y_limits = [all_y_limits; min(baseline_matched_all); max(baseline_matched_all); ...
+                        min(drug_matched_all); max(drug_matched_all)];
+        
+        stim_labels{end+1} = stim_type;
+        stim_x_positions{end+1} = [x_pos, x_pos+1];
+        x_pos = x_pos + 2.5;  % Space between stimulus pairs
+    end
+    
+    % Unified y-limits with 5% padding
+    y_min = min(all_y_limits);
+    y_max = max(all_y_limits);
+    y_range = y_max - y_min;
+    y_min = y_min - 0.05 * y_range;
+    y_max = y_max + 0.05 * y_range;
+    
+    % PASS 2: Plot all violins on single axes
+    hold on;
+    x_pos = 0;
+    stim_idx_plot = 1;
+    
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        if ~isfield(data, 'baseline_responses') || isempty(data.baseline_responses)
+            continue;
+        end
+        
+        % Extract matched neuron activity
+        baseline_matched_all = [];
+        for i = 1:length(data.baseline_responses)
+            resp = data.baseline_responses{i};
+            matched_resp = resp(data.base_match_idx_local, :);
+            baseline_matched_all = [baseline_matched_all; matched_resp(:)];
+        end
+        
+        drug_matched_all = [];
+        for i = 1:length(data.drug_responses)
+            resp = data.drug_responses{i};
+            matched_resp = resp(data.drug_match_idx_local, :);
+            drug_matched_all = [drug_matched_all; matched_resp(:)];
+        end
+        
+        % Validate
+        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all));
+        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all));
+        
+        if length(baseline_matched_all) < 2 || length(drug_matched_all) < 2
+            continue;
+        end
+        
+        % BASELINE VIOLIN at x_pos
+        if length(baseline_matched_all) >= 2
+            [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
+            f_bl = f_bl / max(f_bl) * 0.4;
+            
+            % Draw solid violin
+            x_violin_bl = [f_bl + x_pos, fliplr(-f_bl + x_pos)];
+            y_violin_bl = [xi_bl, fliplr(xi_bl)];
+            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            
+            % Median line
+            baseline_median = median(baseline_matched_all);
+            plot([x_pos - 0.4 x_pos + 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 2.5);
+            
+            % Scattered points
+            n_baseline = length(baseline_matched_all);
+            x_jitter_bl = x_pos + randn(n_baseline, 1) * 0.12;
+            x_jitter_bl = max(min(x_jitter_bl, x_pos + 0.4), x_pos - 0.4);
+            scatter(x_jitter_bl, baseline_matched_all, 25, [0.3 0.3 0.3], 'o', ...
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+        end
+        
+        % DRUG VIOLIN at x_pos+1
+        if length(drug_matched_all) >= 2
+            [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
+            f_dr = f_dr / max(f_dr) * 0.4;
+            
+            % Draw solid violin
+            x_violin_dr = [f_dr + x_pos + 1, fliplr(-f_dr + x_pos + 1)];
+            y_violin_dr = [xi_dr, fliplr(xi_dr)];
+            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'none');
+            
+            % Median line
+            drug_median = median(drug_matched_all);
+            plot([x_pos + 1 - 0.4 x_pos + 1 + 0.4], [drug_median drug_median], 'k-', 'LineWidth', 2.5);
+            
+            % Scattered points
+            n_drug = length(drug_matched_all);
+            x_jitter_dr = x_pos + 1 + randn(n_drug, 1) * 0.12;
+            x_jitter_dr = max(min(x_jitter_dr, x_pos + 1 + 0.4), x_pos + 1 - 0.4);
+            scatter(x_jitter_dr, drug_matched_all, 25, [0.3 0.3 0.3], 'o', ...
+                'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2, 'LineWidth', 0);
+        end
+        
+        x_pos = x_pos + 2.5;
+        stim_idx_plot = stim_idx_plot + 1;
+    end
+    
+    % Set axis properties
+    set(gca, 'YLim', [y_min y_max]);
+    ylabel('dF/F', 'FontSize', 14, 'FontWeight', 'bold');
+    xlabel('Stimulus Type', 'FontSize', 14, 'FontWeight', 'bold');
+    title(sprintf('All Stimuli Comparison - Baseline vs Drug (n=%d matched pairs)', n_matched), ...
+        'FontSize', 15, 'FontWeight', 'bold');
+    
+    % Create x-axis labels at stimulus pairs
+    x_ticks = [];
+    x_labels = {};
+    x_pos = 0.5;  % Center between baseline and drug
+    for s = 1:length(stim_labels)
+        x_ticks = [x_ticks, x_pos];
+        x_labels{s} = stim_labels{s};
+        x_pos = x_pos + 2.5;
+    end
+    set(gca, 'XTick', x_ticks, 'XTickLabel', x_labels, 'FontSize', 12);
+    
+    grid on; set(gca, 'LineWidth', 2, 'FontSize', 11);
+    hold off;
+    
+    fprintf('Generated multi-stimulus comparison figure with %d stimuli\n', length(stim_labels));
+end
+
 
 
 %% ====================== LOCAL FUNCTIONS ======================
