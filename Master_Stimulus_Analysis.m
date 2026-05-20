@@ -274,21 +274,21 @@ end
 
 fprintf('\nMaster data matrices created successfully.\n');
 
-%% ====================== GENERATE HEATMAPS ======================
+%% ====================== LEVEL 1: FULL dFF HEATMAPS (ALL NEURONS, ALL TIMEPOINTS) ======================
 
-fprintf('\n========== GENERATING PROGRESSIVE HEATMAPS ==========\n');
+fprintf('\n========== LEVEL 1: Full dFF Heatmaps (all neurons, all timepoints) ==========\n');
+
+% ===== Axis limits for Level 1 (adjust as needed) =====
+L1_caxis_lim = [0, 5];  % Color axis limits for raw dF/F
 
 stim_fields = fieldnames(master_data);
-
-% ========== LEVEL 1: FULL dFF HEATMAPS (ALL NEURONS) ==========
-fprintf('\n--- Level 1: Full dFF Heatmaps (all neurons) ---\n');
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
     data = master_data.(field_name);
     stim_type = data.stimulus_type;
     
-    fprintf('Generating full dFF heatmap for "%s"\n', stim_type);
+    fprintf('Level 1: Generating full dFF heatmap for "%s"\n', stim_type);
     
     % Average responses across presentations
     baseline_full = average_stimulus_presentations(data.baseline_responses);
@@ -298,85 +298,136 @@ for field_idx = 1:length(stim_fields)
     fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('Level1_FullDFF: %s', stim_type));
     
-    % BASELINE - ALL neurons
+    % BASELINE - ALL neurons, ALL timepoints
     subplot(1, 2, 1);
     imagesc(baseline_full);
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L1_caxis_lim);
     colorbar;
     xlabel('Time (frames)');
     ylabel('ROI');
-    title(sprintf('Baseline - %s (Full dFF)\nAll %d neurons', stim_type, size(baseline_full, 1)), ...
-        'FontWeight', 'bold');
+    title(sprintf('Baseline - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
+        stim_type, size(baseline_full, 1), size(baseline_full, 2)), 'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % DRUG - ALL neurons
+    % DRUG - ALL neurons, ALL timepoints
     subplot(1, 2, 2);
     imagesc(drug_full);
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L1_caxis_lim);
     c = colorbar;
     ylabel(c, 'dF/F');
     xlabel('Time (frames)');
     ylabel('ROI');
-    title(sprintf('Drug - %s (Full dFF)\nAll %d neurons', stim_type, size(drug_full, 1)), ...
-        'FontWeight', 'bold');
+    title(sprintf('Drug - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
+        stim_type, size(drug_full, 1), size(drug_full, 2)), 'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    sgtitle(sprintf('Level 1 - Full dFF: %s', stim_type), 'FontSize', 12, 'FontWeight', 'bold');
+    sgtitle(sprintf('LEVEL 1 - Full dFF (No filtering): %s', stim_type), ...
+        'FontSize', 12, 'FontWeight', 'bold');
     
     % Store full heatmaps
     data.full_baseline_heatmap = baseline_full;
     data.full_drug_heatmap = drug_full;
+    master_data.(field_name) = data;
+end
+
+%% ====================== LEVEL 2: SELECTED ROI HEATMAPS (RAW VALUES, NO SORTING) ======================
+
+fprintf('\n========== LEVEL 2: Selected ROI Heatmaps (raw values, unsorted) ==========\n');
+
+% ===== Parameters for Level 2 (adjust as needed) =====
+L2_n_select = min(500, size(baseline_full, 1));          % Number of ROIs to select
+L2_frame_start = 1;                                       % Frame window start
+L2_frame_end = size(baseline_full, 2);                   % Frame window end (use all by default)
+L2_caxis_lim = [0, 5];                                   % Color axis limits
+
+fprintf('Level 2 settings: %d ROIs, frames %d:%d\n', L2_n_select, L2_frame_start, L2_frame_end);
+
+for field_idx = 1:length(stim_fields)
+    field_name = stim_fields{field_idx};
+    data = master_data.(field_name);
+    stim_type = data.stimulus_type;
     
-    % ========== LEVEL 2: SELECTED ROI HEATMAPS (MAX ACTIVITY SORTED) ==========
-    % Select top N neurons by max activity in baseline
-    n_select = min(max_neurons_display, size(baseline_full, 1));
-    [~, sort_idx_baseline] = sort(max(baseline_full, [], 2), 'descend');
-    select_idx_baseline = sort_idx_baseline(1:n_select);
+    fprintf('Level 2: Generating selected ROI heatmap for "%s"\n', stim_type);
     
-    baseline_selected = baseline_full(select_idx_baseline, :);
-    drug_selected = drug_full(select_idx_baseline, :);  % Use SAME ROI indices for drug
+    baseline_full = data.full_baseline_heatmap;
+    drug_full = data.full_drug_heatmap;
+    
+    % Select first N ROIs (no sorting, just take first N)
+    n_select = min(L2_n_select, size(baseline_full, 1));
+    select_idx = 1:n_select;
+    
+    % Extract timeframe window
+    frame_start = max(1, L2_frame_start);
+    frame_end = min(size(baseline_full, 2), L2_frame_end);
+    
+    baseline_selected = baseline_full(select_idx, frame_start:frame_end);
+    drug_selected = drug_full(select_idx, frame_start:frame_end);
     
     % Create figure
-    fig2 = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+    fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('Level2_SelectedROI: %s', stim_type));
     
-    % BASELINE - Selected ROIs sorted by max activity
+    % BASELINE - Selected ROIs, raw values, NOT sorted
     subplot(1, 2, 1);
-    [~, sort_idx] = sort(max(baseline_selected, [], 2), 'descend');
-    imagesc(baseline_selected(sort_idx, :));
+    imagesc(baseline_selected);
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L2_caxis_lim);
     colorbar;
     xlabel('Time (frames)');
-    ylabel('ROI (sorted by max activity)');
-    title(sprintf('Baseline - %s (Selected, sorted)\n%d/%d neurons', stim_type, n_select, size(baseline_full, 1)), ...
-        'FontWeight', 'bold');
+    ylabel('ROI');
+    title(sprintf('Baseline - %s (Selected, raw)\n%d ROIs × %d timepoints (frames %d:%d)', ...
+        stim_type, n_select, size(baseline_selected, 2), frame_start, frame_end), 'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % DRUG - Same ROI indices, sorted by baseline activity
+    % DRUG - Same ROIs, raw values, NOT sorted
     subplot(1, 2, 2);
-    imagesc(drug_selected(sort_idx, :));
+    imagesc(drug_selected);
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L2_caxis_lim);
     c = colorbar;
     ylabel(c, 'dF/F');
     xlabel('Time (frames)');
-    ylabel('ROI (same order as baseline)');
-    title(sprintf('Drug - %s (Selected, same order)\n%d/%d neurons', stim_type, n_select, size(drug_full, 1)), ...
-        'FontWeight', 'bold');
+    ylabel('ROI');
+    title(sprintf('Drug - %s (Selected, raw)\n%d ROIs × %d timepoints (frames %d:%d)', ...
+        stim_type, n_select, size(drug_selected, 2), frame_start, frame_end), 'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    sgtitle(sprintf('Level 2 - Selected ROI (max activity sorted): %s', stim_type), ...
+    sgtitle(sprintf('LEVEL 2 - Selected ROI (raw, unsorted): %s', stim_type), ...
         'FontSize', 12, 'FontWeight', 'bold');
     
-    % ========== LEVEL 3: NORMALIZED HEATMAPS ==========
-    % Apply normalization: (dFF - min) / (max - min) * max
+    % Store for later use
+    data.selected_baseline_raw = baseline_selected;
+    data.selected_drug_raw = drug_selected;
+    data.selected_roi_idx = select_idx;
+    data.L2_frame_range = [frame_start, frame_end];
+    
+    master_data.(field_name) = data;
+end
+
+%% ====================== LEVEL 3: NORMALIZED HEATMAPS (SORTED BY MAX ACTIVITY) ======================
+
+fprintf('\n========== LEVEL 3: Normalized Heatmaps (sorted by max activity) ==========\n');
+
+% ===== Axis limits for Level 3 (adjust as needed) =====
+L3_caxis_lim = [0, 5];  % Color axis limits for normalized dF/F
+
+for field_idx = 1:length(stim_fields)
+    field_name = stim_fields{field_idx};
+    data = master_data.(field_name);
+    stim_type = data.stimulus_type;
+    
+    fprintf('Level 3: Generating normalized heatmap for "%s"\n', stim_type);
+    
+    baseline_selected = data.selected_baseline_raw;
+    drug_selected = data.selected_drug_raw;
+    
+    % Apply normalization: (dFF - min) / (max - min) * max per neuron (row-wise)
     baseline_norm = (baseline_selected - min(baseline_selected, [], 2)) ./ ...
         (max(baseline_selected, [], 2) - min(baseline_selected, [], 2)) .* ...
         max(baseline_selected, [], 2);
@@ -384,47 +435,48 @@ for field_idx = 1:length(stim_fields)
         (max(drug_selected, [], 2) - min(drug_selected, [], 2)) .* ...
         max(drug_selected, [], 2);
     
-    % Sort by max activity of normalized baseline
-    [~, sort_idx_norm] = sort(max(baseline_norm, [], 2), 'descend');
+    % Sort BOTH baseline and drug by their respective max activity
+    [~, sort_idx_baseline] = sort(max(baseline_norm, [], 2), 'descend');
+    [~, sort_idx_drug] = sort(max(drug_norm, [], 2), 'descend');
     
-    fig3 = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
+    fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('Level3_Normalized: %s', stim_type));
     
-    % BASELINE - Normalized, sorted
+    % BASELINE - Normalized, sorted by baseline max
     subplot(1, 2, 1);
-    imagesc(baseline_norm(sort_idx_norm, :));
+    imagesc(baseline_norm(sort_idx_baseline, :));
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L3_caxis_lim);
     colorbar;
     xlabel('Time (frames)');
-    ylabel('ROI (sorted by normalized max)');
-    title(sprintf('Baseline - %s (Normalized)\nFormula: (dFF-min)/(max-min)*max', stim_type), ...
+    ylabel('ROI (sorted by baseline max)');
+    title(sprintf('Baseline - %s (Normalized, sorted)\nFormula: (dFF-min)/(max-min)*max', stim_type), ...
         'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % DRUG - Normalized, same order as baseline
+    % DRUG - Normalized, sorted by drug max
     subplot(1, 2, 2);
-    imagesc(drug_norm(sort_idx_norm, :));
+    imagesc(drug_norm(sort_idx_drug, :));
     eval(['colormap(', colormap_type, ');']);
     set(gca, 'YDir', 'reverse');
-    caxis(caxis_lim);
+    caxis(L3_caxis_lim);
     c = colorbar;
     ylabel(c, 'dF/F (normalized)');
     xlabel('Time (frames)');
-    ylabel('ROI (same order as baseline)');
-    title(sprintf('Drug - %s (Normalized)', stim_type), 'FontWeight', 'bold');
+    ylabel('ROI (sorted by drug max)');
+    title(sprintf('Drug - %s (Normalized, sorted)\nEach sorted independently by max', stim_type), ...
+        'FontWeight', 'bold');
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    sgtitle(sprintf('Level 3 - Normalized (sorted): %s', stim_type), ...
+    sgtitle(sprintf('LEVEL 3 - Normalized (sorted independently): %s', stim_type), ...
         'FontSize', 12, 'FontWeight', 'bold');
     
     % Store for later use
-    data.selected_baseline_norm = baseline_norm;
-    data.selected_drug_norm = drug_norm;
-    data.selected_roi_idx = select_idx_baseline;
-    data.sort_idx_selected = sort_idx;  % Sort by raw max activity
-    data.sort_idx_norm = sort_idx_norm;  % Sort by normalized max activity
+    data.normalized_baseline = baseline_norm;
+    data.normalized_drug = drug_norm;
+    data.norm_sort_idx_baseline = sort_idx_baseline;
+    data.norm_sort_idx_drug = sort_idx_drug;
     
     master_data.(field_name) = data;
 end
@@ -517,7 +569,7 @@ if matched_rois_available && n_matched > 0
         annotation('textbox', [0.1 0.02 0.8 0.04], 'String', ...
             sprintf('Each row shows a matched neuron pair: baseline neuron (left) and its paired drug counterpart (right). Neurons ranked by baseline max activity.'), ...
             'HorizontalAlignment', 'center', 'FontSize', 9, 'FitBoxToText', 'on', ...
-            'EdgeColor', 'none', 'BackgroundColor', 'yellow', 'Alpha', 0.3);
+            'EdgeColor', 'black', 'BackgroundColor', [1 1 0.8]);
         
         % Store matched neuron data for further analysis
         data.matched_baseline_avg = baseline_matched_avg;
@@ -569,26 +621,33 @@ for field_idx = 1:length(stim_fields)
 end
 
 fprintf('\n========== ANALYSIS COMPLETE ==========\n');
-fprintf('\nFOUR-LEVEL HEATMAP HIERARCHY:\n\n');
+fprintf('\nFOUR-LEVEL HEATMAP HIERARCHY (INDEPENDENT SECTIONS):\n\n');
 
 fprintf('LEVEL 1 - Full dFF Heatmaps:\n');
 fprintf('  • All %d neurons in selected plane\n', n_rois_selected_plane);
+fprintf('  • All timepoints (averaged across presentations)\n');
 fprintf('  • Baseline and drug side-by-side (raw dF/F)\n');
-fprintf('  • Color scale: [%g, %g] dF/F\n', caxis_lim(1), caxis_lim(2));
-fprintf('  • Unordered (as they appear in the data)\n\n');
+fprintf('  • NO filtering, NO sorting\n');
+fprintf('  • Axis limits: L1_caxis_lim (adjust at top of Level 1 section)\n\n');
 
-fprintf('LEVEL 2 - Selected ROI Heatmaps (Sorted):\n');
-fprintf('  • Top %d neurons by baseline max activity\n', max_neurons_display);
+fprintf('LEVEL 2 - Selected ROI Heatmaps (Raw, Unsorted):\n');
+fprintf('  • First N neurons (default: %d) in order they appear\n', L2_n_select);
+fprintf('  • Custom timeframe window: frames %d:%d\n', L2_frame_start, L2_frame_end);
 fprintf('  • Baseline and drug side-by-side (raw dF/F)\n');
-fprintf('  • Neurons sorted by descending max activity in baseline\n');
-fprintf('  • Drug neurons in same order (maintaining ROI pairing)\n\n');
+fprintf('  • NO sorting applied\n');
+fprintf('  • Parameters to adjust (top of Level 2 section):\n');
+fprintf('    - L2_n_select: number of ROIs to display\n');
+fprintf('    - L2_frame_start, L2_frame_end: timeframe window\n');
+fprintf('    - L2_caxis_lim: color axis limits\n\n');
 
-fprintf('LEVEL 3 - Normalized Heatmaps (Sorted):\n');
-fprintf('  • Same top %d neurons as Level 2\n', max_neurons_display);
+fprintf('LEVEL 3 - Normalized Heatmaps (Sorted by Max Activity):\n');
+fprintf('  • Same N neurons as Level 2\n');
+fprintf('  • Same timeframe window as Level 2\n');
 fprintf('  • Normalization formula: (dFF - min) / (max - min) * max\n');
-fprintf('  • Applied per neuron (row-wise normalization)\n');
-fprintf('  • Neurons sorted by descending max normalized activity\n');
-fprintf('  • Emphasizes timing patterns regardless of baseline activity level\n\n');
+fprintf('  • Baseline sorted by descending max (normalized)\n');
+fprintf('  • Drug sorted independently by descending max (normalized)\n');
+fprintf('  • Emphasizes temporal dynamics regardless of baseline level\n');
+fprintf('  • Axis limits: L3_caxis_lim (adjust at top of Level 3 section)\n\n');
 
 if matched_rois_available && n_matched > 0
     fprintf('LEVEL 4 - Matched ROI Heatmaps:\n');
@@ -602,13 +661,21 @@ else
     fprintf('  • (Not available - no matched ROIs in plane %d)\n\n', selected_plane);
 end
 
-fprintf('ACCESSING DATA FROM master_data:\n');
-fprintf('  master_data.STIMULUS_NAME.full_baseline_heatmap\n');
-fprintf('  master_data.STIMULUS_NAME.full_drug_heatmap\n');
-fprintf('  master_data.STIMULUS_NAME.selected_baseline_norm\n');
-fprintf('  master_data.STIMULUS_NAME.selected_drug_norm\n');
-fprintf('  master_data.STIMULUS_NAME.matched_baseline_avg\n');
-fprintf('  master_data.STIMULUS_NAME.matched_drug_avg\n\n');
+fprintf('RUNNING LEVELS INDEPENDENTLY:\n');
+fprintf('  • Each level (%%1-%%4) is a separate section\n');
+fprintf('  • Run individual sections by highlighting and pressing Ctrl+Enter\n');
+fprintf('  • Adjust parameters at the TOP of each section before running\n');
+fprintf('  • Level 1, 2, 3 require Level 1 and 2 data to be stored in master_data\n\n');
+
+fprintf('DATA ACCESS FROM master_data:\n');
+fprintf('  master_data.STIMULUS_NAME.full_baseline_heatmap     (Level 1)\n');
+fprintf('  master_data.STIMULUS_NAME.full_drug_heatmap         (Level 1)\n');
+fprintf('  master_data.STIMULUS_NAME.selected_baseline_raw     (Level 2)\n');
+fprintf('  master_data.STIMULUS_NAME.selected_drug_raw         (Level 2)\n');
+fprintf('  master_data.STIMULUS_NAME.normalized_baseline       (Level 3)\n');
+fprintf('  master_data.STIMULUS_NAME.normalized_drug           (Level 3)\n');
+fprintf('  master_data.STIMULUS_NAME.matched_baseline_avg      (Level 4)\n');
+fprintf('  master_data.STIMULUS_NAME.matched_drug_avg          (Level 4)\n\n');
 
 fprintf('TIMING EXTRACTION (verified against axon_analysis_V1):\n');
 fprintf('  ✓ Start time: TimeStimulusFrame(1)\n');
