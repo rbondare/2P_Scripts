@@ -309,10 +309,10 @@ for field_idx = 1:length(stim_fields)
     set(gca, 'YDir', 'reverse');
     caxis(L1_caxis_lim);
     colorbar;
-    xlabel('Time (frames)');
-    ylabel('ROI');
+    xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
+    ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
     title(sprintf('Baseline - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
-        stim_type, size(baseline_full, 1), size(baseline_full, 2)), 'FontWeight', 'bold');
+        stim_type, size(baseline_full, 1), size(baseline_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
     % DRUG - ALL neurons, ALL timepoints
@@ -322,11 +322,11 @@ for field_idx = 1:length(stim_fields)
     set(gca, 'YDir', 'reverse');
     caxis(L1_caxis_lim);
     c = colorbar;
-    ylabel(c, 'dF/F');
-    xlabel('Time (frames)');
-    ylabel('ROI');
+    ylabel(c, 'dF/F', 'FontSize', 10);
+    xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
+    ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
     title(sprintf('Drug - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
-        stim_type, size(drug_full, 1), size(drug_full, 2)), 'FontWeight', 'bold');
+        stim_type, size(drug_full, 1), size(drug_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
     sgtitle(sprintf('LEVEL 1 - Full dFF (No filtering): %s', stim_type), ...
@@ -382,10 +382,10 @@ for field_idx = 1:length(stim_fields)
     set(gca, 'YDir', 'reverse');
     caxis(L2_caxis_lim);
     colorbar;
-    xlabel('Time (frames)');
-    ylabel('ROI');
+    xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
+    ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
     title(sprintf('Baseline - %s (Selected, raw)\n%d ROIs × %d timepoints (frames %d:%d)', ...
-        stim_type, n_select, size(baseline_selected, 2), frame_start, frame_end), 'FontWeight', 'bold');
+        stim_type, n_select, size(baseline_selected, 2), frame_start, frame_end), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
     % DRUG - Same ROIs, raw values, NOT sorted
@@ -395,11 +395,11 @@ for field_idx = 1:length(stim_fields)
     set(gca, 'YDir', 'reverse');
     caxis(L2_caxis_lim);
     c = colorbar;
-    ylabel(c, 'dF/F');
-    xlabel('Time (frames)');
-    ylabel('ROI');
+    ylabel(c, 'dF/F', 'FontSize', 10);
+    xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
+    ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
     title(sprintf('Drug - %s (Selected, raw)\n%d ROIs × %d timepoints (frames %d:%d)', ...
-        stim_type, n_select, size(drug_selected, 2), frame_start, frame_end), 'FontWeight', 'bold');
+        stim_type, n_select, size(drug_selected, 2), frame_start, frame_end), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
     sgtitle(sprintf('LEVEL 2 - Selected ROI (raw, unsorted): %s', stim_type), ...
@@ -702,48 +702,31 @@ for field_idx = 1:length(stim_fields)
     % Color the box plot lines
     lines = findobj(bp, 'Type', 'line');
     set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
+    xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
     ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
     title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % ===== Violin Plot =====
+    % ===== Swarmchart (Distribution with Individual Points) =====
     subplot(2, 2, 3);
-    % Prepare data for violinplot
-    data_all = [baseline_all; drug_all];
-    group_all = [ones(size(baseline_all)); 2*ones(size(drug_all))];
-    % Create violin plot with mean and median overlaid
-    vp = violinplot(data_all, group_all, 'ShowMean', true, 'ShowMedian', true);
-    % Customize appearance - set colors and properties
-    try
-        set(vp(1).ViolinPlot, 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-        set(vp(2).ViolinPlot, 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-    catch
-        % If ViolinPlot property doesn't exist, try alternative properties
-        set(vp(1), 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5);
-        set(vp(2), 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5);
-    end
-    % Set mean/median colors if available
-    for i = 1:length(vp)
-        if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
-            if i == 1
-                set(vp(i).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
-            else
-                set(vp(i).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
-            end
-        end
-        if isfield(vp(i), 'MedianPlot') && ~isempty(vp(i).MedianPlot)
-            if i == 1
-                set(vp(i).MedianPlot, 'Color', 'red', 'LineWidth', 2);
-            else
-                set(vp(i).MedianPlot, 'Color', 'blue', 'LineWidth', 2);
-            end
-        end
-    end
-    set(gca, 'XTickLabel', {'Baseline', 'Drug'});
+    hold on;
+    % Baseline: x=1, scatter all points
+    swarmchart(repmat(1, length(baseline_all), 1), baseline_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
+    % Drug: x=2, scatter all points
+    swarmchart(repmat(2, length(drug_all), 1), drug_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
+    % Add mean lines
+    line([0.85 1.15], [baseline_mean baseline_mean], 'Color', 'darkred', 'LineWidth', 3);
+    line([1.85 2.15], [drug_mean drug_mean], 'Color', 'darkblue', 'LineWidth', 3);
+    % Add median lines (dashed)
+    line([0.85 1.15], [baseline_median baseline_median], 'Color', 'red', 'LineStyle', '--', 'LineWidth', 2);
+    line([1.85 2.15], [drug_median drug_median], 'Color', 'blue', 'LineStyle', '--', 'LineWidth', 2);
+    set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
     xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
     ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-    title('Violin Plot (Distribution Density)', 'FontSize', 11, 'FontWeight', 'bold');
+    title('Swarmchart (Individual Neurons)', 'FontSize', 11, 'FontWeight', 'bold');
+    xlim([0.5 2.5]);
     grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+    hold off;
     
     % ===== Statistics Summary Table =====
     subplot(2, 2, 4);
@@ -872,48 +855,31 @@ if matched_rois_available && n_matched > 0
         % Color the box plot lines
         lines = findobj(bp, 'Type', 'line');
         set(lines, 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
+        xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
         ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
         title('Box Plot (Median with IQR)', 'FontSize', 11, 'FontWeight', 'bold');
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         
-        % ===== Violin Plot =====
+        % ===== Swarmchart (Distribution with Individual Points) =====
         subplot(2, 2, 3);
-        % Prepare data for violinplot
-        data_matched = [baseline_matched_all; drug_matched_all];
-        group_matched = [ones(size(baseline_matched_all)); 2*ones(size(drug_matched_all))];
-        % Create violin plot with mean and median overlaid
-        vp = violinplot(data_matched, group_matched, 'ShowMean', true, 'ShowMedian', true);
-        % Customize appearance - set colors and properties
-        try
-            set(vp(1).ViolinPlot, 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-            set(vp(2).ViolinPlot, 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5, 'FaceAlpha', 0.5);
-        catch
-            % If ViolinPlot property doesn't exist, try alternative properties
-            set(vp(1), 'FaceColor', [1 0.6 0.6], 'EdgeColor', [1 0 0], 'LineWidth', 1.5);
-            set(vp(2), 'FaceColor', [0.6 0.6 1], 'EdgeColor', [0 0 1], 'LineWidth', 1.5);
-        end
-        % Set mean/median colors if available
-        for i = 1:length(vp)
-            if isfield(vp(i), 'MeanPlot') && ~isempty(vp(i).MeanPlot)
-                if i == 1
-                    set(vp(i).MeanPlot, 'Color', 'darkred', 'LineWidth', 2.5);
-                else
-                    set(vp(i).MeanPlot, 'Color', 'darkblue', 'LineWidth', 2.5);
-                end
-            end
-            if isfield(vp(i), 'MedianPlot') && ~isempty(vp(i).MedianPlot)
-                if i == 1
-                    set(vp(i).MedianPlot, 'Color', 'red', 'LineWidth', 2);
-                else
-                    set(vp(i).MedianPlot, 'Color', 'blue', 'LineWidth', 2);
-                end
-            end
-        end
-        set(gca, 'XTickLabel', {'Baseline', 'Drug'});
+        hold on;
+        % Baseline: x=1, scatter all points
+        swarmchart(repmat(1, length(baseline_matched_all), 1), baseline_matched_all, 20, 'r', 'filled', 'MarkerFaceAlpha', 0.35);
+        % Drug: x=2, scatter all points
+        swarmchart(repmat(2, length(drug_matched_all), 1), drug_matched_all, 20, 'b', 'filled', 'MarkerFaceAlpha', 0.35);
+        % Add mean lines
+        line([0.85 1.15], [baseline_mean baseline_mean], 'Color', 'darkred', 'LineWidth', 3);
+        line([1.85 2.15], [drug_mean drug_mean], 'Color', 'darkblue', 'LineWidth', 3);
+        % Add median lines (dashed)
+        line([0.85 1.15], [baseline_median baseline_median], 'Color', 'red', 'LineStyle', '--', 'LineWidth', 2);
+        line([1.85 2.15], [drug_median drug_median], 'Color', 'blue', 'LineStyle', '--', 'LineWidth', 2);
+        set(gca, 'XTick', [1 2], 'XTickLabel', {'Baseline', 'Drug'});
         xlabel('Condition', 'FontSize', 11, 'FontWeight', 'bold');
         ylabel('dF/F', 'FontSize', 11, 'FontWeight', 'bold');
-        title('Violin Plot (Distribution Density)', 'FontSize', 11, 'FontWeight', 'bold');
+        title('Swarmchart (Individual Neuron Pairs)', 'FontSize', 11, 'FontWeight', 'bold');
+        xlim([0.5 2.5]);
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        hold off;
         
         % ===== Statistics Summary Table =====
         subplot(2, 2, 4);
@@ -1077,7 +1043,6 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
         dff = dff(roi_indices, :);
     end
     
-    n_neurons = size(dff, 1);
     n_frames_max = size(dff, 2);
     
     % Extract time vector from TimeCa (row 1 contains time values)
@@ -1248,9 +1213,9 @@ function response_3d = cell_responses_to_3d(response_cell)
     end
 end
 
-function analyze_grating_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
-    data, base_match_idx, drug_match_idx, matched_available)
+function analyze_grating_stimulus(~, ~, ~, ~, ~, ~, ~, ~)
     % Analyze grating stimulus: find preferred directions, average responses
+    % [SCAFFOLD - Parameters available for future implementation]
     
     fprintf('    - Extracting direction preferences\n');
     
@@ -1279,9 +1244,10 @@ function analyze_grating_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
     fprintf('    - Direction-tuning analysis: available but requires stimulus onset detection\n');
 end
 
-function analyze_moving_bar_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
-    data, base_match_idx, drug_match_idx, matched_available)
+function analyze_moving_bar_stimulus(~, ~, ~, ~, ...
+    ~, ~, ~, ~)
     % Analyze moving bar stimulus: extract stimulus-triggered responses at onset
+    % [SCAFFOLD - Parameters available for future implementation]
     
     fprintf('    - Extracting moving bar onset responses\n');
     
@@ -1305,22 +1271,23 @@ function analyze_moving_bar_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, .
         length(baseline_onsets), length(drug_onsets));
 end
 
-function analyze_full_field_flash_stimulus(B_Stimuli, D_Stimuli, base_dff, drug_dff, ...
-    data, base_match_idx, drug_match_idx, matched_available)
+function analyze_full_field_flash_stimulus(~, ~, ~, ~, ...
+    ~, ~, ~, ~)
     % Analyze full-field flash: plot individual trial responses + averages
+    % [SCAFFOLD - Parameters available for future implementation]
     
     fprintf('    - Analyzing full-field flash responses\n');
     
     % Create stimulus-triggered average plot
-    fig = figure('Position', [100 100 1200 700], 'NumberTitle', 'off', ...
-        'Name', 'Full-Field Flash Analysis');
+    % figure('Position', [100 100 1200 700], 'NumberTitle', 'off', ...
+    %     'Name', 'Full-Field Flash Analysis');
     
     % Subplot 1: Baseline individual trials + mean
     subplot(2, 2, 1);
     baseline_responses = data.baseline_responses;
     colors_base = repmat([1 0.4 0.4], length(baseline_responses), 1);
     
-    max_len = max(cellfun(@(x) size(x, 2), baseline_responses));
+    % max_len = max(cellfun(@(x) size(x, 2), baseline_responses));
     
     for trial = 1:min(length(baseline_responses), 5)  % Show up to 5 trials
         resp = baseline_responses{trial};
