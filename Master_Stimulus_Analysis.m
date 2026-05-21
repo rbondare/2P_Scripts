@@ -651,7 +651,7 @@ end
 
 fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (ALL NEURONS) ==========\n');
 
-hist_bins = 50;  % Number of bins
+hist_bins = 70;  % Number of bins
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
@@ -1075,7 +1075,7 @@ if matched_rois_available && n_matched > 0
     end
     
     % Set axis properties
-    set(gca, 'YLim', [y_min y_max]);
+    set(gca, 'YLim', [-4 y_max]);
     ylabel('dF/F', 'FontSize', 14, 'FontWeight', 'bold');
     xlabel('Stimulus Type', 'FontSize', 14, 'FontWeight', 'bold');
     title(sprintf('All Stimuli Comparison - Baseline vs Drug (n=%d matched pairs)', n_matched), ...
