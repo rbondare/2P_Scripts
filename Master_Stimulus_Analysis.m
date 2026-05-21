@@ -1215,7 +1215,6 @@ if matched_rois_available && n_matched > 0
             p_wilcoxon, significance_marker(p_wilcoxon));
         fprintf('\n');
     end
-    fprintf('========== END PAIRED STATISTICS ==========\n\n');
     
     %% ==================== MODULATION PLOTS (Linear Regression) ====================
     fprintf('========== GENERATING BASELINE vs DRUG MODULATION PLOTS ==========\n');
@@ -1291,7 +1290,7 @@ if matched_rois_available && n_matched > 0
         % Identity line (no change: drug = baseline)
         y_min = min([baseline_per_neuron; drug_per_neuron]) - 0.5;
         y_max = max([baseline_per_neuron; drug_per_neuron]) + 0.5;
-        plot([y_min y_max], [y_min y_max], 'k--', 'LineWidth', 1.5, 'Alpha', 0.5, ...
+        plot([y_min y_max], [y_min y_max], 'k--', 'LineWidth', 1.5, ...
             'DisplayName', 'No change (y=x)');
         
         % Labels and formatting
@@ -1299,24 +1298,7 @@ if matched_rois_available && n_matched > 0
         ylabel('Drug dF/F', 'FontSize', 12, 'FontWeight', 'bold');
         title(sprintf('%s (n=%d neurons)', stim_type, length(baseline_per_neuron)), ...
             'FontSize', 13, 'FontWeight', 'bold');
-        
-        % Add text annotations
-        if slope > 1
-            modulation_text = sprintf('Upmodulation (slope = %.3f)', slope);
-            text_color = [0 0.6 0];
-        elseif slope < 1
-            modulation_text = sprintf('Downmodulation (slope = %.3f)', slope);
-            text_color = [0.8 0 0];
-        else
-            modulation_text = sprintf('No modulation (slope = %.3f)', slope);
-            text_color = [0.5 0.5 0.5];
-        end
-        
-        text(0.05, 0.95, modulation_text, 'Units', 'normalized', ...
-            'VerticalAlignment', 'top', 'FontSize', 11, 'FontWeight', 'bold', ...
-            'Color', text_color, 'BackgroundColor', 'white', 'EdgeColor', 'black');
-        
-        legend('Location', 'best', 'FontSize', 10);
+           
         grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
         axis equal; 
         xlim([y_min y_max]); 
