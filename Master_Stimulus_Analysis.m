@@ -306,15 +306,34 @@ for field_idx = 1:length(stim_fields)
     
     fprintf('Level 1: Generating full dFF heatmap for "%s"\n', stim_type);
     
-    % Average responses across presentations
-    baseline_full = average_stimulus_presentations(data.baseline_responses);
-    drug_full = average_stimulus_presentations(data.drug_responses);
+    % Extract first complete presentation (no averaging, no concatenation)
+    % This shows the full response to ONE stimulus event
+    if ~isempty(data.baseline_responses)
+        baseline_full = data.baseline_responses{1};  % First presentation
+        n_baseline_pres = length(data.baseline_responses);
+    else
+        baseline_full = [];
+        n_baseline_pres = 0;
+    end
+    
+    if ~isempty(data.drug_responses)
+        drug_full = data.drug_responses{1};  % First presentation
+        n_drug_pres = length(data.drug_responses);
+    else
+        drug_full = [];
+        n_drug_pres = 0;
+    end
+    
+    if isempty(baseline_full) || isempty(drug_full)
+        fprintf('  Skipping - insufficient data\n');
+        continue;
+    end
     
     % Create figure: baseline and drug side-by-side
     fig = figure('Position', [100 100 1400 700], 'NumberTitle', 'off', ...
         'Name', sprintf('Level1_FullDFF: %s', stim_type));
     
-    % BASELINE - ALL neurons, ALL timepoints
+    % BASELINE - First presentation, ALL neurons, ALL timepoints
     subplot(1, 2, 1);
     imagesc(baseline_full);
     eval(['colormap(', colormap_type, ');']);
@@ -323,11 +342,11 @@ for field_idx = 1:length(stim_fields)
     colorbar;
     xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
     ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
-    title(sprintf('Baseline - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
-        stim_type, size(baseline_full, 1), size(baseline_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
+    title(sprintf('Baseline - %s (Presentation 1 of %d)\n%d neurons × %d frames', ...
+        stim_type, n_baseline_pres, size(baseline_full, 1), size(baseline_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    % DRUG - ALL neurons, ALL timepoints
+    % DRUG - First presentation, ALL neurons, ALL timepoints
     subplot(1, 2, 2);
     imagesc(drug_full);
     eval(['colormap(', colormap_type, ');']);
@@ -337,11 +356,11 @@ for field_idx = 1:length(stim_fields)
     ylabel(c, 'dF/F', 'FontSize', 10);
     xlabel('Time (frames)', 'FontSize', 10, 'FontWeight', 'bold');
     ylabel('ROI', 'FontSize', 10, 'FontWeight', 'bold');
-    title(sprintf('Drug - %s (Full dFF)\nAll %d neurons × %d timepoints', ...
-        stim_type, size(drug_full, 1), size(drug_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
+    title(sprintf('Drug - %s (Presentation 1 of %d)\n%d neurons × %d frames', ...
+        stim_type, n_drug_pres, size(drug_full, 1), size(drug_full, 2)), 'FontWeight', 'bold', 'FontSize', 11);
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
-    sgtitle(sprintf('LEVEL 1 - Full dFF (No filtering): %s', stim_type), ...
+    sgtitle(sprintf('LEVEL 1 - Single Stimulus Presentation: %s', stim_type), ...
         'FontSize', 12, 'FontWeight', 'bold');
     
     % Store full heatmaps
@@ -353,14 +372,18 @@ end
 %% ====================== LEVEL 2: SELECTED ROI HEATMAPS (RAW VALUES, NO SORTING) ======================
 
 fprintf('\n========== LEVEL 2: Selected ROI Heatmaps (raw values, unsorted) ==========\n');
+fprintf('Zoom in on specific timeframes of the stimulus response for detailed inspection\n\n');
 
-% ===== Parameters for Level 2 (adjust as needed) =====
+% ===== Parameters for Level 2 (ADJUST THESE TO ZOOM INTO SPECIFIC TIMEFRAMES) =====
 L2_n_select = min(1000, size(baseline_full, 1));          % Number of ROIs to select
-L2_frame_start = 1;                                       % Frame window start
-L2_frame_end = size(baseline_full, 2);                   % Frame window end (use all by default)
-L2_caxis_lim = [0, 5];                                   % Color axis limits
+L2_frame_start = 1;                                       % Frame window START - adjust to zoom into response
+L2_frame_end = size(baseline_full, 2);                    % Frame window END - adjust to zoom into response
+L2_caxis_lim = [0, 5];                                    % Color axis limits
 
-fprintf('Level 2 settings: %d ROIs, frames %d:%d\n', L2_n_select, L2_frame_start, L2_frame_end);
+fprintf('Level 2 settings:\n');
+fprintf('  ROIs: %d neurons\n', L2_n_select);
+fprintf('  Frames: %d:%d (total %d frames available)\n', L2_frame_start, L2_frame_end, size(baseline_full, 2));
+fprintf('  To zoom into specific response, adjust L2_frame_start and L2_frame_end above\n\n');
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
@@ -534,7 +557,7 @@ if matched_rois_available && n_matched > 0
         % Extract matched ROI responses using LOCAL indices
         % base_match_idx_local and drug_match_idx_local are row indices in base_3d/drug_3d
         if any(base_match_idx_local > size(baseline_3d, 1)) || any(drug_match_idx_local > size(drug_3d, 1))
-            fprintf('  ✗ ERROR: Match indices exceed data dimensions!\n');
+            fprintf('ERROR: Match indices exceed data dimensions!\n');
             continue;
         end
         
@@ -1543,7 +1566,7 @@ function response_3d = cell_responses_to_3d(response_cell)
     end
 end
 
-function analyze_grating_stimulus(~, ~, ~, ~, ~, ~, ~, ~)
+function analyze_grating_stimulus(B_Stimuli, ~, ~, ~, ~, ~, ~, ~)
     % Analyze grating stimulus: find preferred directions, average responses
     % [SCAFFOLD - Parameters available for future implementation]
     
