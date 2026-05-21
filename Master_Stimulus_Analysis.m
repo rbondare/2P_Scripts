@@ -728,18 +728,25 @@ for field_idx = 1:length(stim_fields)
     
     hold on;
     
-    % BASELINE VIOLIN (x=0) - Solid filled with scattered points
+    % BASELINE VIOLIN (x=0) - Solid filled with prominent outline
     if length(baseline_all) >= 2
         [f_bl, xi_bl] = ksdensity(baseline_all, 'NumPoints', 150);
         f_bl = f_bl / max(f_bl) * 0.4;  % Violin half-width (0.8 total)
         
-        % Draw solid violin fill with light outline
+        % Draw solid violin fill with DARK, THICK outline for clarity
         x_violin_bl = [f_bl, fliplr(-f_bl)];
         y_violin_bl = [xi_bl, fliplr(xi_bl)];
-        patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
+        patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 2.5);
         
-        % Add thick median line
-        plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);
+        % Calculate mean and median
+        baseline_median = median(baseline_all);
+        baseline_mean = mean(baseline_all);
+        
+        % Add median line (thicker, darker)
+        plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3, 'DisplayName', 'Median');
+        
+        % Add mean line (thinner, different color for distinction)
+        plot([-0.4 0.4], [baseline_mean baseline_mean], 'r--', 'LineWidth', 1.5, 'DisplayName', 'Mean');
         
         % Add scattered points across violin
         n_baseline = length(baseline_all);
@@ -750,19 +757,25 @@ for field_idx = 1:length(stim_fields)
             'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
     end
     
-    % DRUG VIOLIN (x=1) - Solid filled with scattered points
+    % DRUG VIOLIN (x=1) - Solid filled with prominent outline
     if length(drug_all) >= 2
         [f_dr, xi_dr] = ksdensity(drug_all, 'NumPoints', 150);
         f_dr = f_dr / max(f_dr) * 0.4;  % Violin half-width
         
-        % Draw solid violin fill with light outline
+        % Draw solid violin fill with DARK, THICK outline for clarity
         x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
         y_violin_dr = [xi_dr, fliplr(xi_dr)];
-        patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
+        patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 2.5);
         
-        % Add thick median line
+        % Calculate mean and median
         drug_median = median(drug_all);
-        plot([1 - 0.4 1 + 0.4], [drug_median drug_median], 'k-', 'LineWidth', 3);
+        drug_mean = mean(drug_all);
+        
+        % Add median line (thicker, darker)
+        plot([1 - 0.4 1 + 0.4], [drug_median drug_median], 'k-', 'LineWidth', 3, 'DisplayName', 'Median');
+        
+        % Add mean line (thinner, different color for distinction)
+        plot([1 - 0.4 1 + 0.4], [drug_mean drug_mean], 'r--', 'LineWidth', 1.5, 'DisplayName', 'Mean');
         
         % Add scattered points across violin
         n_drug = length(drug_all);
@@ -772,6 +785,9 @@ for field_idx = 1:length(stim_fields)
         scatter(x_jitter_dr, drug_all, 30, [0.3 0.3 0.3], 'o', ...
             'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
     end
+    
+    % Add legend for mean/median lines
+    legend('Median', 'Mean', 'Location', 'best', 'FontSize', 11);
     
     set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
     xlabel('Condition', 'FontSize', 13, 'FontWeight', 'bold');
@@ -869,18 +885,25 @@ if matched_rois_available && n_matched > 0
         
         hold on;
         
-        % BASELINE VIOLIN (x=0) - Solid filled with scattered points
+        % BASELINE VIOLIN (x=0) - Solid filled with prominent outline
         if length(baseline_matched_all) >= 2
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
             f_bl = f_bl / max(f_bl) * 0.4;  % Violin half-width (0.8 total)
             
-            % Draw solid violin fill with light outline
+            % Draw solid violin fill with DARK, THICK outline for clarity
             x_violin_bl = [f_bl, fliplr(-f_bl)];
             y_violin_bl = [xi_bl, fliplr(xi_bl)];
-            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
+            patch(x_violin_bl, y_violin_bl, [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 2.5);
             
-            % Add thick median line
-            plot([-0.4 0.4], [baseline_median baseline_median], 'k-', 'LineWidth', 3);
+            % Calculate mean and median
+            baseline_median_val = median(baseline_matched_all);
+            baseline_mean_val = mean(baseline_matched_all);
+            
+            % Add median line (thicker, darker)
+            plot([-0.4 0.4], [baseline_median_val baseline_median_val], 'k-', 'LineWidth', 3, 'DisplayName', 'Median');
+            
+            % Add mean line (thinner, different color for distinction)
+            plot([-0.4 0.4], [baseline_mean_val baseline_mean_val], 'r--', 'LineWidth', 1.5, 'DisplayName', 'Mean');
             
             % Add scattered points across violin
             n_baseline = length(baseline_matched_all);
@@ -891,19 +914,25 @@ if matched_rois_available && n_matched > 0
                 'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
         
-        % DRUG VIOLIN (x=1) - Solid filled with scattered points
+        % DRUG VIOLIN (x=1) - Solid filled with prominent outline
         if length(drug_matched_all) >= 2
             [f_dr, xi_dr] = ksdensity(drug_matched_all, 'NumPoints', 150);
             f_dr = f_dr / max(f_dr) * 0.4;  % Violin half-width
             
-            % Draw solid violin fill with light outline
+            % Draw solid violin fill with DARK, THICK outline for clarity
             x_violin_dr = [f_dr + 1, fliplr(-f_dr + 1)];
             y_violin_dr = [xi_dr, fliplr(xi_dr)];
-            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', [0.4 0.4 0.4], 'LineWidth', 1);
+            patch(x_violin_dr, y_violin_dr, [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 2.5);
             
-            % Add thick median line
+            % Calculate mean and median
             drug_median_val = median(drug_matched_all);
-            plot([1 - 0.4 1 + 0.4], [drug_median_val drug_median_val], 'k-', 'LineWidth', 3);
+            drug_mean_val = mean(drug_matched_all);
+            
+            % Add median line (thicker, darker)
+            plot([1 - 0.4 1 + 0.4], [drug_median_val drug_median_val], 'k-', 'LineWidth', 3, 'DisplayName', 'Median');
+            
+            % Add mean line (thinner, different color for distinction)
+            plot([1 - 0.4 1 + 0.4], [drug_mean_val drug_mean_val], 'r--', 'LineWidth', 1.5, 'DisplayName', 'Mean');
             
             % Add scattered points across violin
             n_drug = length(drug_matched_all);
@@ -913,6 +942,9 @@ if matched_rois_available && n_matched > 0
             scatter(x_jitter_dr, drug_matched_all, 30, [0.3 0.3 0.3], 'o', ...
                 'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
         end
+        
+        % Add legend for mean/median lines
+        legend('Median', 'Mean', 'Location', 'best', 'FontSize', 11);
         
         set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'FontSize', 13);
         xlabel('Condition', 'FontSize', 13, 'FontWeight', 'bold');
@@ -1096,6 +1128,94 @@ if matched_rois_available && n_matched > 0
     hold off;
     
     fprintf('Generated multi-stimulus comparison figure with %d stimuli\n', length(stim_labels));
+    
+    %% ==================== PAIRED STATISTICAL TESTS ====================
+    fprintf('\n========== PAIRED STATISTICS (Baseline vs Drug - Matched ROIs) ==========\n');
+    fprintf('Comparing same neurons across two conditions per stimulus\n\n');
+    
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        if ~isfield(data, 'baseline_responses') || isempty(data.baseline_responses)
+            continue;
+        end
+        
+        % Extract baseline paired data (per neuron)
+        baseline_per_neuron = [];
+        for i = 1:length(data.baseline_responses)
+            resp = data.baseline_responses{i};
+            matched_resp = resp(data.base_match_idx_local, :);
+            baseline_per_neuron = [baseline_per_neuron; mean(matched_resp, 2)];
+        end
+        
+        % Extract drug paired data (per neuron)
+        drug_per_neuron = [];
+        for i = 1:length(data.drug_responses)
+            resp = data.drug_responses{i};
+            matched_resp = resp(data.drug_match_idx_local, :);
+            drug_per_neuron = [drug_per_neuron; mean(matched_resp, 2)];
+        end
+        
+        % Remove any NaN/Inf
+        valid_idx = ~(isnan(baseline_per_neuron) | isinf(baseline_per_neuron) | ...
+                      isnan(drug_per_neuron) | isinf(drug_per_neuron));
+        baseline_per_neuron = baseline_per_neuron(valid_idx);
+        drug_per_neuron = drug_per_neuron(valid_idx);
+        
+        if length(baseline_per_neuron) < 2
+            continue;
+        end
+        
+        % Calculate descriptive statistics
+        baseline_mean = mean(baseline_per_neuron);
+        baseline_median = median(baseline_per_neuron);
+        baseline_std = std(baseline_per_neuron);
+        baseline_sem = baseline_std / sqrt(length(baseline_per_neuron));
+        
+        drug_mean = mean(drug_per_neuron);
+        drug_median = median(drug_per_neuron);
+        drug_std = std(drug_per_neuron);
+        drug_sem = drug_std / sqrt(length(drug_per_neuron));
+        
+        % Calculate percent changes
+        pct_change_mean = ((drug_mean - baseline_mean) / abs(baseline_mean)) * 100;
+        pct_change_median = ((drug_median - baseline_median) / abs(baseline_median)) * 100;
+        
+        % Paired t-test (assumes normality)
+        [h_ttest, p_ttest, ci_ttest, stats_ttest] = ttest(baseline_per_neuron, drug_per_neuron);
+        
+        % Wilcoxon signed-rank test (non-parametric, more robust)
+        [p_wilcoxon, h_wilcoxon, stats_wilcoxon] = signrank(baseline_per_neuron, drug_per_neuron);
+        
+        % Effect size: Cohen's d for paired samples
+        diff = baseline_per_neuron - drug_per_neuron;
+        cohen_d = mean(diff) / std(diff);
+        
+        % Print results
+        fprintf('-------------------------------------------\n');
+        fprintf('STIMULUS: %s (n=%d neurons)\n', stim_type, length(baseline_per_neuron));
+        fprintf('-------------------------------------------\n');
+        
+        fprintf('BASELINE:     Mean = %7.4f (SEM = %.4f), Median = %7.4f, SD = %.4f\n', ...
+            baseline_mean, baseline_sem, baseline_median, baseline_std);
+        fprintf('DRUG:         Mean = %7.4f (SEM = %.4f), Median = %7.4f, SD = %.4f\n', ...
+            drug_mean, drug_sem, drug_median, drug_std);
+        
+        fprintf('\nCHANGE:       Mean = %+.4f (%+.1f%%), Median = %+.4f (%+.1f%%)\n', ...
+            drug_mean - baseline_mean, pct_change_mean, ...
+            drug_median - baseline_median, pct_change_median);
+        
+        fprintf('\nSTATISTICAL TESTS:\n');
+        fprintf('  Paired t-test:           t(%d) = %7.3f, p = %.4f %s\n', ...
+            stats_ttest.df, stats_ttest.tstat, p_ttest, significance_marker(p_ttest));
+        fprintf('  Cohen''s d (effect size): %.4f\n', cohen_d);
+        fprintf('  Wilcoxon signed-rank:    p = %.4f %s\n', ...
+            p_wilcoxon, significance_marker(p_wilcoxon));
+        fprintf('\n');
+    end
+    fprintf('========== END PAIRED STATISTICS ==========\n\n');
 end
 
 
@@ -1113,6 +1233,19 @@ function dff = get_calcium_data(ca_data, ca_type)
             dff = ca_data.Ca_F;
         otherwise
             error('Unknown calcium type: %d', ca_type);
+    end
+end
+
+function marker = significance_marker(p_value)
+    % Return significance marker based on p-value
+    if p_value < 0.001
+        marker = '***';
+    elseif p_value < 0.01
+        marker = '**';
+    elseif p_value < 0.05
+        marker = '*';
+    else
+        marker = 'ns';
     end
 end
 
