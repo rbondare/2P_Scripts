@@ -1303,15 +1303,13 @@ if matched_rois_available && n_matched > 0
         axis equal; 
         xlim([y_min y_max]); 
         ylim([y_min y_max]);
-        hold off;
+        hold off; 
     end
     
     % Overall title
     sgtitle(sprintf('Baseline vs Drug Modulation - Matched Neurons (n=%d pairs)', n_matched), ...
         'FontSize', 15, 'FontWeight', 'bold');
     
-    fprintf('Generated modulation plots for %d stimuli\n', n_stim_plots);
-    fprintf('========== END MODULATION PLOTS ==========\n\n');
 end
 
 
