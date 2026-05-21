@@ -25,15 +25,15 @@ baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260
 %drug_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
 drug_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
 %roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
-roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
+roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane1_0312_V1.mat";
 
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane_idx = 1;           % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'grating', 'looming'};
+stimulus_types_to_analyze = {'spontaneous', 'moving_bar', 'sparse_local_global_flashes', 'checkers2', 'grating'};
 
 % Visualization
-max_neurons_display = 1000;    % For heatmap readability
+max_neurons_display = 500;    % For heatmap readability
 caxis_lim = [0, 5];           % dF/F range for heatmaps
 colormap_type = 'flipud(gray)';
 
@@ -82,9 +82,9 @@ val_local = base_dff_plane{selected_plane_idx}(test_roi_local, 1);
 fprintf('Verification check: base_dff_full(%d, 1) = %.4f, base_dff_plane{%d}(%d, 1) = %.4f\n', ...
     test_roi_global, val_global, selected_plane_idx, test_roi_local, val_local);
 if abs(val_global - val_local) < 1e-10
-    fprintf('Values match - subsetting is correct!\n');
+    fprintf('  ✓ Values match - subsetting is correct!\n');
 else
-    fprintf('ERROR: Values do not match - subsetting logic is broken!\n');
+    fprintf('  ✗ ERROR: Values do not match - subsetting logic is broken!\n');
 end
 
 
@@ -355,7 +355,7 @@ end
 fprintf('\n========== LEVEL 2: Selected ROI Heatmaps (raw values, unsorted) ==========\n');
 
 % ===== Parameters for Level 2 (adjust as needed) =====
-L2_n_select = min(1000, size(baseline_full, 1));          % Number of ROIs to select
+L2_n_select = min(500, size(baseline_full, 1));          % Number of ROIs to select
 L2_frame_start = 1;                                       % Frame window start
 L2_frame_end = size(baseline_full, 2);                   % Frame window end (use all by default)
 L2_caxis_lim = [0, 5];                                   % Color axis limits
@@ -633,9 +633,9 @@ for field_idx = 1:length(stim_fields)
             analyze_grating_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
                 data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
             
- %       case 'moving_bar'
-%            analyze_moving_bar_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
- %               data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
+        case 'moving_bar'
+            analyze_moving_bar_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
+                data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
             
         case 'full_field_flash'
             analyze_full_field_flash_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
