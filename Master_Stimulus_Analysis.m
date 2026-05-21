@@ -651,7 +651,7 @@ end
 
 fprintf('\n========== GENERATING ACTIVITY DISTRIBUTIONS (ALL NEURONS) ==========\n');
 
-hist_bins = 70;  % Number of bins
+hist_bins = 90;  % Number of bins
 
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
@@ -1216,6 +1216,120 @@ if matched_rois_available && n_matched > 0
         fprintf('\n');
     end
     fprintf('========== END PAIRED STATISTICS ==========\n\n');
+    
+    %% ==================== MODULATION PLOTS (Linear Regression) ====================
+    fprintf('========== GENERATING BASELINE vs DRUG MODULATION PLOTS ==========\n');
+    
+    % Create one large figure with regression plots for all stimuli
+    fig_modulation = figure('Position', [100 100 1400 900], 'NumberTitle', 'off', ...
+        'Name', 'Baseline_vs_Drug_Modulation');
+    
+    n_stim_plots = 0;
+    for field_idx = 1:length(stim_fields)
+        field_name = stim_fields{field_idx};
+        data = master_data.(field_name);
+        stim_type = data.stimulus_type;
+        
+        if ~isfield(data, 'baseline_responses') || isempty(data.baseline_responses)
+            continue;
+        end
+        
+        % Extract baseline paired data (per neuron)
+        baseline_per_neuron = [];
+        for i = 1:length(data.baseline_responses)
+            resp = data.baseline_responses{i};
+            matched_resp = resp(data.base_match_idx_local, :);
+            baseline_per_neuron = [baseline_per_neuron; mean(matched_resp, 2)];
+        end
+        
+        % Extract drug paired data (per neuron)
+        drug_per_neuron = [];
+        for i = 1:length(data.drug_responses)
+            resp = data.drug_responses{i};
+            matched_resp = resp(data.drug_match_idx_local, :);
+            drug_per_neuron = [drug_per_neuron; mean(matched_resp, 2)];
+        end
+        
+        % Remove any NaN/Inf
+        valid_idx = ~(isnan(baseline_per_neuron) | isinf(baseline_per_neuron) | ...
+                      isnan(drug_per_neuron) | isinf(drug_per_neuron));
+        baseline_per_neuron = baseline_per_neuron(valid_idx);
+        drug_per_neuron = drug_per_neuron(valid_idx);
+        
+        if length(baseline_per_neuron) < 2
+            continue;
+        end
+        
+        n_stim_plots = n_stim_plots + 1;
+        
+        % Create subplot
+        subplot(2, 2, n_stim_plots);
+        
+        % Scatter plot
+        scatter(baseline_per_neuron, drug_per_neuron, 100, 'o', 'filled', ...
+            'MarkerFaceColor', [0.3 0.5 0.8], 'MarkerEdgeColor', 'black', ...
+            'MarkerFaceAlpha', 0.6, 'MarkerEdgeAlpha', 0.8, 'LineWidth', 1.5);
+        hold on;
+        
+        % Linear regression line
+        coeffs = polyfit(baseline_per_neuron, drug_per_neuron, 1);
+        slope = coeffs(1);
+        intercept = coeffs(2);
+        
+        % Calculate R-squared
+        y_fit = polyval(coeffs, baseline_per_neuron);
+        ss_res = sum((drug_per_neuron - y_fit) .^ 2);
+        ss_tot = sum((drug_per_neuron - mean(drug_per_neuron)) .^ 2);
+        r_squared = 1 - (ss_res / ss_tot);
+        
+        % Plot regression line
+        x_range = [min(baseline_per_neuron) - 0.5, max(baseline_per_neuron) + 0.5];
+        y_reg = slope * x_range + intercept;
+        plot(x_range, y_reg, 'b-', 'LineWidth', 2.5, 'DisplayName', ...
+            sprintf('y = %.3f*x + %.3f (R² = %.3f)', slope, intercept, r_squared));
+        
+        % Identity line (no change: drug = baseline)
+        y_min = min([baseline_per_neuron; drug_per_neuron]) - 0.5;
+        y_max = max([baseline_per_neuron; drug_per_neuron]) + 0.5;
+        plot([y_min y_max], [y_min y_max], 'k--', 'LineWidth', 1.5, 'Alpha', 0.5, ...
+            'DisplayName', 'No change (y=x)');
+        
+        % Labels and formatting
+        xlabel('Baseline dF/F', 'FontSize', 12, 'FontWeight', 'bold');
+        ylabel('Drug dF/F', 'FontSize', 12, 'FontWeight', 'bold');
+        title(sprintf('%s (n=%d neurons)', stim_type, length(baseline_per_neuron)), ...
+            'FontSize', 13, 'FontWeight', 'bold');
+        
+        % Add text annotations
+        if slope > 1
+            modulation_text = sprintf('Upmodulation (slope = %.3f)', slope);
+            text_color = [0 0.6 0];
+        elseif slope < 1
+            modulation_text = sprintf('Downmodulation (slope = %.3f)', slope);
+            text_color = [0.8 0 0];
+        else
+            modulation_text = sprintf('No modulation (slope = %.3f)', slope);
+            text_color = [0.5 0.5 0.5];
+        end
+        
+        text(0.05, 0.95, modulation_text, 'Units', 'normalized', ...
+            'VerticalAlignment', 'top', 'FontSize', 11, 'FontWeight', 'bold', ...
+            'Color', text_color, 'BackgroundColor', 'white', 'EdgeColor', 'black');
+        
+        legend('Location', 'best', 'FontSize', 10);
+        grid on; set(gca, 'LineWidth', 1.5, 'FontSize', 10);
+        axis equal; 
+        xlim([y_min y_max]); 
+        ylim([y_min y_max]);
+        hold off;
+    end
+    
+    % Overall title
+    sgtitle(sprintf('Baseline vs Drug Modulation - Matched Neurons (n=%d pairs)', n_matched), ...
+        'FontSize', 15, 'FontWeight', 'bold');
+    
+    fprintf('Generated modulation plots for %d stimuli\n', n_stim_plots);
+    fprintf('========== END MODULATION PLOTS ==========\n\n');
 end
 
 
