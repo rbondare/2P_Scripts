@@ -7,7 +7,8 @@ function stim_responses = organize_stimulus_by_parameters(rec1_file, rec2_file, 
 % Input:
 %   rec1_file - Path to first preprocessed recording
 %   rec2_file - Path to second preprocessed recording
-%   selected_plane_idx - Plane index (1-based) to extract
+%   selected_plane_idx - Plane index (1-based: 1, 2, 3, etc) to extract
+%                        Note: Planes are numbered by Z-coordinate starting from 1
 %
 % Output:
 %   stim_responses - Structure organized as:
@@ -126,13 +127,14 @@ end
 %% ============= HELPER FUNCTIONS =============
 
 function dff = extract_plane_dff(rec, selected_plane_idx)
-%EXTRACT_PLANE_DFF Extract dFF for selected plane
+%EXTRACT_PLANE_DFF Extract dFF for selected plane (1-based indexing)
+%
+% Planes are indexed by their Z-coordinate (1=lowest, 2=middle, 3=highest, etc)
 
 dff_full = rec.CaData(1).Ca_dFF;
 centroid = rec.CaData(1).Ca_centroid_voxel;
 
-% Handle different possible Z coordinate columns
-% Try column 3 first (typical: X, Y, Z), then try other columns
+% Extract Z coordinates (3rd column = Z)
 if size(centroid, 2) >= 3
     centroidZ = centroid(:, 3);
 else
@@ -142,35 +144,35 @@ end
 % Convert to numeric if needed
 centroidZ = double(centroidZ);
 
-% Ensure selected_plane_idx is numeric
+% Ensure selected_plane_idx is numeric and integer
 if isstring(selected_plane_idx) || ischar(selected_plane_idx)
     selected_plane_idx = str2double(selected_plane_idx);
 end
 selected_plane_idx = round(selected_plane_idx);
 
-% Get unique Z values
+% Get unique Z values and sort them
 unique_planes = unique(centroidZ);
 unique_planes = sort(unique_planes);
 
-fprintf('  DEBUG: Unique planes in data: %s\n', mat2str(unique_planes));
-fprintf('  DEBUG: Selected plane index (1-based): %d\n', selected_plane_idx);
-
 % Safety check on index
 if selected_plane_idx > length(unique_planes) || selected_plane_idx < 1
-    error('Selected plane index %d out of range. Available planes (1-based): [1-%d]. Plane Z values: %s', ...
-        selected_plane_idx, length(unique_planes), mat2str(unique_planes));
+    fprintf('ERROR: Selected plane index %d out of range.\n', selected_plane_idx);
+    fprintf('  Available planes (1-based): 1 to %d\n', length(unique_planes));
+    fprintf('  Actual Z-values in data: %s\n', mat2str(unique_planes'));
+    error('Invalid plane index %d', selected_plane_idx);
 end
 
+% Get the Z-value for this plane index
 plane_z_value = unique_planes(selected_plane_idx);
-fprintf('  DEBUG: Selected plane Z value: %.1f\n', plane_z_value);
 
+% Find all ROIs in this plane
 roi_indices = find(centroidZ == plane_z_value);
-fprintf('  DEBUG: Found %d ROIs in selected plane\n', length(roi_indices));
 
 if isempty(roi_indices)
-    warning('No ROIs found for plane Z=%.1f', plane_z_value);
+    warning('No ROIs found for plane index %d (Z=%.1f)', selected_plane_idx, plane_z_value);
 end
 
+% Extract dFF for these ROIs
 dff = dff_full(roi_indices, :);
 
 end

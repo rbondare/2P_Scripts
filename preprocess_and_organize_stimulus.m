@@ -30,8 +30,8 @@ end
 % ROI matching file (optional)
 roi_matching_file = ''; % Set to full path if available, empty string if not
 
-% Plane to analyze (0-indexed)
-selected_plane = 0; % Change this to analyze different planes
+% Plane to analyze (1-indexed: 1, 2, or 3 for your data)
+selected_plane = 1; % Change this to 1, 2, or 3 to analyze different planes
 
 %% ============================================================================
 %  SECTION 2: LOAD RECORDINGS
@@ -74,14 +74,34 @@ recordings.rec2.centroids = D.CaData(1).Ca_centroid_voxel;
 % Function to get neuron indices for specific plane
 get_plane_neurons = @(centroids, plane_idx) find(centroids(:, 3) == plane_idx);
 
-recordings.rec1.plane_neurons = get_plane_neurons(recordings.rec1.centroids, selected_plane);
-recordings.rec2.plane_neurons = get_plane_neurons(recordings.rec2.centroids, selected_plane);
+% First, get available planes
+rec1_unique_planes = sort(unique(B.CaData(1).Ca_centroid_voxel(:, 3)));
+rec2_unique_planes = sort(unique(D.CaData(1).Ca_centroid_voxel(:, 3)));
 
-fprintf('Selected plane %d:\n', selected_plane);
-fprintf('  rec1: %d neurons from plane %d (total neurons: %d)\n', ...
-    length(recordings.rec1.plane_neurons), selected_plane, size(B.CaData(1).Ca_dFF, 1));
-fprintf('  rec2: %d neurons from plane %d (total neurons: %d)\n', ...
-    length(recordings.rec2.plane_neurons), selected_plane, size(D.CaData(1).Ca_dFF, 1));
+fprintf('Available planes in recordings (1-indexed mapping to Z-values):\n');
+fprintf('  rec1 planes: ');
+for i = 1:length(rec1_unique_planes)
+    fprintf('[%d→Z=%.0f] ', i, rec1_unique_planes(i));
+end
+fprintf('\n');
+fprintf('  rec2 planes: ');
+for i = 1:length(rec2_unique_planes)
+    fprintf('[%d→Z=%.0f] ', i, rec2_unique_planes(i));
+end
+fprintf('\n\n');
+
+% Extract plane neurons using the selected_plane index
+plane_z_rec1 = rec1_unique_planes(selected_plane);
+plane_z_rec2 = rec2_unique_planes(selected_plane);
+
+recordings.rec1.plane_neurons = get_plane_neurons(recordings.rec1.centroids, plane_z_rec1);
+recordings.rec2.plane_neurons = get_plane_neurons(recordings.rec2.centroids, plane_z_rec2);
+
+fprintf('Selected plane index: %d\n', selected_plane);
+fprintf('  rec1 (Z=%.0f): %d neurons (total: %d)\n', plane_z_rec1, ...
+    length(recordings.rec1.plane_neurons), size(B.CaData(1).Ca_dFF, 1));
+fprintf('  rec2 (Z=%.0f): %d neurons (total: %d)\n', plane_z_rec2, ...
+    length(recordings.rec2.plane_neurons), size(D.CaData(1).Ca_dFF, 1));
 
 % Extract dFF for selected plane
 recordings.rec1.dff = B.CaData(1).Ca_dFF(recordings.rec1.plane_neurons, :);
