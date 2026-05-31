@@ -39,9 +39,9 @@ if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
     if 'version' in ops:
         ops.pop('version')
-    print("✓ Loaded base settings from file")
+    print("Loaded base settings from file")
 else:
-    print(f"✗ Settings file not found: {settings_file}")
+    print(f"Settings file not found: {settings_file}")
     exit(1)
 
 # ============================================================================
@@ -157,7 +157,7 @@ ops['fs'] = 10.0
 ops['torch_device'] = 'cpu'
 ops['version'] = '1.0.0.1'
 
-print("\n✓ Applied axon-specific parameters:")
+print("\nApplied axon-specific parameters:")
 print(f"  - Diameter: {ops['detection']['diameter']}")
 print(f"  - Threshold scaling: {ops['detection']['threshold_scaling']}")
 print(f"  - Cellprob threshold: {ops['detection']['cellprob_threshold']}")
@@ -172,7 +172,8 @@ print(f"  - Inner neuropil radius: {ops['extraction']['inner_neuropil_radius']}"
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes': 4,
+    'nplanes': 3,
+    'flyback': 2,
     'nchannels': 1,
 }
 
