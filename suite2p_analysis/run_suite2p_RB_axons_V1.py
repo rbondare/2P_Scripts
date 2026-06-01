@@ -54,36 +54,46 @@ print("="*70)
 
 # DETECTION SETTINGS (most critical for axons)
 # ============================================================================
-ops['diameter'] = 20                      # Axon diameter ~1-2 μm (soma: 15-20)
-ops['threshold_scaling'] = 1.2            # Detection threshold (lower = more sensitive)
-ops['cellprob_threshold'] = 0.2         # Cellpose probability threshold
-ops['flow_threshold'] = 1.2               # Cellpose flow matching threshold
+# sparse_mode = True is the MOST CRITICAL setting: activates the sparsery
+# algorithm which grows masks along correlated-activity pixels rather than
+# assuming round shapes. Without it, suite2p segments individual bouton
+# hot-spots instead of the elongated process shown in the image.
+ops['sparse_mode'] = True                 # CRITICAL: follow correlated activity along processes
+ops['diameter'] = 6                       # Match axon TUBE WIDTH visible in image (~3-8 px), not soma size
+ops['threshold_scaling'] = 0.5            # Lower = more sensitive; 0.5 captures faint elongated structures
+ops['spatial_scale'] = 1                  # Detect at finest scale (1 = ~3 px); 0 = auto-estimate
+
+# Cellpose parameters (not used in sparse_mode but kept for fallback)
+ops['cellprob_threshold'] = 0.2
+ops['flow_threshold'] = 1.2
 
 # Spatial filtering for fine structures
-ops['spatial_hp_detect'] = 25             # High-pass filter for detection
+ops['spatial_hp_detect'] = 12             # Lower than default 25: preserves thin tubular processes
 ops['spatial_hp_reg'] = 42                # High-pass filter for registration
 
 # Block and ROI parameters
 ops['block_size'] = [64.0, 64.0]          # SMALLER blocks for finer detail (soma: 128)
-ops['max_overlap'] = 0.4
+ops['max_overlap'] = 0.75                 # Axons cross each other; allow high overlap
 ops['soma_crop'] = False                  # Don't crop to soma region
 ops['pre_smooth'] = 0                     # Pre-smoothing before registration
 
 # ROI size constraints
+# Elongated axon segments span many pixels — max must be large or long
+# processes get clipped into fragments. Min is small because thin cross-sections
+# have few pixels even at moderate length.
 ops['npix_norm_min'] = 15.0               # Minimum ROI size
-ops['npix_norm_max'] = 700.0              # Maximum ROI size 
+ops['npix_norm_max'] = 3000.0             # Large: winding axons accumulate many pixels
 
 # Sparsery-specific detection
-ops['spatial_scale'] = 0                  # Spatial scale for detection
-ops['connected'] = True                   # Use connected components
-ops['max_iterations'] = 40                # Max iterations for detection
+ops['connected'] = True                   # Keep masks as connected components along process
+ops['max_iterations'] = 50                # More iterations to trace full axon length
 
 # EXTRACTION SETTINGS
 # ============================================================================
 ops['neuropil_extract'] = True
 ops['allow_overlap'] = True              # Match old settings
-ops['inner_neuropil_radius'] = 2          # Standard neuropil radius
-ops['min_neuropil_pixels'] = 300          # Minimum neuropil pixels
+ops['inner_neuropil_radius'] = 1          # Minimal: axons have no meaningful neuropil halo
+ops['min_neuropil_pixels'] = 50           # Much smaller surround needed for thin processes
 ops['neucoeff'] = 0.5                     # Neuropil coefficient (old: neuropil_coefficient)
 ops['circular_neuropil'] = False          # Allow irregular neuropil shape
 ops['lam_percentile'] = 50.0
@@ -100,11 +110,11 @@ ops['roidetect'] = True                   # Enable ROI detection
 # ============================================================================
 ops['do_registration'] = 1
 ops['nonrigid'] = True                    # Use nonrigid registration
-ops['norm_frames'] = True                 # ← CRITICAL: WAS MISSING (causes KeyError)
+ops['norm_frames'] = True                 # 
 ops['nimg_init'] = 400
 ops['maxregshift'] = 0.12
 ops['maxregshiftNR'] = 5
-ops['smooth_sigma'] = 1.5
+ops['smooth_sigma'] = 1.15                # Less blur → preserves thin tubular structures
 ops['smooth_sigma_time'] = 0              # No temporal smoothing
 ops['bidiphase'] = 0.0
 ops['do_bidiphase'] = False
@@ -144,16 +154,18 @@ ops['use_builtin_classifier'] = True
 ops['tau'] = 0.7                          # Time constant
 ops['fs'] = 10.0                          # Sampling rate
 ops['keep_movie_raw'] = False
-ops['sparse_mode'] = False
+ops['sparse_mode'] = True                 # Set above in detection section; repeated here for clarity
 ops['pad_fft'] = True
 ops['force_refImg'] = False
 
 print("\nApplied axon-specific parameters:")
-print(f"  - Diameter: {ops['diameter']}")
+print(f"  - sparse_mode: {ops['sparse_mode']}  ← CRITICAL: sparsery algorithm for elongated structures")
+print(f"  - Diameter: {ops['diameter']} px  (match tube width, not soma size)")
 print(f"  - Threshold scaling: {ops['threshold_scaling']}")
-print(f"  - Cellprob threshold: {ops['cellprob_threshold']}")
+print(f"  - Spatial scale: {ops['spatial_scale']}  (1 = finest ~3px scale)")
 print(f"  - Spatial HP detect: {ops['spatial_hp_detect']}")
-print(f"  - Block size: {ops['block_size']}")
+print(f"  - npix_norm_max: {ops['npix_norm_max']}  (large for elongated ROIs)")
+print(f"  - max_overlap: {ops['max_overlap']}  (axons cross)")
 print(f"  - Inner neuropil radius: {ops['inner_neuropil_radius']}")
 print(f"  - norm_frames: {ops['norm_frames']}")
 
