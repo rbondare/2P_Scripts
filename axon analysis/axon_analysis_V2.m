@@ -1346,7 +1346,7 @@ roi_mode = 'all';   % 'all' = mean across all ROIs  |  'single' = one ROI only
 roi_id   = 4;       % only used when roi_mode = 'single'
 % Function handle lets plot cells check the flag without triggering
 % MATLAB's "unreachable code" static-analysis warning on the else branches.
-use_single = @() use_single();
+use_single = @() strcmp(roi_mode, 'single');
 % -------------------------------------------------------------------
 
 if ~isfield(data.Stimuli(1), 'TrialTimes') || isempty(data.Stimuli(1).TrialTimes)
