@@ -13,8 +13,24 @@ Key differences from soma detection:
 import numpy as np
 import os
 import platform
+import torch
 from pathlib import PureWindowsPath
 from suite2p import run_s2p
+
+# GPU check — abort early if CUDA is not available so you don't run a long job on CPU by accident
+print("\n" + "="*70)
+print("GPU CHECK")
+print("="*70)
+if torch.cuda.is_available():
+    print(f"  GPU detected: {torch.cuda.get_device_name(0)}")
+    print(f"  VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    print("  Suite2p will use GPU for registration and detection.")
+else:
+    raise RuntimeError(
+        "CUDA not available — aborting to avoid running on CPU.\n"
+        "Fix: python -m pip install torch --index-url https://download.pytorch.org/whl/cu128"
+    )
+print("="*70 + "\n")
 
 
 def resolve_runtime_path(path_str):
@@ -34,6 +50,7 @@ def resolve_runtime_path(path_str):
 # Load base settings from soma detection
 settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\2P_Scripts\suite2p\settings.npy")
 data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1628")
+classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
@@ -43,6 +60,22 @@ if os.path.exists(settings_file):
 else:
     print(f"Settings file not found: {settings_file}")
     exit(1)
+
+# Validate custom classifier before doing anything else
+print("\nValidating custom axon classifier...")
+if not os.path.exists(classifier_path):
+    print(f"  ERROR: classifier not found at {classifier_path}")
+    exit(1)
+_clf = np.load(classifier_path, allow_pickle=True).item()
+_required_keys = {'stats', 'iscell', 'keys'}
+if not _required_keys.issubset(_clf.keys()):
+    print(f"  ERROR: classifier missing keys. Found: {list(_clf.keys())}, need: {_required_keys}")
+    exit(1)
+_n_rois = _clf['stats'].shape[0]
+_n_cells = int(_clf['iscell'].sum())
+print(f"  OK — {_n_rois} labeled ROIs ({_n_cells} axons, {_n_rois - _n_cells} non-axons)")
+print(f"  Features: {_clf['keys']}")
+del _clf
 
 # ============================================================================
 # AXON-SPECIFIC DETECTION PARAMETERS
@@ -60,7 +93,7 @@ print("="*70)
 # hot-spots instead of the elongated process shown in the image.
 ops['sparse_mode'] = True                 # CRITICAL: follow correlated activity along processes
 ops['diameter'] = 6                       # Match axon TUBE WIDTH visible in image (~3-8 px), not soma size
-ops['threshold_scaling'] = 0.5            # Lower = more sensitive; 0.5 captures faint elongated structures
+ops['threshold_scaling'] = 0.3            # Lower = more sensitive; needed to catch dim segments along processes
 ops['spatial_scale'] = 1                  # Detect at finest scale (1 = ~3 px); 0 = auto-estimate
 
 # Cellpose parameters (not used in sparse_mode but kept for fallback)
@@ -96,7 +129,7 @@ ops['inner_neuropil_radius'] = 1          # Minimal: axons have no meaningful ne
 ops['min_neuropil_pixels'] = 50           # Much smaller surround needed for thin processes
 ops['neucoeff'] = 0.5                     # Neuropil coefficient (old: neuropil_coefficient)
 ops['circular_neuropil'] = False          # Allow irregular neuropil shape
-ops['lam_percentile'] = 50.0
+ops['lam_percentile'] = 20.0              # Lower = mask grows further along the process (50 = compact blobs)
 
 # Extraction batch size (different from registration batch)
 ops['batch_size'] = 500                   # Extraction batch size
@@ -147,7 +180,8 @@ ops['save_path0'] = data_path             # Set save path (data_path defined ear
 # CLASSIFICATION SETTINGS
 # ============================================================================
 ops['preclassify'] = 0.0
-ops['use_builtin_classifier'] = True
+ops['use_builtin_classifier'] = False     # Use custom axon classifier only
+ops['classifier_path'] = classifier_path  # NAaxons.npy
 
 # OTHER SETTINGS
 # ============================================================================
@@ -168,6 +202,7 @@ print(f"  - npix_norm_max: {ops['npix_norm_max']}  (large for elongated ROIs)")
 print(f"  - max_overlap: {ops['max_overlap']}  (axons cross)")
 print(f"  - Inner neuropil radius: {ops['inner_neuropil_radius']}")
 print(f"  - norm_frames: {ops['norm_frames']}")
+print(f"  - classifier: NAaxons.npy (custom, builtin disabled)")
 
 
 # ============================================================================
@@ -179,7 +214,7 @@ db = {
     'save_path0': data_path,
     'nplanes': 3,                      # All 3 planes for correct alignment
     'nchannels': 1,
-    'ignore_flyback': [-1],             # Skip processing plane 2 (flyback)
+    'ignore_flyback': [2],             # Explicit plane index — plane2 is flyback (-1 does NOT work)
 }
 
 # Check for existing binary files
