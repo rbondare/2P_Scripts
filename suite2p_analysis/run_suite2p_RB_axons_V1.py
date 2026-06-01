@@ -56,14 +56,13 @@ print("="*70)
 # ============================================================================
 ops['detection'] = {
     'algorithm': 'sparsery',
-    'diameter': [3.0, 3.0],            # ← MUCH SMALLER: axons ~1-3 μm
-    'threshold_scaling': 0.5,          # ← LOWER: detect fainter axons (default ~1.0)
-    'cellprob_threshold': 0.1,         # ← MUCH LOWER: allow fainter detections (default ~0.5)
-    'flow_threshold': 0.4,             # ← LOWER: less stringent flow matching
+    'diameter': 20,                    # Match reference: larger structures
+    'threshold_scaling': 1.0,          # Standard sensitivity
+    'cellprob_threshold': 0.5,         # Match reference: standard threshold
+    'flow_threshold': 1.5,             # Match reference: strict flow matching
     
     # Spatial filtering for fine axon structures
-    'spatial_hp_detect': 10.0,         # ← LOWER: preserve small structures (default ~25)
-    'spatial_scale': 2,                # ← Higher spatial scale for finer detection (axons vs soma)
+    'spatial_hp_detect': 25.0,         # Match reference: standard high-pass filter
     
     # Cellpose settings (for axon shapes)
     'cellpose_chan2': False,
@@ -73,25 +72,31 @@ ops['detection'] = {
     'max_overlap': 0.7,
     
     # ROI size constraints
-    'max_ROIs': 10000,                 # Allow more ROIs for sparse axons
-    'npix_norm_min': 0.0,              # ← LOWER: allow tiny axon segments
-    'npix_norm_max': 100.0,            # ← LOWER: cap for axons (soma: 200+)
+    'npix_norm_min': 10.0,             # ← INCREASED: avoid tiny fragments
+    'npix_norm_max': 250.0,            # ← INCREASED: allow much larger ROIs
     
     # Neuropil and background
     'highpass_time': 100,              # Temporal high-pass
     'nbins': 5000,
     'denoise': False,
+    
+    # Sparsery-specific settings (REQUIRED for sparsery algorithm)
+    'sparsery_settings': {
+        'highpass_neuropil': 25.0,      # Match reference: standard neuropil filtering
+        'spatial_scale': 0,             # Match reference: standard spatial scale
+        'max_ROIs': 500,              # Allow reasonable number of detections
+    },
 }
 
 # EXTRACTION SETTINGS
 # ============================================================================
 ops['extraction'] = {
     'neuropil_extract': True,
-    'allow_overlap': False,            # Keep False to avoid duplicate axons
-    'inner_neuropil_radius': 1,        # ← SMALLER: axons don't have large neuropil
-    'min_neuropil_pixels': 50,         # ← SMALLER: axons have less surrounding area (default 350)
+    'allow_overlap': True,             # Match reference: allow overlapping ROIs
+    'inner_neuropil_radius': 2,        # Match reference: standard neuropil radius
+    'min_neuropil_pixels': 350,        # Match reference: standard min neuropil pixels
     'circular_neuropil': False,        # Allow irregular neuropil shape
-    'neuropil_coefficient': 0.5,       # Neuropil subtraction strength
+    'neuropil_coefficient': 0.7,       # Match reference: standard neuropil coefficient
     'lam_percentile': 50.0,
     'batch_size': 100,
     'snr_threshold': 0.0,
@@ -108,6 +113,7 @@ ops['registration'] = {
     'maxregshift': 0.12,
     'maxregshiftNR': 5,
     'smooth_sigma': 1.5,
+    'smooth_sigma_time': 0.0,          # Temporal smoothing for reference (0 = no smoothing)
     'bidiphase': 0.0,
     'do_bidiphase': False,
     'align_by_chan2': False,
@@ -134,7 +140,7 @@ ops['dcnv_preprocess'] = {
 ops['run'] = {
     'do_registration': 1,
     'do_detection': True,              # Perform detection
-    'do_deconvolution': True,
+    'do_deconvolution': False,
     'do_regmetrics': False,            # Skip metrics to avoid memory issues
     'multiplane_parallel': False,
 }
@@ -146,7 +152,7 @@ ops['io'] = {
     'delete_bin': False,
     'move_bin': False,
     'save_NWB': False,
-    'save_mat': True,
+    'save_mat': False,                 # Disable MATLAB saving to avoid None conversion errors
     'save_ops_orig': True,
 }
 
@@ -172,9 +178,9 @@ print(f"  - Inner neuropil radius: {ops['extraction']['inner_neuropil_radius']}"
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes': 3,
-    'flyback': 2,
+    'nplanes': 3,                      # All 3 planes for correct alignment
     'nchannels': 1,
+    'ignore_flyback': [-1],             # Skip processing plane 2 (flyback)
 }
 
 # Check for existing binary files
