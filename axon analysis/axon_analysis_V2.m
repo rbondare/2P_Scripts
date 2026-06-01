@@ -1333,13 +1333,21 @@ set(gca, 'Box', 'off');  grid on;
 
 %% =========================================================================
 %  PUPIL-CALCIUM EXTENDED ANALYSIS — ALL STIMULI
-%  Loops over all stimuli; groups those with matching trial duration for
-%  the averaged comparison in Cell D.
+%  Groups stimuli by data.Stimuli.type + data.Stimuli.addnote so only
+%  truly comparable stimuli are averaged together in Cell D.
 %  REQUIRES: trial-chunking cell (~line 228) run first (populates TrialTimes).
 %  Run EXTENDED SETUP first, then any plot cell independently.
 %  =========================================================================
 
-%% EXTENDED SETUP — extract all stimuli and group by trial duration
+%% EXTENDED SETUP — extract all stimuli, group by type + addnote
+
+% ---- ROI SELECTION FLAG — edit here, then re-run any plot cell ----
+roi_mode = 'all';   % 'all' = mean across all ROIs  |  'single' = one ROI only
+roi_id   = 4;       % only used when roi_mode = 'single'
+% Function handle lets plot cells check the flag without triggering
+% MATLAB's "unreachable code" static-analysis warning on the else branches.
+use_single = @() use_single();
+% -------------------------------------------------------------------
 
 if ~isfield(data.Stimuli(1), 'TrialTimes') || isempty(data.Stimuli(1).TrialTimes)
     error('TrialTimes missing — run the trial-chunking cell (~line 228) first.');
@@ -1347,28 +1355,38 @@ end
 
 num_stim_x   = length(data.Stimuli);
 num_trials_x = data.Stimuli(1).trials;
-n_com_x      = 500;    % resampling points per trial (increase for smoother curves)
+n_com_x      = 500;   % resampling points per trial (increase for smoother curves)
 nROIs_x      = size(data.CaData(1).Ca_dFF, 1);
 
-% Group stimuli by trial duration
-trial_durs_x             = arrayfun(@(s) s.stimulus_trial_t, data.Stimuli);
-[uniq_durs_x, ~, dur_grp_x] = unique(trial_durs_x);
-
-fprintf('\nStimulus groups by trial duration:\n');
-for g = 1:length(uniq_durs_x)
-    fprintf('  Group %d (%.1f s/trial): Stim %s\n', g, uniq_durs_x(g), ...
-            num2str(find(dur_grp_x == g)'));
+if use_single() && (roi_id < 1 || roi_id > nROIs_x)
+    error('roi_id=%d is out of range — available ROIs: 1 to %d.', roi_id, nROIs_x);
 end
 
-% Build stim_data{si} with trial-relative Ca and pupil resampled to a shared grid
+% Group stimuli by type + addnote — only stimuli with identical BOTH fields are averaged
+stim_types_x    = {data.Stimuli.type};
+stim_addnotes_x = {data.Stimuli.addnote};
+stim_labels_x   = cellfun(@(t,a) sprintf('%s | %s', t, a), ...
+                           stim_types_x, stim_addnotes_x, 'UniformOutput', false);
+[uniq_labels_x, ~, label_grp_x] = unique(stim_labels_x);
+
+fprintf('\nStimulus groups by type + addnote:\n');
+for g = 1:length(uniq_labels_x)
+    fprintf('  Group %d  [%s]  →  Stim %s\n', g, uniq_labels_x{g}, ...
+            num2str(find(label_grp_x == g)'));
+end
+fprintf('ROI mode: %s', roi_mode);
+if use_single(),  fprintf(' (ROI %d)', roi_id);  end
+fprintf('\n');
+
+% Extract per-trial Ca and pupil for every stimulus onto a trial-relative grid
 stim_data = cell(num_stim_x, 1);
 
 for si = 1:num_stim_x
     trial_dur    = data.Stimuli(si).stimulus_trial_t;
-    t_com        = linspace(0, trial_dur, n_com_x);   % [1 × n_com_x], row, trial-relative
+    t_com        = linspace(0, trial_dur, n_com_x);  % [1 × n_com_x], row, trial-relative
 
-    Ca_trials_x  = NaN(nROIs_x, n_com_x, num_trials_x);   % [nROIs × n_com × nTrials]
-    pup_trials_x = NaN(n_com_x, num_trials_x);             % [n_com × nTrials]
+    Ca_trials_x  = NaN(nROIs_x, n_com_x, num_trials_x);
+    pup_trials_x = NaN(n_com_x, num_trials_x);
 
     for tr = 1:num_trials_x
         stim_s = data.Stimuli(si).TrialTimes{1, tr}(1);
@@ -1377,8 +1395,8 @@ for si = 1:num_stim_x
         % Calcium (10 Hz) — shift to trial-relative time
         Ca_idx = find(data.TimeCa(1,:) > stim_s & data.TimeCa(1,:) < stim_e);
         if length(Ca_idx) > 1
-            t_ca   = data.TimeCa(1, Ca_idx) - stim_s;      % relative, row
-            Ca_raw = data.CaData(1).Ca_dFF(:, Ca_idx);     % [nROIs × nCa]
+            t_ca   = data.TimeCa(1, Ca_idx) - stim_s;
+            Ca_raw = data.CaData(1).Ca_dFF(:, Ca_idx);   % [nROIs × nCa]
             for roi = 1:nROIs_x
                 Ca_trials_x(roi, :, tr) = interp1(t_ca, Ca_raw(roi,:), t_com, 'linear', 'extrap');
             end
@@ -1393,40 +1411,54 @@ for si = 1:num_stim_x
         end
     end
 
-    stim_data{si}.Ca_trials  = Ca_trials_x;   % [nROIs × n_com × nTrials]
-    stim_data{si}.pup_trials = pup_trials_x;  % [n_com × nTrials]
-    stim_data{si}.t_com      = t_com;         % [1 × n_com], trial-relative
+    stim_data{si}.Ca_trials  = Ca_trials_x;        % [nROIs × n_com × nTrials]
+    stim_data{si}.pup_trials = pup_trials_x;        % [n_com × nTrials]
+    stim_data{si}.t_com      = t_com;               % [1 × n_com], trial-relative
     stim_data{si}.trial_dur  = trial_dur;
-    stim_data{si}.dur_grp    = dur_grp_x(si);
+    stim_data{si}.label      = stim_labels_x{si};   % 'type | addnote' string
+    stim_data{si}.label_grp  = label_grp_x(si);
 end
 
-fprintf('Done: %d stimuli × %d trials × %d ROIs × %d time points.\n', ...
+fprintf('Done: %d stimuli × %d trials × %d ROIs × %d timepoints.\n', ...
         num_stim_x, num_trials_x, nROIs_x, n_com_x);
 
-%% CELL A: Per-Stimulus — All ROI Traces (grey) + Grand Mean (black) + Pupil
-% Grey lines = trial-mean of each ROI.  Black = grand mean across ROIs+trials.
-% Pink lines = individual pupil trials.  Red = mean pupil ± SEM shading.
+%% CELL A: Per-Stimulus — Individual Trial Traces + Mean
+% roi_mode='all':    grey = per-ROI trial mean (nROIs lines), black = grand mean
+% roi_mode='single': grey = individual trials for roi_id, black = trial mean
+% Bottom panel: individual pupil trials (pink) + mean ± SEM (red).
 
 for si = 1:num_stim_x
     t_com   = stim_data{si}.t_com;
-    Ca_all  = stim_data{si}.Ca_trials;    % [nROIs × n_com × nTrials]
-    pup_all = stim_data{si}.pup_trials;   % [n_com × nTrials]
+    Ca_all  = stim_data{si}.Ca_trials;
+    pup_all = stim_data{si}.pup_trials;
 
-    Ca_roi_mean = mean(Ca_all, 3, 'omitnan');    % [nROIs × n_com]: per-ROI trial mean
-    Ca_grand    = mean(Ca_roi_mean, 1);           % [1 × n_com]: grand mean
+    pup_mean_A = mean(pup_all, 2, 'omitnan')';
+    pup_sem_A  = (std(pup_all, 0, 2, 'omitnan') / sqrt(num_trials_x))';
 
-    pup_mean_A  = mean(pup_all, 2, 'omitnan')';                              % [1 × n_com]
-    pup_sem_A   = (std(pup_all, 0, 2, 'omitnan') / sqrt(num_trials_x))';    % [1 × n_com]
-
-    figure('Name', sprintf('A: Stim %d — Traces', si), 'Position', [100 100 900 500]);
+    fig_name_A = sprintf('A: Stim %d — Traces  [%s]', si, stim_data{si}.label);
+    figure('Name', fig_name_A, 'Position', [100 100 900 500]);
 
     subplot(2, 1, 1);  hold on;
-    for roi = 1:nROIs_x
-        plot(t_com, Ca_roi_mean(roi,:), 'Color', [0.7 0.7 0.7], 'LineWidth', 0.8);
+    if ~use_single()
+        Ca_roi_mean = mean(Ca_all, 3, 'omitnan');   % [nROIs × n_com]
+        Ca_grand    = mean(Ca_roi_mean, 1);
+        for roi = 1:nROIs_x
+            plot(t_com, Ca_roi_mean(roi,:), 'Color', [0.7 0.7 0.7], 'LineWidth', 0.8);
+        end
+        plot(t_com, Ca_grand, 'k-', 'LineWidth', 2.5);
+        title(sprintf('Stim %d — All ROI means (grey) + grand mean (black)', si), ...
+              'FontSize', 11, 'Interpreter', 'none');
+    else
+        Ca_sel   = squeeze(Ca_all(roi_id, :, :));   % [n_com × nTrials]
+        Ca_mean_A = mean(Ca_sel, 2)';
+        for tr = 1:num_trials_x
+            plot(t_com, Ca_sel(:,tr)', 'Color', [0.7 0.7 0.7], 'LineWidth', 0.8);
+        end
+        plot(t_com, Ca_mean_A, 'k-', 'LineWidth', 2.5);
+        title(sprintf('Stim %d — ROI %d: individual trials (grey) + mean (black)', si, roi_id), ...
+              'FontSize', 11, 'Interpreter', 'none');
     end
-    plot(t_com, Ca_grand, 'k-', 'LineWidth', 2.5);
     ylabel('Calcium (ΔF/F)', 'FontSize', 11);
-    title(sprintf('Stim %d  — ROI means (grey)  grand mean (black)', si), 'FontSize', 12);
     xlim([0, stim_data{si}.trial_dur]);  set(gca, 'Box', 'off');
 
     subplot(2, 1, 2);  hold on;
@@ -1442,54 +1474,55 @@ for si = 1:num_stim_x
     xlim([0, stim_data{si}.trial_dur]);  set(gca, 'Box', 'off');
 end
 
-%% CELL B: Per-Stimulus — Scatter (Pupil vs Mean Ca) + XCorr
-% All trials concatenated per stimulus for maximum statistical power.
-% XCorr limited to ±10 s lag; peak lag marked in red.
+%% CELL B: Per-Stimulus — Scatter (Pupil vs Ca) + XCorr
+% All trials concatenated per stimulus.  XCorr limited to ±10 s lag.
 
 for si = 1:num_stim_x
     Ca_all  = stim_data{si}.Ca_trials;
     pup_all = stim_data{si}.pup_trials;
-    fs_si   = n_com_x / stim_data{si}.trial_dur;   % effective Hz of resampled grid
+    fs_si   = n_com_x / stim_data{si}.trial_dur;
 
-    % Mean Ca across ROIs then flatten all trials: [n_com*nTrials × 1]
-    Ca_mean_rois = squeeze(mean(Ca_all, 1, 'omitnan'));   % [n_com × nTrials]
-    ca_B  = Ca_mean_rois(:);
+    % Apply ROI flag → Ca_sel: [n_com × nTrials]
+    if use_single()
+        Ca_sel = squeeze(Ca_all(roi_id, :, :));
+    else
+        Ca_sel = squeeze(mean(Ca_all, 1, 'omitnan'));
+    end
+
+    ca_B  = Ca_sel(:);
     pup_B = pup_all(:);
-
     valid_B = ~(isnan(ca_B) | isnan(pup_B));
-    ca_B    = ca_B(valid_B);
-    pup_B   = pup_B(valid_B);
+    ca_B  = ca_B(valid_B);
+    pup_B = pup_B(valid_B);
 
     [R_B, P_B] = corrcoef(pup_B, ca_B);
     r_B = R_B(1,2);  p_B = P_B(1,2);
 
-    % Z-score before xcorr
     ca_z_B  = (ca_B  - mean(ca_B))  / std(ca_B);
     pup_z_B = (pup_B - mean(pup_B)) / std(pup_B);
-    [xc_B, lags_B]  = xcorr(ca_z_B, pup_z_B, round(fs_si * 10), 'coeff');
+    [xc_B, lags_B] = xcorr(ca_z_B, pup_z_B, round(fs_si * 10), 'coeff');
     lag_s_B = lags_B / fs_si;
     [~, pk_B] = max(abs(xc_B));
 
-    figure('Name', sprintf('B: Stim %d — Scatter + XCorr', si), ...
+    figure('Name', sprintf('B: Stim %d — Scatter + XCorr  [%s]', si, stim_data{si}.label), ...
            'Position', [100 100 950 430]);
 
     subplot(1, 2, 1);
     scatter(pup_B, ca_B, 5, [0.2 0.4 0.8], 'filled', 'MarkerFaceAlpha', 0.15);
     hold on;
-    pf_B  = polyfit(pup_B, ca_B, 1);
-    xf_B  = linspace(min(pup_B), max(pup_B), 200);
+    pf_B = polyfit(pup_B, ca_B, 1);
+    xf_B = linspace(min(pup_B), max(pup_B), 200);
     plot(xf_B, polyval(pf_B, xf_B), 'r-', 'LineWidth', 2);
     text(0.05, 0.93, sprintf('r = %.3f   p = %.2e', r_B, p_B), ...
         'Units', 'normalized', 'FontSize', 10, 'BackgroundColor', 'w', 'EdgeColor', 'k');
-    xlabel('Pupil Area (px²)',    'FontSize', 11);
-    ylabel('Mean Calcium (ΔF/F)', 'FontSize', 11);
+    xlabel('Pupil Area (px²)',  'FontSize', 11);
+    ylabel('Calcium (ΔF/F)',    'FontSize', 11);
     title(sprintf('Stim %d — Scatter', si), 'FontSize', 12);
     legend({'Data', 'Linear fit'}, 'Location', 'best');
     set(gca, 'Box', 'off');
 
     subplot(1, 2, 2);
-    plot(lag_s_B, xc_B, 'k-', 'LineWidth', 1.5);
-    hold on;
+    plot(lag_s_B, xc_B, 'k-', 'LineWidth', 1.5);  hold on;
     xline(0, 'r--', 'LineWidth', 1);
     plot(lag_s_B(pk_B), xc_B(pk_B), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
     xlabel('Lag (s)',                 'FontSize', 11);
@@ -1506,44 +1539,48 @@ for si = 1:num_stim_x
     Ca_all  = stim_data{si}.Ca_trials;
     pup_all = stim_data{si}.pup_trials;
 
-    Ca_roi_mean_C = mean(Ca_all, 3, 'omitnan');   % [nROIs × n_com]
-    Ca_avg_C      = mean(Ca_roi_mean_C, 1);        % [1 × n_com]
-    pup_avg_C     = mean(pup_all, 2, 'omitnan')';  % [1 × n_com]
+    if use_single()
+        Ca_sel = squeeze(Ca_all(roi_id, :, :));
+    else
+        Ca_sel = squeeze(mean(Ca_all, 1, 'omitnan'));
+    end
+    Ca_avg_C1  = mean(Ca_sel, 2)';
+    pup_avg_C1 = mean(pup_all, 2, 'omitnan')';
 
-    figure('Name', sprintf('C1: Stim %d — Dual-Axis Trace', si), ...
+    figure('Name', sprintf('C1: Stim %d — Dual-Axis Trace  [%s]', si, stim_data{si}.label), ...
            'Position', [100 100 1000 400]);
-
     yyaxis left
-    plot(t_com, Ca_avg_C, 'k-', 'LineWidth', 1.8);
-    ylabel('Mean Ca (ΔF/F)', 'FontSize', 12);
-
+    plot(t_com, Ca_avg_C1, 'k-', 'LineWidth', 1.8);
+    ylabel('Calcium (ΔF/F)', 'FontSize', 12);
     yyaxis right
-    plot(t_com, pup_avg_C, '-', 'Color', [0.1 0.45 0.85], 'LineWidth', 1.8);
+    plot(t_com, pup_avg_C1, '-', 'Color', [0.1 0.45 0.85], 'LineWidth', 1.8);
     ylabel('Pupil Area (px²)', 'FontSize', 12);
-
     xlabel('Time within trial (s)', 'FontSize', 12);
-    title(sprintf('Stim %d — Trial-Averaged Ca (black) and Pupil (blue)', si), 'FontSize', 13);
-    xlim([0, stim_data{si}.trial_dur]);
-    set(gca, 'Box', 'off');
+    title(sprintf('Stim %d — Trial-Averaged Ca (black) and Pupil (blue)', si), ...
+          'FontSize', 13, 'Interpreter', 'none');
+    xlim([0, stim_data{si}.trial_dur]);  set(gca, 'Box', 'off');
 end
 
 %% CELL C2: Per-Stimulus — Histogram Overlay (Ca vs Pupil distributions)
-% Z-scored histograms of Ca and pupil overlaid to compare distribution shapes.
+% Z-scored histograms overlaid to compare distribution shapes.
 
 for si = 1:num_stim_x
     Ca_all  = stim_data{si}.Ca_trials;
     pup_all = stim_data{si}.pup_trials;
 
-    Ca_roi_mean_C2 = mean(Ca_all, 3, 'omitnan');
-    Ca_avg_C2      = mean(Ca_roi_mean_C2, 1);
-    pup_avg_C2     = mean(pup_all, 2, 'omitnan')';
+    if use_single()
+        Ca_sel = squeeze(Ca_all(roi_id, :, :));
+    else
+        Ca_sel = squeeze(mean(Ca_all, 1, 'omitnan'));
+    end
+    Ca_avg_C2  = mean(Ca_sel, 2)';
+    pup_avg_C2 = mean(pup_all, 2, 'omitnan')';
 
     ca_z_C2  = (Ca_avg_C2  - mean(Ca_avg_C2(:)))  / std(Ca_avg_C2(:));
     pup_z_C2 = (pup_avg_C2 - mean(pup_avg_C2(:))) / std(pup_avg_C2(:));
 
-    figure('Name', sprintf('C2: Stim %d — Histograms', si), ...
+    figure('Name', sprintf('C2: Stim %d — Histograms  [%s]', si, stim_data{si}.label), ...
            'Position', [100 100 700 500]);
-
     hold on;
     histogram(ca_z_C2,  25, 'Normalization', 'probability', ...
               'FaceColor', 'k', 'FaceAlpha', 0.45, 'EdgeColor', 'none');
@@ -1556,29 +1593,48 @@ for si = 1:num_stim_x
     set(gca, 'Box', 'off');
 end
 
-%% CELL D: Grouped Average — Stimuli Sharing the Same Trial Duration
-% Grey lines = grand mean of each individual stimulus.
-% Black/red line = group mean.  Shading = ± SEM across stimuli in group.
-% Groups with only one member are skipped.
+%% CELL D: Grouped Average — Stimuli with Same type + addnote
+% Only stimuli sharing BOTH type AND addnote are averaged together.
+% Grey lines = per-stimulus grand mean.  Black/red = group mean ± SEM.
+% Groups with mismatched trial durations use normalised time [0,1].
 
-for g = 1:length(uniq_durs_x)
-    members = find(dur_grp_x == g);
+for g = 1:length(uniq_labels_x)
+    members = find(label_grp_x == g);
     if length(members) < 2
-        fprintf('Group %d (Stim %d, %.1f s): single stimulus — skipping grouped average.\n', ...
-                g, members, uniq_durs_x(g));
+        fprintf('Group %d [%s]: single member (Stim %d) — skipping.\n', ...
+                g, uniq_labels_x{g}, members);
         continue
     end
 
-    n_mem   = length(members);
-    t_com_D = stim_data{members(1)}.t_com;   % shared time axis
+    n_mem = length(members);
+
+    % Use real time if all durations match, else normalise to [0,1]
+    trial_durs_D = arrayfun(@(k) stim_data{k}.trial_dur, members);
+    if range(trial_durs_D) < 0.01
+        t_com_D   = stim_data{members(1)}.t_com;
+        x_lbl_D   = 'Time within trial (s)';
+        xlim_D    = stim_data{members(1)}.trial_dur;
+    else
+        t_com_D   = linspace(0, 1, n_com_x);
+        x_lbl_D   = 'Normalised trial time (0–1)';
+        xlim_D    = 1;
+        fprintf('WARNING: Group %d durations differ (%s s) — using normalised time.\n', ...
+                g, num2str(trial_durs_D'));
+    end
 
     Ca_per_stim_D  = zeros(n_mem, n_com_x);
     pup_per_stim_D = zeros(n_mem, n_com_x);
 
     for k = 1:n_mem
-        si_k = members(k);
-        Ca_roi_k = mean(stim_data{si_k}.Ca_trials, 3, 'omitnan');   % [nROIs × n_com]
-        Ca_per_stim_D(k,:)  = mean(Ca_roi_k, 1);                    % grand mean per stim
+        si_k     = members(k);
+        Ca_all_k = stim_data{si_k}.Ca_trials;
+
+        if use_single()
+            Ca_sel_k = squeeze(Ca_all_k(roi_id, :, :));
+        else
+            Ca_sel_k = squeeze(mean(Ca_all_k, 1, 'omitnan'));
+        end
+        Ca_per_stim_D(k,:)  = mean(Ca_sel_k, 2)';
         pup_per_stim_D(k,:) = mean(stim_data{si_k}.pup_trials, 2, 'omitnan')';
     end
 
@@ -1586,12 +1642,11 @@ for g = 1:length(uniq_durs_x)
     Ca_grp_sem_D   = std(Ca_per_stim_D,  0, 1) / sqrt(n_mem);
     pup_grp_mean_D = mean(pup_per_stim_D, 1);
     pup_grp_sem_D  = std(pup_per_stim_D, 0, 1) / sqrt(n_mem);
-
     x_sh_D = [t_com_D, fliplr(t_com_D)];
-    fig_lbl = sprintf('D: Group %d — Stim [%s]  (%.1f s/trial)', ...
-                      g, num2str(members'), uniq_durs_x(g));
 
-    figure('Name', fig_lbl, 'Position', [100 100 950 520]);
+    fig_lbl_D = sprintf('D: Group %d — Stim [%s]  |  %s', ...
+                        g, num2str(members'), uniq_labels_x{g});
+    figure('Name', fig_lbl_D, 'Position', [100 100 950 520]);
 
     % --- Calcium ---
     subplot(2, 1, 1);  hold on;
@@ -1602,12 +1657,12 @@ for g = 1:length(uniq_durs_x)
                'k', 'FaceAlpha', 0.15, 'EdgeColor', 'none');
     set(hf1, 'HandleVisibility', 'off');
     plot(t_com_D, Ca_grp_mean_D, 'k-', 'LineWidth', 2.5);
-    ylabel('Mean Ca (ΔF/F)', 'FontSize', 11);
-    title(fig_lbl, 'FontSize', 11);
-    xlim([0, uniq_durs_x(g)]);  set(gca, 'Box', 'off');
-    leg_labels = [arrayfun(@(x) sprintf('Stim %d', x), members, 'UniformOutput', false); ...
-                  {'Group mean ± SEM'}];
-    legend(leg_labels, 'Location', 'best', 'FontSize', 9);
+    ylabel('Calcium (ΔF/F)', 'FontSize', 11);
+    title(fig_lbl_D, 'FontSize', 11, 'Interpreter', 'none');
+    xlim([0, xlim_D]);  set(gca, 'Box', 'off');
+    leg_lbl_D = [arrayfun(@(x) sprintf('Stim %d', x), members, 'UniformOutput', false); ...
+                 {'Group mean ± SEM'}];
+    legend(leg_lbl_D, 'Location', 'best', 'FontSize', 9);
 
     % --- Pupil ---
     subplot(2, 1, 2);  hold on;
@@ -1618,7 +1673,7 @@ for g = 1:length(uniq_durs_x)
                'r', 'FaceAlpha', 0.15, 'EdgeColor', 'none');
     set(hf2, 'HandleVisibility', 'off');
     plot(t_com_D, pup_grp_mean_D, 'r-', 'LineWidth', 2.5);
-    xlabel('Time within trial (s)', 'FontSize', 11);
-    ylabel('Pupil Area (px²)',       'FontSize', 11);
-    xlim([0, uniq_durs_x(g)]);  set(gca, 'Box', 'off');
+    xlabel(x_lbl_D, 'FontSize', 11);
+    ylabel('Pupil Area (px²)', 'FontSize', 11);
+    xlim([0, xlim_D]);  set(gca, 'Box', 'off');
 end

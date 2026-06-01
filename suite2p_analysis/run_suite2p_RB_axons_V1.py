@@ -92,7 +92,7 @@ print("="*70)
 # assuming round shapes. Without it, suite2p segments individual bouton
 # hot-spots instead of the elongated process shown in the image.
 ops['sparse_mode'] = True                 # CRITICAL: follow correlated activity along processes
-ops['diameter'] = 6                       # Match axon TUBE WIDTH visible in image (~3-8 px), not soma size
+ops['diameter'] = 20                      # Match axon TUBE WIDTH visible in image (~3-8 px), not soma size
 ops['threshold_scaling'] = 0.3            # Lower = more sensitive; needed to catch dim segments along processes
 ops['spatial_scale'] = 1                  # Detect at finest scale (1 = ~3 px); 0 = auto-estimate
 
