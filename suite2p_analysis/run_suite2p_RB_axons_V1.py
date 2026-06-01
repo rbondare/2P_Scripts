@@ -56,7 +56,7 @@ print("="*70)
 # ============================================================================
 ops['diameter'] = 20                      # Axon diameter ~1-2 μm (soma: 15-20)
 ops['threshold_scaling'] = 1.2            # Detection threshold (lower = more sensitive)
-ops['cellprob_threshold'] = 0.4           # Cellpose probability threshold
+ops['cellprob_threshold'] = 0.2         # Cellpose probability threshold
 ops['flow_threshold'] = 1.2               # Cellpose flow matching threshold
 
 # Spatial filtering for fine structures
@@ -65,13 +65,13 @@ ops['spatial_hp_reg'] = 42                # High-pass filter for registration
 
 # Block and ROI parameters
 ops['block_size'] = [64.0, 64.0]          # SMALLER blocks for finer detail (soma: 128)
-ops['max_overlap'] = 0.7
+ops['max_overlap'] = 0.4
 ops['soma_crop'] = False                  # Don't crop to soma region
 ops['pre_smooth'] = 0                     # Pre-smoothing before registration
 
 # ROI size constraints
-ops['npix_norm_min'] = 10.0               # Minimum ROI size
-ops['npix_norm_max'] = 500.0              # Maximum ROI size 
+ops['npix_norm_min'] = 15.0               # Minimum ROI size
+ops['npix_norm_max'] = 700.0              # Maximum ROI size 
 
 # Sparsery-specific detection
 ops['spatial_scale'] = 0                  # Spatial scale for detection
@@ -81,7 +81,7 @@ ops['max_iterations'] = 40                # Max iterations for detection
 # EXTRACTION SETTINGS
 # ============================================================================
 ops['neuropil_extract'] = True
-ops['allow_overlap'] = False              # Match old settings
+ops['allow_overlap'] = True              # Match old settings
 ops['inner_neuropil_radius'] = 2          # Standard neuropil radius
 ops['min_neuropil_pixels'] = 300          # Minimum neuropil pixels
 ops['neucoeff'] = 0.5                     # Neuropil coefficient (old: neuropil_coefficient)
