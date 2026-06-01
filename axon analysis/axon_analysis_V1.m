@@ -129,6 +129,279 @@ linkaxes([ax1, ax2, ax3], 'x');
 
 % Adjust spacing and figure size
 set(gcf, 'Position', [100, 100, 900,700]); % Make figure larger
+
+%% ========================================================================
+%  PUPIL-CALCIUM ACTIVITY RELATIONSHIP VISUALIZATION
+%  Multiple plotting approaches to explore how calcium activity changes 
+%  across pupil sizes
+%  ========================================================================
+
+% Prepare data: average calcium across ROIs
+if size(Ca_selected, 1) > 1
+    Ca_avg = nanmean(Ca_selected, 1);  % Average across ROIs
+else
+    Ca_avg = Ca_selected(1, :);
+end
+
+% Remove NaNs and align data
+valid_idx = ~(isnan(Beh_selected) | isnan(Ca_avg));
+pupil_clean = Beh_selected(valid_idx);
+ca_clean = Ca_avg(valid_idx);
+
+fprintf('\n%s\n', repmat('=', 1, 70));
+fprintf('PUPIL-CALCIUM ACTIVITY ANALYSIS\n');
+fprintf('%s\n', repmat('=', 1, 70));
+
+fprintf('\nGlobal Statistics:\n');
+fprintf('  Pupil Area: μ=%.2f, σ=%.2f\n', mean(pupil_clean), std(pupil_clean));
+fprintf('  Calcium Activity: μ=%.2f, σ=%.2f\n', mean(ca_clean), std(ca_clean));
+
+% Pearson correlation
+[r, p] = corrcoef(pupil_clean, ca_clean);
+fprintf('\nPearson Correlation: r=%.4f, p=%.2e\n', r(1,2), p(1,2));
+
+% Spearman correlation
+rho = corr(pupil_clean', ca_clean', 'type', 'Spearman');
+fprintf('Spearman Correlation: ρ=%.4f\n', rho);
+
+%% PLOT 1: Scatter with 2D Density Heatmap
+% Shows individual points colored by density with trend line
+
+figure('Name', 'Scatter with Density', 'Position', [100, 100, 1000, 900]);
+
+% Create 2D histogram for density coloring
+n_bins = 30;
+pupil_edges = linspace(min(pupil_clean), max(pupil_clean), n_bins + 1);
+ca_edges = linspace(min(ca_clean), max(ca_clean), n_bins + 1);
+
+% Hexbin equivalent using histogram2
+H = histogram2(pupil_clean, ca_clean, pupil_edges, ca_edges, 'DisplayStyle', 'tile', 'EdgeColor', 'none');
+colormap('hot');
+cb = colorbar;
+cb.Label.String = 'Count';
+
+xlabel('Pupil Area (pixels²)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Calcium Activity (ΔF/F)', 'FontSize', 12, 'FontWeight', 'bold');
+title('Scatter Plot: Pupil vs Calcium Activity', 'FontSize', 14, 'FontWeight', 'bold');
+grid on;
+
+% Add trend line (polynomial fit)
+hold on;
+p = polyfit(pupil_clean, ca_clean, 2);
+pupil_fit = linspace(min(pupil_clean), max(pupil_clean), 100);
+ca_fit = polyval(p, pupil_fit);
+plot(pupil_fit, ca_fit, 'r--', 'LineWidth', 2, 'DisplayName', 'Polynomial fit (degree 2)');
+
+% Add correlation text
+text(0.05, 0.95, sprintf('r = %.3f', r(1,2)), 'Units', 'normalized', ...
+    'FontSize', 11, 'BackgroundColor', 'yellow', 'EdgeColor', 'black', ...
+    'VerticalAlignment', 'top');
+legend('FontSize', 10);
+
+%% PLOT 2: Violin/Distribution Plot - Calcium by Pupil Bins
+% Shows distribution of calcium for different pupil sizes
+
+figure('Name', 'Violin Distribution', 'Position', [1100, 100, 1000, 700]);
+
+% Define pupil size bins
+n_bins = 5;
+pupil_min = min(pupil_clean);
+pupil_max = max(pupil_clean);
+bin_edges = linspace(pupil_min, pupil_max, n_bins + 1);
+bin_centers = (bin_edges(1:end-1) + bin_edges(2:end)) / 2;
+
+% Collect calcium data for each bin
+calcium_by_bin = cell(n_bins, 1);
+sample_counts = zeros(n_bins, 1);
+means = zeros(n_bins, 1);
+medians = zeros(n_bins, 1);
+stds = zeros(n_bins, 1);
+
+for i = 1:n_bins
+    mask = pupil_clean >= bin_edges(i) & pupil_clean < bin_edges(i+1);
+    calcium_by_bin{i} = ca_clean(mask);
+    sample_counts(i) = length(calcium_by_bin{i});
+    if sample_counts(i) > 0
+        means(i) = mean(calcium_by_bin{i});
+        medians(i) = median(calcium_by_bin{i});
+        stds(i) = std(calcium_by_bin{i});
+    end
+end
+
+% Create subplots
+subplot(2, 2, 1);  % Violin plot
+violinplot_custom(calcium_by_bin, bin_centers);
+xlabel('Pupil Size (px²)', 'FontSize', 11, 'FontWeight', 'bold');
+ylabel('Calcium Activity (ΔF/F)', 'FontSize', 11, 'FontWeight', 'bold');
+title('Distribution by Pupil Size', 'FontSize', 12, 'FontWeight', 'bold');
+grid on; grid minor;
+
+subplot(2, 2, 2);  % Mean ± Std
+errorbar(bin_centers, means, stds, 'o', 'MarkerSize', 8, 'LineWidth', 2, ...
+    'Color', 'steelblue', 'MarkerFaceColor', 'steelblue', 'MarkerEdgeColor', 'black');
+xlabel('Pupil Size (px²)', 'FontSize', 11, 'FontWeight', 'bold');
+ylabel('Mean Calcium Activity', 'FontSize', 11, 'FontWeight', 'bold');
+title('Mean ± Std by Pupil Bin', 'FontSize', 12, 'FontWeight', 'bold');
+grid on; grid minor;
+
+subplot(2, 2, 3);  % Median and IQR
+q1 = cellfun(@(x) quantile(x, 0.25), calcium_by_bin);
+q3 = cellfun(@(x) quantile(x, 0.75), calcium_by_bin);
+errorbar(bin_centers, medians, medians-q1, q3-medians, 's', ...
+    'MarkerSize', 8, 'LineWidth', 2, 'Color', 'green', 'MarkerFaceColor', 'green', ...
+    'MarkerEdgeColor', 'black', 'CapSize', 5);
+xlabel('Pupil Size (px²)', 'FontSize', 11, 'FontWeight', 'bold');
+ylabel('Median Calcium Activity', 'FontSize', 11, 'FontWeight', 'bold');
+title('Median and IQR by Pupil Bin', 'FontSize', 12, 'FontWeight', 'bold');
+grid on; grid minor;
+
+subplot(2, 2, 4);  % Sample sizes
+bar(bin_centers, sample_counts, 'FaceColor', 'steelblue', 'EdgeColor', 'black', 'FaceAlpha', 0.7);
+xlabel('Pupil Size (px²)', 'FontSize', 11, 'FontWeight', 'bold');
+ylabel('Sample Size (n)', 'FontSize', 11, 'FontWeight', 'bold');
+title('Samples per Bin', 'FontSize', 12, 'FontWeight', 'bold');
+grid on; grid minor;
+
+%% PLOT 3: 2D Histogram / Heatmap
+% Shows joint distribution density
+
+figure('Name', '2D Density Heatmap', 'Position', [100, 1000, 1000, 800]);
+
+% Create 2D histogram
+n_pupil_bins = 15;
+n_ca_bins = 15;
+pupil_edges_2d = linspace(min(pupil_clean), max(pupil_clean), n_pupil_bins + 1);
+ca_edges_2d = linspace(min(ca_clean), max(ca_clean), n_ca_bins + 1);
+
+H2 = histcounts2(pupil_clean, ca_clean, pupil_edges_2d, ca_edges_2d);
+
+imagesc(pupil_edges_2d(1:end-1), ca_edges_2d(1:end-1), H2');
+colormap('hot');
+colorbar;
+xlabel('Pupil Area (px²)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Calcium Activity (ΔF/F)', 'FontSize', 12, 'FontWeight', 'bold');
+title('2D Density: Joint Distribution', 'FontSize', 14, 'FontWeight', 'bold');
+set(gca, 'YDir', 'normal');
+
+%% PLOT 4: Time Series with Pupil Coloring
+% Shows calcium traces colored by pupil size
+
+figure('Name', 'Time Series with Pupil Coloring', 'Position', [1100, 1000, 1200, 600]);
+
+% Resample pupil to match calcium time if needed
+if length(pupil_clean) ~= length(time_vector)
+    pupil_resampled = interp1(1:length(pupil_clean), pupil_clean, linspace(1, length(pupil_clean), length(time_vector)));
+else
+    pupil_resampled = pupil_clean;
+end
+
+% Normalize pupil for colormap
+pupil_norm = (pupil_resampled - min(pupil_resampled)) / (max(pupil_resampled) - min(pupil_resampled));
+
+% Plot time series
+plot(time_vector, ca_clean, 'LineWidth', 2, 'Color', 'black');
+hold on;
+
+% Color background by pupil size
+colormap('cool');
+for i = 1:length(time_vector)-1
+    patch([time_vector(i), time_vector(i+1), time_vector(i+1), time_vector(i)], ...
+        [min(ca_clean)-1, min(ca_clean)-1, max(ca_clean)+1, max(ca_clean)+1], ...
+        pupil_norm(i), 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+end
+
+xlabel('Time (s)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Calcium Activity (ΔF/F)', 'FontSize', 12, 'FontWeight', 'bold');
+title('Calcium Activity (black) with Pupil Size Background (blue=small, red=large)', ...
+    'FontSize', 12, 'FontWeight', 'bold');
+colorbar; caxis([0 1]);
+
+%% PLOT 5: Ridge Plot (KDE Stacked Density)
+% Beautiful visualization of distribution changes
+
+figure('Name', 'Ridge Plot', 'Position', [100, 1900, 1000, 800]);
+
+hold on;
+colors_ridge = cool(n_bins);
+y_offset = 0;
+offset_step = 0.5;
+
+for i = 1:n_bins
+    if sample_counts(i) > 5  % Need enough points
+        ca_bin = calcium_by_bin{i};
+        
+        % KDE using ksdensity
+        [f, xi] = ksdensity(ca_bin);
+        f_norm = f / max(f) * 0.8;  % Normalize
+        
+        % Plot
+        fill(xi, f_norm + y_offset, colors_ridge(i,:), 'FaceAlpha', 0.7, ...
+            'EdgeColor', colors_ridge(i,:), 'LineWidth', 2);
+        
+        % Label with sample size
+        text(min(xi), y_offset, sprintf('n=%d', sample_counts(i)), ...
+            'FontSize', 9, 'VerticalAlignment', 'middle');
+        
+        y_offset = y_offset + offset_step;
+    end
+end
+
+xlabel('Calcium Activity (ΔF/F)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Pupil Size Range (increasing →)', 'FontSize', 12, 'FontWeight', 'bold');
+title('Ridge Plot: Calcium Distributions by Pupil Size', 'FontSize', 14, 'FontWeight', 'bold');
+
+% Create legend
+legend_labels = {};
+for i = 1:n_bins
+    legend_labels{i} = sprintf('Bin %d: %.0f-%.0f', i, bin_edges(i), bin_edges(i+1));
+end
+legend(legend_labels, 'Location', 'NorthEast', 'FontSize', 9);
+
+%% Print Statistics by Bins
+fprintf('\nStatistics by Pupil Size Bins (n=%d):\n', n_bins);
+fprintf('%s\n', repmat('-', 1, 70));
+
+for i = 1:n_bins
+    if sample_counts(i) > 0
+        ca_bin = calcium_by_bin{i};
+        fprintf('\nBin %d: Pupil %.0f-%.0f (n=%d)\n', i, bin_edges(i), bin_edges(i+1), sample_counts(i));
+        fprintf('  Calcium: μ=%.3f, σ=%.3f, median=%.3f, IQR=%.3f\n', ...
+            mean(ca_bin), std(ca_bin), median(ca_bin), iqr(ca_bin));
+    end
+end
+
+%% Helper Functions
+
+function violinplot_custom(data, positions)
+    % Simple violin plot helper
+    if nargin < 2
+        positions = 1:length(data);
+    end
+    
+    hold on;
+    for i = 1:length(data)
+        if length(data{i}) > 1
+            [f, xi] = ksdensity(data{i});
+            f = f / max(f) * 0.3;  % Normalize width
+            
+            % Plot left and right sides
+            fill(f + positions(i), xi, [0.2, 0.6, 0.9], 'FaceAlpha', 0.7);
+            plot(-f + positions(i), xi, 'Color', [0.2, 0.6, 0.9], 'LineWidth', 1.5);
+            
+            % Plot quartiles
+            q1 = quantile(data{i}, 0.25);
+            q2 = quantile(data{i}, 0.50);
+            q3 = quantile(data{i}, 0.75);
+            
+            plot([positions(i)-0.2, positions(i)+0.2], [q1, q1], 'k-', 'LineWidth', 2);
+            plot([positions(i)-0.2, positions(i)+0.2], [q2, q2], 'r-', 'LineWidth', 2.5);
+            plot([positions(i)-0.2, positions(i)+0.2], [q3, q3], 'k-', 'LineWidth', 2);
+        end
+    end
+    
+    set(gca, 'XTick', positions);
+end
+
 %% Generating fff_stimulus 
 
 ifi = data.Stimuli(1).ifi(1) 

@@ -54,10 +54,10 @@ print("="*70)
 
 # DETECTION SETTINGS (most critical for axons)
 # ============================================================================
-ops['diameter'] = 12                      # Axon diameter ~1-2 μm (soma: 15-20)
+ops['diameter'] = 20                      # Axon diameter ~1-2 μm (soma: 15-20)
 ops['threshold_scaling'] = 1.2            # Detection threshold (lower = more sensitive)
-ops['cellprob_threshold'] = 0.0           # Cellpose probability threshold
-ops['flow_threshold'] = 0.4               # Cellpose flow matching threshold
+ops['cellprob_threshold'] = 0.4           # Cellpose probability threshold
+ops['flow_threshold'] = 1.2               # Cellpose flow matching threshold
 
 # Spatial filtering for fine structures
 ops['spatial_hp_detect'] = 25             # High-pass filter for detection
@@ -71,12 +71,12 @@ ops['pre_smooth'] = 0                     # Pre-smoothing before registration
 
 # ROI size constraints
 ops['npix_norm_min'] = 10.0               # Minimum ROI size
-ops['npix_norm_max'] = 100.0              # Maximum ROI size (axons are small!)
+ops['npix_norm_max'] = 500.0              # Maximum ROI size 
 
 # Sparsery-specific detection
 ops['spatial_scale'] = 0                  # Spatial scale for detection
 ops['connected'] = True                   # Use connected components
-ops['max_iterations'] = 20                # Max iterations for detection
+ops['max_iterations'] = 40                # Max iterations for detection
 
 # EXTRACTION SETTINGS
 # ============================================================================
@@ -92,7 +92,7 @@ ops['lam_percentile'] = 50.0
 ops['batch_size'] = 500                   # Extraction batch size
 
 # Denoising
-ops['denoise'] = False
+ops['denoise'] = True
 ops['spikedetect'] = False                # No spike detection for axons
 ops['roidetect'] = True                   # Enable ROI detection
 
@@ -155,7 +155,7 @@ print(f"  - Cellprob threshold: {ops['cellprob_threshold']}")
 print(f"  - Spatial HP detect: {ops['spatial_hp_detect']}")
 print(f"  - Block size: {ops['block_size']}")
 print(f"  - Inner neuropil radius: {ops['inner_neuropil_radius']}")
-print(f"  - norm_frames: {ops['norm_frames']} ✓ (required)")
+print(f"  - norm_frames: {ops['norm_frames']}")
 
 
 # ============================================================================
