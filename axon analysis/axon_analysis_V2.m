@@ -1198,11 +1198,11 @@ pupil_time_pc = data.Triggers.TimeCamera(Beh_idx_pc);
 pupil_at_ca = interp1(pupil_time_pc(:), pupil_raw_pc(:), Ca_time_pc(:), ...
                       'linear', 'extrap');
 
-% Remove NaNs
+% Remove NaNs — force column vectors so histogram2 / boxplot don't complain
 valid_pc    = ~(isnan(pupil_at_ca) | isnan(Ca_avg_pc(:)));
-ca_clean    = Ca_avg_pc(valid_pc);
-pupil_clean = pupil_at_ca(valid_pc);
-t_clean     = Ca_time_pc(valid_pc);
+ca_clean    = Ca_avg_pc(valid_pc);    ca_clean    = ca_clean(:);
+pupil_clean = pupil_at_ca(valid_pc);  pupil_clean = pupil_clean(:);
+t_clean     = Ca_time_pc(valid_pc);   t_clean     = t_clean(:);
 
 % Correlations
 [R_pc, P_pc]  = corrcoef(pupil_clean(:), ca_clean(:));
