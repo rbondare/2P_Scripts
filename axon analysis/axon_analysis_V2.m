@@ -1213,6 +1213,24 @@ rho_spear_pc  = corr(pupil_clean(:), ca_clean(:), 'type', 'Spearman');
 fprintf('Pearson r=%.3f (p=%.2e)  |  Spearman rho=%.3f\n', ...
         r_pearson_pc, p_pearson_pc, rho_spear_pc);
 
+% --- Pupil as % of pre-stimulus baseline ---
+% Uses 2 s before stimulus 2 onset as the reference.  Falls back to the
+% within-window mean if no pre-stimulus pupil data is available.
+pct_bsl_dur = 2;
+bsl_beh_idx = find(data.Triggers.TimeCamera > (stim_start_pc - pct_bsl_dur) & ...
+                   data.Triggers.TimeCamera < stim_start_pc);
+if numel(bsl_beh_idx) > 1
+    pupil_baseline = mean(double(data.Behav.PupilArea(bsl_beh_idx)), 'omitnan');
+else
+    pupil_baseline = mean(pupil_raw_pc, 'omitnan');
+    fprintf('WARNING: no pre-stimulus pupil data — using window mean as baseline.\n');
+end
+fprintf('Pupil baseline = %.1f px²\n', pupil_baseline);
+
+pupil_pct_pc    = (pupil_at_ca / pupil_baseline) * 100;   % % of baseline, [nCa × 1]
+pupil_pct_clean = pupil_pct_pc(valid_pc);
+pupil_pct_clean = pupil_pct_clean(:);
+
 % Pupil bins (reused by plots below)
 n_bins_pc    = 5;
 bin_edges_pc = linspace(min(pupil_clean), max(pupil_clean), n_bins_pc + 1);
@@ -1330,6 +1348,322 @@ xlabel('Pupil Size Bin Centre (px²)', 'FontSize', 12);
 ylabel('Calcium (ΔF/F)',              'FontSize', 12);
 title('Calcium Distribution by Pupil Size', 'FontSize', 13);
 set(gca, 'Box', 'off');  grid on;
+
+%% PLOT 6: Scatter — Pupil % Baseline vs Mean Calcium
+% Same as Plot 1 but x-axis shows pupil relative to its pre-stimulus baseline.
+% 100% = baseline level; >100% = dilated; <100% = constricted.
+
+[R_pct, P_pct] = corrcoef(pupil_pct_clean, ca_clean);
+r_pct = R_pct(1,2);  p_pct = P_pct(1,2);
+
+figure('Name', 'P6: Scatter Pupil % Baseline vs Calcium', 'Position', [100 100 650 560]);
+scatter(pupil_pct_clean, ca_clean, 8, [0.2 0.4 0.8], 'filled', 'MarkerFaceAlpha', 0.25);
+hold on;
+pf6 = polyfit(pupil_pct_clean, ca_clean, 1);
+xf6 = linspace(min(pupil_pct_clean), max(pupil_pct_clean), 200);
+plot(xf6, polyval(pf6, xf6), 'r-', 'LineWidth', 2);
+xline(100, ':', 'Color', [0.5 0.5 0.5], 'LineWidth', 1.2);   % baseline level
+xlabel('Pupil Size (% of baseline)', 'FontSize', 12);
+ylabel('Mean Calcium (ΔF/F)',         'FontSize', 12);
+title(sprintf('Scatter: Pupil %% Baseline vs Calcium  (baseline = %.0f px²)', pupil_baseline), ...
+      'FontSize', 13);
+text(0.05, 0.93, sprintf('r = %.3f  (p = %.2e)', r_pct, p_pct), ...
+    'Units', 'normalized', 'FontSize', 11, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+legend({'Data', 'Linear fit', 'Baseline (100%)'}, 'Location', 'best');
+set(gca, 'Box', 'off');
+
+%% PLOT 7: Per-Axon Correlation — Pupil % Baseline vs Individual ROI Calcium
+% Computes Pearson r between pupil % and each axon bouton (ROI) individually.
+% Left panel: ROIs in anatomical order.  Right panel: sorted by r-value.
+% Orange bars = positive correlation; blue = negative.  * p<0.05, ** p<0.01, *** p<0.001.
+
+nROIs_pc  = size(Ca_all_pc, 1);
+r_roi_pct = NaN(nROIs_pc, 1);
+p_roi_pct = NaN(nROIs_pc, 1);
+
+for roi = 1:nROIs_pc
+    ca_roi    = Ca_all_pc(roi, :)';
+    valid_roi = valid_pc(:) & ~isnan(ca_roi);
+    if sum(valid_roi) > 5
+        [R_r, P_r]    = corrcoef(pupil_pct_pc(valid_roi), ca_roi(valid_roi));
+        r_roi_pct(roi) = R_r(1,2);
+        p_roi_pct(roi) = P_r(1,2);
+    end
+end
+
+n_sig_pct = sum(p_roi_pct < 0.05 & ~isnan(p_roi_pct));
+fprintf('Pupil %% vs Ca:  %d / %d ROIs significant (p<0.05)\n', n_sig_pct, nROIs_pc);
+
+figure('Name', 'P7: Per-ROI Correlation Pupil % vs Ca', 'Position', [100 100 960 480]);
+
+for panel = 1:2
+    subplot(1, 2, panel);  hold on;
+
+    if panel == 1
+        r_plot = r_roi_pct;
+        p_plot = p_roi_pct;
+        x_vals = 1:nROIs_pc;
+        xlabel('ROI (axon bouton index)', 'FontSize', 11);
+        title('Per-ROI r  —  anatomical order', 'FontSize', 12);
+    else
+        [r_plot, sort_idx] = sort(r_roi_pct, 'descend');
+        p_plot = p_roi_pct(sort_idx);
+        x_vals = 1:nROIs_pc;
+        xlabel('Rank (sorted by r)', 'FontSize', 11);
+        title(sprintf('Sorted  —  %d significant (p<0.05)', n_sig_pct), 'FontSize', 12);
+    end
+
+    for k = 1:nROIs_pc
+        if ~isnan(r_plot(k))
+            if r_plot(k) >= 0
+                clr = [0.85 0.35 0.1];
+            else
+                clr = [0.1 0.45 0.85];
+            end
+            bar(x_vals(k), r_plot(k), 0.7, 'FaceColor', clr, 'EdgeColor', 'none');
+            if p_plot(k) < 0.05
+                if p_plot(k) < 0.001,    mk = '***';
+                elseif p_plot(k) < 0.01, mk = '**';
+                else,                    mk = '*';
+                end
+                text(x_vals(k), r_plot(k) + sign(r_plot(k)) * 0.04, mk, ...
+                     'HorizontalAlignment', 'center', 'FontSize', 7, 'FontWeight', 'bold');
+            end
+        end
+    end
+
+    yline(0, 'k-', 'LineWidth', 0.8);
+    ylabel('Pearson r  (pupil % vs Ca dF/F)', 'FontSize', 11);
+    ylim([-1, 1]);  xlim([0, nROIs_pc + 1]);
+    set(gca, 'Box', 'off');
+end
+
+%% =========================================================================
+%  PER-STIMULUS PUPIL ANALYSIS  (Plots 4x–7x)
+%  Repeats Plots 4–7 across all stimuli.
+%  Requires: trial-chunking cell (~line 228) run first.
+%  Run PER-STIM PUPIL SETUP, then any plot cell independently.
+%  =========================================================================
+
+%% PER-STIM PUPIL SETUP — extract full block for every stimulus
+
+pct_bsl_dur_ps = 2;   % seconds of pre-stimulus baseline for pupil %
+n_bins_ps      = 5;   % pupil bins used in Plot 5x
+num_stim_ps    = length(data.Stimuli);
+pup_stim       = cell(num_stim_ps, 1);
+
+for si = 1:num_stim_ps
+    blk_dur_si = data.Stimuli(si).stimulus_trial_t * data.Stimuli(si).trials;
+    stim_blk_s = data.Stimuli(si).TimeStimulusFrame(1);
+    stim_blk_e = stim_blk_s + blk_dur_si;
+    lbl_si     = sprintf('%s | %s', data.Stimuli(si).type, data.Stimuli(si).addnote);
+
+    % Calcium full block
+    Ca_idx_ps = find(data.TimeCa(1,:) > stim_blk_s & data.TimeCa(1,:) < stim_blk_e);
+    t_ca_ps   = data.TimeCa(1, Ca_idx_ps) - stim_blk_s;     % row, block-relative
+    Ca_all_ps = data.CaData(1).Ca_dFF(:, Ca_idx_ps);         % [nROIs × nCa]
+    Ca_avg_ps = mean(Ca_all_ps, 1, 'omitnan');                % [1 × nCa]
+
+    % Pupil full block, resampled to Ca grid
+    Beh_idx_ps  = find(data.Triggers.TimeCamera > stim_blk_s & data.Triggers.TimeCamera < stim_blk_e);
+    t_beh_ps    = data.Triggers.TimeCamera(Beh_idx_ps) - stim_blk_s;
+    pup_raw_ps  = double(data.Behav.PupilArea(Beh_idx_ps));
+    pup_atca_ps = interp1(t_beh_ps(:), pup_raw_ps(:), t_ca_ps(:), 'linear', 'extrap');  % col
+
+    % Pupil % of pre-stimulus baseline
+    bsl_beh_ps = find(data.Triggers.TimeCamera > (stim_blk_s - pct_bsl_dur_ps) & ...
+                      data.Triggers.TimeCamera < stim_blk_s);
+    if numel(bsl_beh_ps) > 1
+        pup_bsl_ps = mean(double(data.Behav.PupilArea(bsl_beh_ps)), 'omitnan');
+    else
+        pup_bsl_ps = mean(pup_raw_ps, 'omitnan');
+    end
+    pup_pct_ps = (pup_atca_ps / pup_bsl_ps) * 100;   % col, [nCa × 1]
+
+    % NaN mask — force column vectors
+    valid_ps  = ~(isnan(pup_atca_ps) | isnan(Ca_avg_ps(:)));
+    ca_v_ps   = Ca_avg_ps(valid_ps)';   ca_v_ps   = ca_v_ps(:);
+    pup_v_ps  = pup_atca_ps(valid_ps);  pup_v_ps  = pup_v_ps(:);
+    pct_v_ps  = pup_pct_ps(valid_ps);   pct_v_ps  = pct_v_ps(:);
+    t_v_ps    = t_ca_ps(valid_ps)';     t_v_ps    = t_v_ps(:);
+
+    % Pupil bins (Plot 5x)
+    bin_edg_ps  = linspace(min(pup_v_ps), max(pup_v_ps), n_bins_ps + 1);
+    bin_ctr_ps  = (bin_edg_ps(1:end-1) + bin_edg_ps(2:end)) / 2;
+    bin_mean_ps = zeros(n_bins_ps, 1);
+    bin_sem_ps  = zeros(n_bins_ps, 1);
+    bin_n_ps    = zeros(n_bins_ps, 1);
+    bin_dat_ps  = cell(n_bins_ps, 1);
+    for ib = 1:n_bins_ps
+        if ib < n_bins_ps
+            msk_ps = pup_v_ps >= bin_edg_ps(ib) & pup_v_ps < bin_edg_ps(ib+1);
+        else
+            msk_ps = pup_v_ps >= bin_edg_ps(ib) & pup_v_ps <= bin_edg_ps(ib+1);
+        end
+        bin_dat_ps{ib}  = ca_v_ps(msk_ps);
+        bin_n_ps(ib)    = sum(msk_ps);
+        if bin_n_ps(ib) > 1
+            bin_mean_ps(ib) = mean(bin_dat_ps{ib});
+            bin_sem_ps(ib)  = std(bin_dat_ps{ib}) / sqrt(bin_n_ps(ib));
+        end
+    end
+
+    % Per-ROI Pearson r with pupil %
+    nROIs_ps = size(Ca_all_ps, 1);
+    r_roi_ps = NaN(nROIs_ps, 1);
+    p_roi_ps = NaN(nROIs_ps, 1);
+    for roi = 1:nROIs_ps
+        ca_roi_ps = Ca_all_ps(roi, :)';
+        v_roi_ps  = valid_ps(:) & ~isnan(ca_roi_ps);
+        if sum(v_roi_ps) > 5
+            [Rr_ps, Pr_ps]  = corrcoef(pup_pct_ps(v_roi_ps), ca_roi_ps(v_roi_ps));
+            r_roi_ps(roi)   = Rr_ps(1,2);
+            p_roi_ps(roi)   = Pr_ps(1,2);
+        end
+    end
+
+    pup_stim{si}.label       = lbl_si;
+    pup_stim{si}.t_v         = t_v_ps;
+    pup_stim{si}.ca_v        = ca_v_ps;
+    pup_stim{si}.pup_v       = pup_v_ps;
+    pup_stim{si}.pct_v       = pct_v_ps;
+    pup_stim{si}.blk_dur     = blk_dur_si;
+    pup_stim{si}.pup_bsl     = pup_bsl_ps;
+    pup_stim{si}.bin_ctr     = bin_ctr_ps;
+    pup_stim{si}.bin_mean    = bin_mean_ps;
+    pup_stim{si}.bin_sem     = bin_sem_ps;
+    pup_stim{si}.bin_n       = bin_n_ps;
+    pup_stim{si}.bin_dat     = bin_dat_ps;
+    pup_stim{si}.r_roi       = r_roi_ps;
+    pup_stim{si}.p_roi       = p_roi_ps;
+    pup_stim{si}.nROIs       = nROIs_ps;
+end
+fprintf('Per-stim pupil setup done: %d stimuli.\n', num_stim_ps);
+
+%% PLOT 4x: Per-Stimulus — Time Series Calcium + Pupil (dual axis)
+
+for si = 1:num_stim_ps
+    t_p   = pup_stim{si}.t_v;
+    ca_p  = pup_stim{si}.ca_v;
+    pup_p = pup_stim{si}.pup_v;
+    blk_d = pup_stim{si}.blk_dur;
+
+    figure('Name', sprintf('P4x: Stim %d — Time Series  [%s]', si, pup_stim{si}.label), ...
+           'Position', [100 100 1100 380]);
+    yyaxis left
+    plot(t_p, ca_p, 'k-', 'LineWidth', 1.2);
+    ylabel('Mean Calcium (ΔF/F)', 'FontSize', 12);
+    yyaxis right
+    plot(t_p, pup_p, '-', 'Color', [0.1 0.45 0.85], 'LineWidth', 1.2);
+    ylabel('Pupil Area (px²)', 'FontSize', 12);
+    xlabel('Time within block (s)', 'FontSize', 12);
+    title(sprintf('Stim %d — Calcium and Pupil Over Time  [%s]', si, pup_stim{si}.label), ...
+          'FontSize', 12, 'Interpreter', 'none');
+    xlim([0, blk_d]);  set(gca, 'Box', 'off');
+end
+
+%% PLOT 5x: Per-Stimulus — Calcium Distribution by Pupil Bin (boxplot)
+
+for si = 1:num_stim_ps
+    b_dat = pup_stim{si}.bin_dat;
+    b_ctr = pup_stim{si}.bin_ctr;
+    b_n   = pup_stim{si}.bin_n;
+
+    grp_d = [];  grp_l = [];
+    for ib = 1:n_bins_ps
+        if b_n(ib) > 0
+            grp_d = [grp_d; b_dat{ib}(:)];               %#ok<AGROW>
+            grp_l = [grp_l; repmat(ib, b_n(ib), 1)];     %#ok<AGROW>
+        end
+    end
+
+    tick_lbl = arrayfun(@(x) sprintf('%.0f', x), b_ctr, 'UniformOutput', false);
+
+    figure('Name', sprintf('P5x: Stim %d — Ca by Pupil Bin  [%s]', si, pup_stim{si}.label), ...
+           'Position', [100 100 680 520]);
+    boxplot(grp_d, grp_l, 'Labels', tick_lbl, 'Colors', 'b', 'Symbol', '+');
+    xlabel('Pupil Size Bin Centre (px²)', 'FontSize', 12);
+    ylabel('Calcium (ΔF/F)',              'FontSize', 12);
+    title(sprintf('Stim %d — Ca Distribution by Pupil Size  [%s]', si, pup_stim{si}.label), ...
+          'FontSize', 12, 'Interpreter', 'none');
+    set(gca, 'Box', 'off');  grid on;
+end
+
+%% PLOT 6x: Per-Stimulus — Scatter Pupil % Baseline vs Mean Calcium
+
+for si = 1:num_stim_ps
+    pct_p   = pup_stim{si}.pct_v;
+    ca_p    = pup_stim{si}.ca_v;
+    bsl_p   = pup_stim{si}.pup_bsl;
+
+    [R6x, P6x] = corrcoef(pct_p, ca_p);
+    r6x = R6x(1,2);  p6x = P6x(1,2);
+
+    figure('Name', sprintf('P6x: Stim %d — Scatter Pupil %% vs Ca  [%s]', si, pup_stim{si}.label), ...
+           'Position', [100 100 650 560]);
+    scatter(pct_p, ca_p, 8, [0.2 0.4 0.8], 'filled', 'MarkerFaceAlpha', 0.25);  hold on;
+    pf6x = polyfit(pct_p, ca_p, 1);
+    xf6x = linspace(min(pct_p), max(pct_p), 200);
+    plot(xf6x, polyval(pf6x, xf6x), 'r-', 'LineWidth', 2);
+    xline(100, ':', 'Color', [0.5 0.5 0.5], 'LineWidth', 1.2);
+    xlabel('Pupil Size (% of baseline)', 'FontSize', 12);
+    ylabel('Mean Calcium (ΔF/F)',         'FontSize', 12);
+    title(sprintf('Stim %d — Pupil %% Baseline vs Ca  (bsl = %.0f px²)', si, bsl_p), ...
+          'FontSize', 12, 'Interpreter', 'none');
+    text(0.05, 0.93, sprintf('r = %.3f  (p = %.2e)', r6x, p6x), ...
+        'Units', 'normalized', 'FontSize', 11, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+    legend({'Data', 'Linear fit', 'Baseline (100%)'}, 'Location', 'best');
+    set(gca, 'Box', 'off');
+end
+
+%% PLOT 7x: Per-Stimulus — Per-ROI Correlation Pupil % vs Axon Ca
+% Left: ROIs in anatomical order.  Right: sorted by r-value.
+% Orange = positive correlation, blue = negative.
+
+for si = 1:num_stim_ps
+    r_p  = pup_stim{si}.r_roi;
+    p_p  = pup_stim{si}.p_roi;
+    nR   = pup_stim{si}.nROIs;
+    nsig = sum(p_p < 0.05 & ~isnan(p_p));
+
+    figure('Name', sprintf('P7x: Stim %d — Per-ROI Correlation  [%s]', si, pup_stim{si}.label), ...
+           'Position', [100 100 960 480]);
+
+    for panel = 1:2
+        subplot(1, 2, panel);  hold on;
+
+        if panel == 1
+            r_pl = r_p;  p_pl = p_p;
+            xlabel('ROI (axon bouton index)', 'FontSize', 11);
+            title(sprintf('Stim %d — anatomical order', si), 'FontSize', 12);
+        else
+            [r_pl, srt] = sort(r_p, 'descend');
+            p_pl = p_p(srt);
+            xlabel('Rank (sorted by r)', 'FontSize', 11);
+            title(sprintf('Sorted  —  %d / %d significant (p<0.05)', nsig, nR), 'FontSize', 12);
+        end
+
+        for k = 1:nR
+            if ~isnan(r_pl(k))
+                clr = [0.85 0.35 0.1] * (r_pl(k) >= 0) + [0.1 0.45 0.85] * (r_pl(k) < 0);
+                bar(k, r_pl(k), 0.7, 'FaceColor', clr, 'EdgeColor', 'none');
+                if ~isnan(p_pl(k)) && p_pl(k) < 0.05
+                    if p_pl(k) < 0.001,    mk = '***';
+                    elseif p_pl(k) < 0.01, mk = '**';
+                    else,                  mk = '*';
+                    end
+                    text(k, r_pl(k) + sign(r_pl(k)) * 0.04, mk, ...
+                         'HorizontalAlignment', 'center', 'FontSize', 7, 'FontWeight', 'bold');
+                end
+            end
+        end
+
+        yline(0, 'k-', 'LineWidth', 0.8);
+        ylabel('Pearson r  (pupil % vs Ca dF/F)', 'FontSize', 11);
+        ylim([-1, 1]);  xlim([0, nR + 1]);
+        set(gca, 'Box', 'off');
+    end
+end
 
 %% =========================================================================
 %  PUPIL-CALCIUM EXTENDED ANALYSIS — ALL STIMULI
@@ -1676,4 +2010,352 @@ for g = 1:length(uniq_labels_x)
     xlabel(x_lbl_D, 'FontSize', 11);
     ylabel('Pupil Area (px²)', 'FontSize', 11);
     xlim([0, xlim_D]);  set(gca, 'Box', 'off');
+end
+
+%% =========================================================================
+%  LOCOMOTION & WHISKING ANALYSIS  (Cells E1–E4)
+%  Requires EXTENDED SETUP (stim_data, num_stim_x, num_trials_x, nROIs_x,
+%  use_single, roi_id) to have been run first.
+%  Run LOCO-WHISK SETUP, then any plot cell independently.
+%  =========================================================================
+
+%% LOCO-WHISK SETUP — extend stim_data with full-block behavioural signals
+% Extracts the full stimulus block (all repeats as one continuous trace).
+% Whisker and locomotion are resampled onto the calcium time grid via interp1.
+
+loco_smooth_win = 10;   % movmean window (samples) applied to raw diff velocity
+loco_run_thresh = 0.5;    % mm/s — locomotion above this = "running" (used in Cell E4)
+
+for si = 1:num_stim_x
+    blk_dur_si = data.Stimuli(si).stimulus_trial_t * data.Stimuli(si).trials;
+    stim_blk_s = data.Stimuli(si).TimeStimulusFrame(1);
+    stim_blk_e = stim_blk_s + blk_dur_si;
+
+    % Calcium: full block, all ROIs
+    Ca_idx_full  = find(data.TimeCa(1,:) > stim_blk_s & data.TimeCa(1,:) < stim_blk_e);
+    t_full       = data.TimeCa(1, Ca_idx_full) - stim_blk_s;   % row, block-relative
+    Ca_raw_full  = data.CaData(1).Ca_dFF(:, Ca_idx_full);      % [nROIs × nCa]
+    ca_full_mean = mean(Ca_raw_full, 1, 'omitnan');             % [1 × nCa]
+    ca_full_sem  = std(Ca_raw_full, 0, 1) / sqrt(nROIs_x);     % [1 × nCa]
+
+    % Whisker + Pupil: column 1 only / PupilArea, ~50 Hz — same timestamps
+    Beh_idx_full = find(data.Triggers.TimeCamera > stim_blk_s & data.Triggers.TimeCamera < stim_blk_e);
+    t_beh        = data.Triggers.TimeCamera(Beh_idx_full) - stim_blk_s;
+    whisk_raw    = double(data.Behav.whiskerFollicleA1(Beh_idx_full, 1));
+    valid_wh     = ~isnan(whisk_raw);
+    if sum(valid_wh) > 1
+        whisk_full = interp1(t_beh(valid_wh), whisk_raw(valid_wh), t_full(:), 'linear', 'extrap');
+    else
+        whisk_full = zeros(numel(t_full), 1);
+    end
+    pup_raw_full = double(data.Behav.PupilArea(Beh_idx_full));
+    pup_full_e   = interp1(t_beh(:), pup_raw_full(:), t_full(:), 'linear', 'extrap');
+
+    % Locomotion: own timestamps, velocity from diff, smoothed
+    Loc_idx_full = find(data.Triggers.TimeBall{si*2} > stim_blk_s & data.Triggers.TimeBall{si*2} < stim_blk_e);
+    if length(Loc_idx_full) > 1
+        t_loc     = data.Triggers.TimeBall{si*2}(Loc_idx_full) - stim_blk_s;
+        p_loc     = data.LocomotionCal(1).Forward_mm(Loc_idx_full);
+        v_raw     = diff(p_loc(:)) ./ diff(t_loc(:));
+        t_vel     = t_loc(1:end-1);
+        v_smooth  = movmean(v_raw, loco_smooth_win);
+        loco_full = interp1(t_vel(:), v_smooth(:), t_full(:), 'linear', 'extrap');
+    else
+        loco_full = zeros(numel(t_full), 1);
+    end
+
+    % Trial boundary times (relative to block start) for vertical markers
+    trial_bdry = zeros(1, data.Stimuli(si).trials);
+    for tr = 1:data.Stimuli(si).trials
+        trial_bdry(tr) = data.Stimuli(si).TrialTimes{1, tr}(1) - stim_blk_s;
+    end
+
+    stim_data{si}.t_full       = t_full(:)';
+    stim_data{si}.ca_raw_full  = Ca_raw_full;
+    stim_data{si}.ca_full_mean = ca_full_mean(:)';
+    stim_data{si}.ca_full_sem  = ca_full_sem(:)';
+    stim_data{si}.whisk_full   = whisk_full(:)';
+    stim_data{si}.pup_full     = pup_full_e(:)';
+    stim_data{si}.loco_full    = loco_full(:)';
+    stim_data{si}.trial_bdry   = trial_bdry;
+    stim_data{si}.blk_dur      = blk_dur_si;
+end
+fprintf('Loco-whisk setup done: %d stimuli.\n', num_stim_x);
+
+%% CELL E1: Per-Stimulus — Continuous Full-Block Time Series
+% 4 stacked panels: Ca mean ± SEM, pupil (blue), whisker (green), locomotion (orange).
+% Dashed grey lines mark trial boundaries.  All panels linked for panning.
+
+for si = 1:num_stim_x
+    t     = stim_data{si}.t_full;
+    ca_m  = stim_data{si}.ca_full_mean;
+    ca_s  = stim_data{si}.ca_full_sem;
+    pup   = stim_data{si}.pup_full;
+    whisk = stim_data{si}.whisk_full;
+    loco  = stim_data{si}.loco_full;
+    bdry  = stim_data{si}.trial_bdry;
+    blk_d = stim_data{si}.blk_dur;
+
+    figure('Name', sprintf('E1: Stim %d — Full Block  [%s]', si, stim_data{si}.label), ...
+           'Position', [100 100 1100 780]);
+
+    ax1_E1 = subplot(4, 1, 1);  hold on;
+    h_sh_E1 = fill([t, fliplr(t)], [(ca_m + ca_s), fliplr(ca_m - ca_s)], ...
+                   [0.7 0.7 0.7], 'FaceAlpha', 0.4, 'EdgeColor', 'none');
+    set(h_sh_E1, 'HandleVisibility', 'off');
+    plot(t, ca_m, 'k-', 'LineWidth', 1.8);
+    for k = 2:length(bdry)
+        xline(bdry(k), '--', 'Color', [0.55 0.55 0.55], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+    end
+    ylabel('Calcium (ΔF/F)', 'FontSize', 11);
+    title(sprintf('Stim %d — Full block (%d repeats)  [%s]', si, data.Stimuli(si).trials, stim_data{si}.label), ...
+          'FontSize', 12, 'Interpreter', 'none');
+    xlim([0, blk_d]);  set(gca, 'Box', 'off');
+
+    ax2_E1 = subplot(4, 1, 2);  hold on;
+    plot(t, pup, '-', 'Color', [0.1 0.45 0.85], 'LineWidth', 1.2);
+    for k = 2:length(bdry)
+        xline(bdry(k), '--', 'Color', [0.55 0.55 0.55], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+    end
+    ylabel('Pupil Area (px²)', 'FontSize', 11);
+    xlim([0, blk_d]);  set(gca, 'Box', 'off');
+
+    ax3_E1 = subplot(4, 1, 3);  hold on;
+    plot(t, whisk, '-', 'Color', [0.2 0.6 0.2], 'LineWidth', 1.2);
+    for k = 2:length(bdry)
+        xline(bdry(k), '--', 'Color', [0.55 0.55 0.55], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+    end
+    ylabel('Whisker A1 (px)', 'FontSize', 11);
+    xlim([0, blk_d]);  set(gca, 'Box', 'off');
+
+    ax4_E1 = subplot(4, 1, 4);  hold on;
+    plot(t, loco, '-', 'Color', [0.85 0.45 0.1], 'LineWidth', 1.2);
+    yline(loco_run_thresh, ':', 'Color', [0.55 0.55 0.55], 'LineWidth', 1);
+    for k = 2:length(bdry)
+        xline(bdry(k), '--', 'Color', [0.55 0.55 0.55], 'LineWidth', 0.8, 'HandleVisibility', 'off');
+    end
+    xlabel('Time within block (s)', 'FontSize', 11);
+    ylabel('Velocity (mm/s)', 'FontSize', 11);
+    xlim([0, blk_d]);  set(gca, 'Box', 'off');
+
+    linkaxes([ax1_E1, ax2_E1, ax3_E1, ax4_E1], 'x');
+end
+
+%% CELL E2: Per-Stimulus — Ca vs Whisker: Scatter + XCorr
+% Respects roi_mode / use_single flag.  XCorr limited to ±10 s lag.
+
+for si = 1:num_stim_x
+    t     = stim_data{si}.t_full;
+    whisk = stim_data{si}.whisk_full;
+    Ca_rf = stim_data{si}.ca_raw_full;
+    fs_si = numel(t) / stim_data{si}.blk_dur;
+
+    if use_single()
+        ca_vec = Ca_rf(roi_id, :);
+    else
+        ca_vec = mean(Ca_rf, 1, 'omitnan');
+    end
+
+    valid_E2 = ~(isnan(ca_vec) | isnan(whisk));
+    ca_E2    = ca_vec(valid_E2)';
+    wh_E2    = whisk(valid_E2)';
+
+    [R_E2, P_E2] = corrcoef(wh_E2, ca_E2);
+    r_E2 = R_E2(1,2);  p_E2 = P_E2(1,2);
+
+    ca_z_E2  = (ca_E2 - mean(ca_E2)) / std(ca_E2);
+    wh_z_E2  = (wh_E2 - mean(wh_E2)) / std(wh_E2);
+    [xc_E2, lags_E2] = xcorr(ca_z_E2, wh_z_E2, round(fs_si * 10), 'coeff');
+    lag_s_E2 = lags_E2 / fs_si;
+    [~, pk_E2] = max(abs(xc_E2));
+
+    figure('Name', sprintf('E2: Stim %d — Ca vs Whisker  [%s]', si, stim_data{si}.label), ...
+           'Position', [100 100 950 430]);
+
+    subplot(1, 2, 1);
+    scatter(wh_E2, ca_E2, 5, [0.2 0.6 0.2], 'filled', 'MarkerFaceAlpha', 0.15);  hold on;
+    pf_E2 = polyfit(wh_E2, ca_E2, 1);
+    xf_E2 = linspace(min(wh_E2), max(wh_E2), 200);
+    plot(xf_E2, polyval(pf_E2, xf_E2), 'r-', 'LineWidth', 2);
+    text(0.05, 0.93, sprintf('r = %.3f   p = %.2e', r_E2, p_E2), ...
+        'Units', 'normalized', 'FontSize', 10, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+    xlabel('Whisker A1 (px)', 'FontSize', 11);
+    ylabel('Calcium (ΔF/F)',  'FontSize', 11);
+    title(sprintf('Stim %d — Scatter', si), 'FontSize', 12);
+    set(gca, 'Box', 'off');
+
+    subplot(1, 2, 2);
+    plot(lag_s_E2, xc_E2, '-', 'Color', [0.2 0.6 0.2], 'LineWidth', 1.5);  hold on;
+    xline(0, 'r--', 'LineWidth', 1);
+    plot(lag_s_E2(pk_E2), xc_E2(pk_E2), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
+    xlabel('Lag (s)',                 'FontSize', 11);
+    ylabel('Correlation Coefficient', 'FontSize', 11);
+    title(sprintf('Stim %d — XCorr Ca–Whisker  (peak %.2f s)', si, lag_s_E2(pk_E2)), 'FontSize', 12);
+    set(gca, 'Box', 'off');  grid on;
+end
+
+%% CELL E3: Per-Stimulus — Ca vs Locomotion: Scatter + XCorr
+% Respects roi_mode / use_single flag.  XCorr limited to ±10 s lag.
+
+for si = 1:num_stim_x
+    t    = stim_data{si}.t_full;
+    loco = stim_data{si}.loco_full;
+    Ca_rf = stim_data{si}.ca_raw_full;
+    fs_si = numel(t) / stim_data{si}.blk_dur;
+
+    if use_single()
+        ca_vec = Ca_rf(roi_id, :);
+    else
+        ca_vec = mean(Ca_rf, 1, 'omitnan');
+    end
+
+    valid_E3 = ~(isnan(ca_vec) | isnan(loco));
+    ca_E3    = ca_vec(valid_E3)';
+    lo_E3    = loco(valid_E3)';
+
+    [R_E3, P_E3] = corrcoef(lo_E3, ca_E3);
+    r_E3 = R_E3(1,2);  p_E3 = P_E3(1,2);
+
+    ca_z_E3  = (ca_E3 - mean(ca_E3)) / std(ca_E3);
+    lo_z_E3  = (lo_E3 - mean(lo_E3)) / std(lo_E3);
+    [xc_E3, lags_E3] = xcorr(ca_z_E3, lo_z_E3, round(fs_si * 10), 'coeff');
+    lag_s_E3 = lags_E3 / fs_si;
+    [~, pk_E3] = max(abs(xc_E3));
+
+    figure('Name', sprintf('E3: Stim %d — Ca vs Locomotion  [%s]', si, stim_data{si}.label), ...
+           'Position', [100 100 950 430]);
+
+    subplot(1, 2, 1);
+    scatter(lo_E3, ca_E3, 5, [0.85 0.45 0.1], 'filled', 'MarkerFaceAlpha', 0.15);  hold on;
+    pf_E3 = polyfit(lo_E3, ca_E3, 1);
+    xf_E3 = linspace(min(lo_E3), max(lo_E3), 200);
+    plot(xf_E3, polyval(pf_E3, xf_E3), 'r-', 'LineWidth', 2);
+    text(0.05, 0.93, sprintf('r = %.3f   p = %.2e', r_E3, p_E3), ...
+        'Units', 'normalized', 'FontSize', 10, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+    xlabel('Velocity (mm/s)',  'FontSize', 11);
+    ylabel('Calcium (ΔF/F)',   'FontSize', 11);
+    title(sprintf('Stim %d — Scatter', si), 'FontSize', 12);
+    set(gca, 'Box', 'off');
+
+    subplot(1, 2, 2);
+    plot(lag_s_E3, xc_E3, '-', 'Color', [0.85 0.45 0.1], 'LineWidth', 1.5);  hold on;
+    xline(0, 'r--', 'LineWidth', 1);
+    plot(lag_s_E3(pk_E3), xc_E3(pk_E3), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
+    xlabel('Lag (s)',                 'FontSize', 11);
+    ylabel('Correlation Coefficient', 'FontSize', 11);
+    title(sprintf('Stim %d — XCorr Ca–Loco  (peak %.2f s)', si, lag_s_E3(pk_E3)), 'FontSize', 12);
+    set(gca, 'Box', 'off');  grid on;
+end
+
+%% CELL E4: Per-Stimulus — Running State Analysis
+% Panel 1: Ca trace with running epochs shaded orange.
+% Panel 2: Histogram overlay — Ca values during running (orange) vs stationary (grey).
+% Panel 3: Locomotion-onset-triggered Ca average ± SEM.
+%          Only bouts longer than min_bout_dur are counted as valid onsets.
+% Adjust loco_run_thresh and min_bout_dur in LOCO-WHISK SETUP / here as needed.
+
+min_bout_dur = 1;   % seconds — ignore brief locomotion blips
+ota_pre_s    = 3;   % seconds before onset to include
+ota_post_s   = 7;   % seconds after onset to include
+
+for si = 1:num_stim_x
+    t     = stim_data{si}.t_full;
+    ca_m  = stim_data{si}.ca_full_mean;
+    loco  = stim_data{si}.loco_full;
+    blk_d = stim_data{si}.blk_dur;
+    fs_si = numel(t) / blk_d;
+
+    % Identify running bouts, filter by minimum duration
+    running_bin = loco > loco_run_thresh;
+    run_s_all = find(diff([false, running_bin]) ==  1);
+    run_e_all = find(diff([running_bin, false])  == -1);
+    n_all     = min(numel(run_s_all), numel(run_e_all));
+    run_s_all = run_s_all(1:n_all);
+    run_e_all = run_e_all(1:n_all);
+    long_bout = (run_e_all - run_s_all + 1) >= round(min_bout_dur * fs_si);
+    run_starts = run_s_all(long_bout);
+    run_ends   = run_e_all(long_bout);
+    n_bouts    = numel(run_starts);
+
+    % Running mask from long bouts only
+    running_mask = false(size(loco));
+    for k = 1:n_bouts
+        running_mask(run_starts(k):run_ends(k)) = true;
+    end
+
+    if sum(running_mask) < 5
+        fprintf('Stim %d: no sustained running above %.1f mm/s — skipping E4.\n', si, loco_run_thresh);
+        continue
+    end
+
+    ca_run  = ca_m(running_mask);
+    ca_stat = ca_m(~running_mask);
+
+    ca_pad = 0.5 * std(ca_m);
+    y_lo   = min(ca_m) - ca_pad;
+    y_hi   = max(ca_m) + ca_pad;
+
+    figure('Name', sprintf('E4: Stim %d — Running State  [%s]', si, stim_data{si}.label), ...
+           'Position', [100 100 1100 750]);
+
+    % --- Panel 1: Ca trace with running epochs ---
+    subplot(3, 1, 1);  hold on;
+    for k = 1:n_bouts
+        fill([t(run_starts(k)), t(run_ends(k)), t(run_ends(k)), t(run_starts(k))], ...
+             [y_lo, y_lo, y_hi, y_hi], ...
+             [1 0.7 0.3], 'FaceAlpha', 0.3, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    end
+    plot(t, ca_m, 'k-', 'LineWidth', 1.8);
+    ylim([y_lo, y_hi]);  xlim([0, blk_d]);
+    ylabel('Calcium (ΔF/F)', 'FontSize', 11);
+    title(sprintf('Stim %d — Ca with running epochs (orange, >%.1f mm/s, >%.0f s)  [%s]', ...
+          si, loco_run_thresh, min_bout_dur, stim_data{si}.label), 'FontSize', 11, 'Interpreter', 'none');
+    set(gca, 'Box', 'off');
+
+    % --- Panel 2: Histogram overlay running vs stationary ---
+    subplot(3, 1, 2);  hold on;
+    histogram(ca_stat, 30, 'Normalization', 'probability', ...
+              'FaceColor', [0.6 0.6 0.6], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+    histogram(ca_run,  30, 'Normalization', 'probability', ...
+              'FaceColor', [1 0.6 0.1],     'FaceAlpha', 0.6, 'EdgeColor', 'none');
+    xline(median(ca_stat), '--', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5, 'HandleVisibility', 'off');
+    xline(median(ca_run),  '--', 'Color', [0.85 0.35 0],  'LineWidth', 1.5, 'HandleVisibility', 'off');
+    xlabel('Calcium (ΔF/F)', 'FontSize', 11);
+    ylabel('Probability',    'FontSize', 11);
+    title(sprintf('Distribution  —  stationary (grey) vs running (orange)  |  median: stat=%.3f  run=%.3f', ...
+          median(ca_stat), median(ca_run)), 'FontSize', 10);
+    legend({'Stationary', 'Running'}, 'Location', 'best', 'FontSize', 9);
+    set(gca, 'Box', 'off');
+
+    % --- Panel 3: Onset-triggered Ca average ---
+    win_pre  = round(ota_pre_s  * fs_si);
+    win_post = round(ota_post_s * fs_si);
+    t_ota    = linspace(-ota_pre_s, ota_post_s, win_pre + win_post + 1);
+    valid_ons = run_starts(run_starts > win_pre & run_starts <= numel(t) - win_post);
+
+    subplot(3, 1, 3);  hold on;
+    if numel(valid_ons) >= 2
+        ota_mat = zeros(numel(valid_ons), win_pre + win_post + 1);
+        for oi = 1:numel(valid_ons)
+            ota_mat(oi, :) = ca_m((valid_ons(oi) - win_pre) : (valid_ons(oi) + win_post));
+        end
+        ota_mean = mean(ota_mat, 1);
+        ota_sem  = std(ota_mat, 0, 1) / sqrt(numel(valid_ons));
+        x_sh_ota = [t_ota, fliplr(t_ota)];
+        y_sh_ota = [(ota_mean + ota_sem), fliplr(ota_mean - ota_sem)];
+        h_ota = fill(x_sh_ota, y_sh_ota, [0.7 0.7 0.7], 'FaceAlpha', 0.4, 'EdgeColor', 'none');
+        set(h_ota, 'HandleVisibility', 'off');
+        plot(t_ota, ota_mean, 'k-', 'LineWidth', 1.8);
+        xline(0, '--', 'Color', [0.85 0.45 0.1], 'LineWidth', 1.5, 'Label', 'Onset', ...
+              'LabelVerticalAlignment', 'bottom');
+        xlabel('Time from locomotion onset (s)', 'FontSize', 11);
+        ylabel('Calcium (ΔF/F)', 'FontSize', 11);
+        title(sprintf('Stim %d — Onset-triggered Ca mean ± SEM  (n = %d onsets)', si, numel(valid_ons)), ...
+              'FontSize', 12);
+    else
+        text(0.5, 0.5, sprintf('Fewer than 2 valid onsets (n=%d)\nLower loco_run_thresh or min_bout_dur', ...
+             numel(valid_ons)), 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 11);
+        title(sprintf('Stim %d — Onset-triggered Ca  (insufficient onsets)', si), 'FontSize', 12);
+    end
+    xlim([-ota_pre_s, ota_post_s]);  set(gca, 'Box', 'off');
 end

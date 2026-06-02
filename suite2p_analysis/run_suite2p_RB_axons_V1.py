@@ -47,16 +47,28 @@ def resolve_runtime_path(path_str):
     return path_str.replace("\\", "/")
 
 
-# Load base settings from soma detection
-settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\2P_Scripts\suite2p\settings.npy")
-data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1628")
+# Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
+# These settings are known to detect axons well — use as base, only override paths
+settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
+data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1711")
 classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
-    if 'version' in ops:
-        ops.pop('version')
-    print("Loaded base settings from file")
+    # Drop all recording-specific keys — these must be recomputed for the new recording
+    for drop_key in (
+        'version',
+        'save_path0', 'save_path', 'fast_disk', 'data_path',
+        'yrange', 'xrange',           # registration crop — shape differs per recording
+        'meanImg', 'meanImgE',        # mean images — recording specific
+        'refImg',                     # registration reference frame
+        'max_proj',                   # max projection
+        'Ly', 'Lx',                   # frame dimensions
+        'tPC',                        # temporal PCs
+        'ignore_flyback', 'nplanes',  # will be set via db dict
+    ):
+        ops.pop(drop_key, None)
+    print("Loaded base settings from WORKING axon ops (AnimalRB6_250302_1656)")
 else:
     print(f"Settings file not found: {settings_file}")
     exit(1)
@@ -82,127 +94,114 @@ del _clf
 # ============================================================================
 
 print("\n" + "="*70)
-print("APPLYING AXON DETECTION PARAMETERS")
+print("APPLYING PARAMETERS — suite2p 1.0+ nested format")
 print("="*70)
 
-# DETECTION SETTINGS (most critical for axons)
-# ============================================================================
-# sparse_mode = True is the MOST CRITICAL setting: activates the sparsery
-# algorithm which grows masks along correlated-activity pixels rather than
-# assuming round shapes. Without it, suite2p segments individual bouton
-# hot-spots instead of the elongated process shown in the image.
-ops['sparse_mode'] = True                 # CRITICAL: follow correlated activity along processes
-ops['diameter'] = 20                      # Match axon TUBE WIDTH visible in image (~3-8 px), not soma size
-ops['threshold_scaling'] = 0.3            # Lower = more sensitive; needed to catch dim segments along processes
-ops['spatial_scale'] = 1                  # Detect at finest scale (1 = ~3 px); 0 = auto-estimate
+# suite2p 1.0+ uses NESTED settings. Flat keys like ops['combined'] or
+# ops['threshold_scaling'] are silently ignored — they must go in the
+# correct sub-dict. This was why 10 runs produced identical results.
 
-# Cellpose parameters (not used in sparse_mode but kept for fallback)
-ops['cellprob_threshold'] = 0.2
-ops['flow_threshold'] = 1.2
+ops['save_path0'] = data_path
+ops['diameter'] = 30              # flat top-level key — sigma=diameter/10=3px for sourcery (old ops used 20 on 2048-wide frame)
 
-# Spatial filtering for fine structures
-ops['spatial_hp_detect'] = 12             # Lower than default 25: preserves thin tubular processes
-ops['spatial_hp_reg'] = 42                # High-pass filter for registration
+ops['io'] = {
+    'combined': False,            # plane2 has no reg_outputs.npy — would crash if True
+    'save_mat': False,
+    'save_NWB': False,
+    'save_ops_orig': True,
+    'delete_bin': False,
+    'move_bin': False,
+}
 
-# Block and ROI parameters
-ops['block_size'] = [64.0, 64.0]          # SMALLER blocks for finer detail (soma: 128)
-ops['max_overlap'] = 0.75                 # Axons cross each other; allow high overlap
-ops['soma_crop'] = False                  # Don't crop to soma region
-ops['pre_smooth'] = 0                     # Pre-smoothing before registration
+ops['run'] = {
+    'do_registration': 1,
+    'do_regmetrics': False,
+    'do_detection': True,
+    'do_deconvolution': False,
+    'multiplane_parallel': False,
+}
 
-# ROI size constraints
-# Elongated axon segments span many pixels — max must be large or long
-# processes get clipped into fragments. Min is small because thin cross-sections
-# have few pixels even at moderate length.
-ops['npix_norm_min'] = 15.0               # Minimum ROI size
-ops['npix_norm_max'] = 3000.0             # Large: winding axons accumulate many pixels
+# sourcery: grows ROI masks from SVD spatial components smoothed at sigma=diameter/10.
+# No hardcoded 20% threshold — masks can extend to the full axon width.
+ops['detection'] = {
+    'algorithm': 'sourcery',
+    'denoise': False,
+    'block_size': (128, 128),
+    'nbins': 5000,
+    'bin_size': None,
+    'highpass_time': 100,
+    'threshold_scaling': 1.0,      # old working ops used 1.0; threshold_scaling only gates seeds, not mask size
+    'npix_norm_min': 0.0,
+    'npix_norm_max': 100,
+    'max_overlap': 1.0,
+    'soma_crop': False,
+    'chan2_threshold': 0.25,
+    'cellpose_chan2': False,
+    'sparsery_settings': {
+        'highpass_neuropil': 500,
+        'max_ROIs': 5000,
+        'spatial_scale': 2,
+        'active_percentile': 0.0,
+    },
+    'sourcery_settings': {
+        'connected': True,
+        'max_iterations': 40,
+        'smooth_masks': False,
+    },
+    'cellpose_settings': {
+        'cellpose_model': 'cpsam',
+        'img': 'max_proj / meanImg',
+        'highpass_spatial': 0,
+        'flow_threshold': 0.4,
+        'cellprob_threshold': -2.0,
+        'params': None,
+        'params_chan2': None,
+    }
+}
 
-# Sparsery-specific detection
-ops['connected'] = True                   # Keep masks as connected components along process
-ops['max_iterations'] = 50                # More iterations to trace full axon length
+ops['classification'] = {
+    'classifier_path': None,
+    'use_builtin_classifier': False,   # builtin classifier is trained on somas — it REJECTS axons
+    'preclassify': 0.0,
+}
 
-# EXTRACTION SETTINGS
-# ============================================================================
-ops['neuropil_extract'] = True
-ops['allow_overlap'] = True              # Match old settings
-ops['inner_neuropil_radius'] = 1          # Minimal: axons have no meaningful neuropil halo
-ops['min_neuropil_pixels'] = 50           # Much smaller surround needed for thin processes
-ops['neucoeff'] = 0.5                     # Neuropil coefficient (old: neuropil_coefficient)
-ops['circular_neuropil'] = False          # Allow irregular neuropil shape
-ops['lam_percentile'] = 20.0              # Lower = mask grows further along the process (50 = compact blobs)
+ops['extraction'] = {
+    'snr_threshold': 0.0,
+    'batch_size': 500,
+    'neuropil_extract': True,
+    'neuropil_coefficient': 0.7,
+    'inner_neuropil_radius': 2,
+    'min_neuropil_pixels': 350,
+    'lam_percentile': 0.0,         # 0 = skip percentile_filter (large axon ROIs make size=int(radius*5) → OOM)
+    'allow_overlap': True,
+    'circular_neuropil': False,
+}
 
-# Extraction batch size (different from registration batch)
-ops['batch_size'] = 500                   # Extraction batch size
+ops['registration'] = {
+    'align_by_chan2': False,
+    'nimg_init': 300,
+    'maxregshift': 0.1,
+    'do_bidiphase': False,
+    'bidiphase': 0.0,
+    'batch_size': 100,
+    'nonrigid': True,
+    'maxregshiftNR': 5,
+    'block_size': (128, 128),
+    'smooth_sigma_time': 0,
+    'smooth_sigma': 1.15,
+    'spatial_taper': 3.45,
+    'th_badframes': 1.0,
+    'norm_frames': True,
+    'snr_thresh': 0.8,
+    'subpixel': 10,
+    'two_step_registration': False,
+    'reg_tif': False,
+    'reg_tif_chan2': False,
+}
 
-# Denoising
-ops['denoise'] = True
-ops['spikedetect'] = False                # No spike detection for axons
-ops['roidetect'] = True                   # Enable ROI detection
-
-# REGISTRATION SETTINGS
-# ============================================================================
-ops['do_registration'] = 1
-ops['nonrigid'] = True                    # Use nonrigid registration
-ops['norm_frames'] = True                 # 
-ops['nimg_init'] = 400
-ops['maxregshift'] = 0.12
-ops['maxregshiftNR'] = 5
-ops['smooth_sigma'] = 1.15                # Less blur → preserves thin tubular structures
-ops['smooth_sigma_time'] = 0              # No temporal smoothing
-ops['bidiphase'] = 0.0
-ops['do_bidiphase'] = False
-ops['align_by_chan'] = 0                  # Don't align by channel 2
-ops['reg_tif'] = False
-ops['reg_tif_chan2'] = False
-ops['snr_thresh'] = 1.2
-ops['spatial_taper'] = 3.45
-ops['subpixel'] = 10
-ops['th_badframes'] = 1.0
-ops['two_step_registration'] = True
-ops['1Preg'] = False                      # No 1P registration
-
-# RUN SETTINGS
-# ============================================================================
-ops['do_detection'] = True                # Perform detection
-ops['do_deconvolution'] = False
-ops['do_regmetrics'] = False              # Skip metrics to avoid memory issues
-ops['multiplane_parallel'] = False
-
-# I/O SETTINGS
-# ============================================================================
-ops['combined'] = True
-ops['delete_bin'] = False
-ops['move_bin'] = False
-ops['save_NWB'] = False
-ops['save_mat'] = False                   # Disable MATLAB saving to avoid None conversion errors
-ops['save_path0'] = data_path             # Set save path (data_path defined earlier)
-
-# CLASSIFICATION SETTINGS
-# ============================================================================
-ops['preclassify'] = 0.0
-ops['use_builtin_classifier'] = False     # Use custom axon classifier only
-ops['classifier_path'] = classifier_path  # NAaxons.npy
-
-# OTHER SETTINGS
-# ============================================================================
-ops['tau'] = 0.7                          # Time constant
-ops['fs'] = 10.0                          # Sampling rate
-ops['keep_movie_raw'] = False
-ops['sparse_mode'] = True                 # Set above in detection section; repeated here for clarity
-ops['pad_fft'] = True
-ops['force_refImg'] = False
-
-print("\nApplied axon-specific parameters:")
-print(f"  - sparse_mode: {ops['sparse_mode']}  ← CRITICAL: sparsery algorithm for elongated structures")
-print(f"  - Diameter: {ops['diameter']} px  (match tube width, not soma size)")
-print(f"  - Threshold scaling: {ops['threshold_scaling']}")
-print(f"  - Spatial scale: {ops['spatial_scale']}  (1 = finest ~3px scale)")
-print(f"  - Spatial HP detect: {ops['spatial_hp_detect']}")
-print(f"  - npix_norm_max: {ops['npix_norm_max']}  (large for elongated ROIs)")
-print(f"  - max_overlap: {ops['max_overlap']}  (axons cross)")
-print(f"  - Inner neuropil radius: {ops['inner_neuropil_radius']}")
-print(f"  - norm_frames: {ops['norm_frames']}")
-print(f"  - classifier: NAaxons.npy (custom, builtin disabled)")
+print(f"\n  algorithm: sourcery  |  diameter: {ops['diameter']} px (sigma={ops['diameter']/10:.0f}px)")
+print(f"  threshold_scaling: {ops['detection']['threshold_scaling']}")
+print(f"  combined: {ops['io']['combined']}  |  do_regmetrics: {ops['run']['do_regmetrics']}")
 
 
 # ============================================================================
@@ -217,48 +216,84 @@ db = {
     'ignore_flyback': [2],             # Explicit plane index — plane2 is flyback (-1 does NOT work)
 }
 
-# Check for existing binary files
+# Check for existing binary files — only check real planes, not flyback
 suite2p_path = os.path.join(db['save_path0'], 'suite2p')
+flyback_planes = set(db['ignore_flyback'])
+real_planes = [p for p in range(db['nplanes']) if p not in flyback_planes]
 binary_exists = False
 
 print("\nChecking for existing binary files...")
 if os.path.exists(suite2p_path):
+    found = []
+    for plane in real_planes:
+        bin_file = os.path.join(suite2p_path, f'plane{plane}', 'data.bin')
+        if os.path.exists(bin_file):
+            found.append(plane)
+            print(f"  Found: plane{plane}/data.bin")
+        else:
+            print(f"  Missing: plane{plane}/data.bin")
+
+    # Always wipe stale ops/detection files — this runs whether or not binaries
+    # exist, so cached parameters can never silently override the script's settings.
+    stale = ['ops.npy', 'stat.npy', 'iscell.npy', 'F.npy', 'Fneu.npy', 'spks.npy', 'redcell.npy']
+    print("  Clearing stale detection outputs (keeping data.bin)...")
     for plane in range(db['nplanes']):
         plane_path = os.path.join(suite2p_path, f'plane{plane}')
-        bin_file = os.path.join(plane_path, 'data.bin')
-        if os.path.exists(bin_file):
-            print(f"Found: plane{plane}/data.bin")
-            binary_exists = True
-        else:
-            binary_exists = False
-            break
-    
+        for fname in stale:
+            fpath = os.path.join(plane_path, fname)
+            if os.path.exists(fpath):
+                os.remove(fpath)
+                print(f"    Removed plane{plane}/{fname}")
+    combined_path = os.path.join(suite2p_path, 'combined')
+    if os.path.exists(combined_path):
+        for fname in stale:
+            fpath = os.path.join(combined_path, fname)
+            if os.path.exists(fpath):
+                os.remove(fpath)
+                print(f"    Removed combined/{fname}")
+
+    binary_exists = (len(found) == len(real_planes))
     if binary_exists:
-        print("\n  All binary files exist. Skipping conversion.")
+        print("  All real-plane binaries found. Skipping TIFF conversion.")
         db['data_path'] = []
         db['look_one_level_down'] = False
         ops['fast_disk'] = suite2p_path
+    else:
+        print("  Some binaries missing — will convert from TIFFs.")
 
 # ============================================================================
 # RUN SUITE2P
 # ============================================================================
 
 print("\n" + "="*70)
-print("RUNNING SUITE2P - AXON DETECTION MODE")
+print("FINAL OPS CHECK — values actually passed to run_s2p:")
 print("="*70)
-print(f"  Data path: {db['data_path']}")
-print(f"  Save path: {db['save_path0']}")
-print(f"  Planes: {db['nplanes']}")
-print(f"  Using existing binary: {binary_exists}")
-print("\n  Detection settings:")
-print(f"    - Algorithm: sparsery")
-print(f"    - Diameter: {ops['diameter']} μm")
-print(f"    - Cellprob threshold: {ops['cellprob_threshold']} (lower = more sensitive)")
-print(f"    - Threshold scaling: {ops['threshold_scaling']} (lower = detects fainter)")
-print("\n" + "="*70 + "\n")
+print(f"  algorithm:            {ops['detection']['algorithm']}")
+print(f"  diameter:             {ops.get('diameter', 'NOT SET')}  (sigma={ops.get('diameter', 0)/10:.0f}px)")
+print(f"  threshold_scaling:    {ops['detection']['threshold_scaling']}")
+print(f"  npix_norm_max:        {ops['detection']['npix_norm_max']}")
+print(f"  lam_percentile:       {ops['extraction']['lam_percentile']}")
+print(f"  combined:             {ops['io']['combined']}")
+print(f"  do_regmetrics:        {ops['run']['do_regmetrics']}")
+print(f"  use_builtin_clf:      {ops['classification']['use_builtin_classifier']}")
+print(f"  nplanes (db):         {db.get('nplanes', 'NOT SET')}")
+print(f"  ignore_flyback (db):  {db.get('ignore_flyback', 'NOT SET')}")
+print(f"  total keys in ops:    {len(ops)}")
+print("="*70 + "\n")
 
 try:
     run_s2p(settings=ops, db=db)
+
+    # Read back what suite2p actually saved — this is ground truth for what ran
+    saved_ops_path = os.path.join(data_path, 'suite2p', 'plane0', 'ops.npy')
+    if os.path.exists(saved_ops_path):
+        saved = np.load(saved_ops_path, allow_pickle=True).item()
+        print("\n" + "="*70)
+        print("SAVED ops.npy — what suite2p ACTUALLY used:")
+        for key in ['diameter', 'spatial_hp_detect', 'sparse_mode', 'threshold_scaling', 'spatial_scale']:
+            print(f"  {key}: {saved.get(key, 'NOT SET')}")
+        print("="*70)
+
     print("\n" + "="*70)
     print("AXON DETECTION COMPLETE!")
     print("="*70)
