@@ -53,22 +53,23 @@ def stat_to_mat_struct(stat_arr):
     """
     Convert a numpy array of stat dicts into a form scipy can write
     as a MATLAB struct array.
-
-    Returns a numpy array of cleaned dicts, one per ROI.
     """
-    cleaned = []
-    for roi in stat_arr:
-        d = {}
-        for field in STAT_FIELDS_FOR_MAT:
-            if field in roi:
-                d[field] = sanitize_value(roi[field])
-        cleaned.append(d)
+    empty = np.array([], dtype=np.float64)
 
-    dtype = [(f, object) for f in cleaned[0].keys()]
-    mat_struct = np.zeros(len(cleaned), dtype=dtype)
-    for i, d in enumerate(cleaned):
-        for f, v in d.items():
-            mat_struct[i][f] = v
+    # Collect fields present in ANY roi (union), filtered to our allow-list
+    all_fields = []
+    seen = set()
+    for roi in stat_arr:
+        for field in STAT_FIELDS_FOR_MAT:
+            if field in roi and field not in seen:
+                all_fields.append(field)
+                seen.add(field)
+
+    dtype = [(f, object) for f in all_fields]
+    mat_struct = np.zeros(len(stat_arr), dtype=dtype)
+    for i, roi in enumerate(stat_arr):
+        for field in all_fields:
+            mat_struct[i][field] = sanitize_value(roi.get(field, None)) if field in roi else empty
     return mat_struct
 
 
@@ -98,6 +99,19 @@ def main():
 
     print(f"  {len(stat)} ROIs  |  {F.shape[1]} frames")
     print(f"  cells: {int(iscell[:, 0].sum())}  non-cells: {int((1 - iscell[:, 0]).sum())}")
+
+    # Constituent ROIs (those absorbed into a merge) have inmerge > 0.
+    # They are hidden visually in the GUI but their iscell flag is NOT cleared
+    # by the merge operation. Zero it out here so MATLAB code that filters by
+    # iscell(:,1)==1 only sees the actual merged ROI, not its hidden pieces.
+    inmerge = np.array([s.get('inmerge', 0) for s in stat], dtype=float)
+    constituent_mask = inmerge > 0
+    n_constituents = int(constituent_mask.sum())
+    if n_constituents > 0:
+        iscell = iscell.copy()          # don't mutate the loaded array
+        iscell[constituent_mask, 0] = 0
+        print(f"  masked {n_constituents} hidden constituent ROI(s) (inmerge>0) → iscell set to 0 in Fall.mat")
+        print(f"  real cells after masking: {int(iscell[:, 0].sum())}")
 
     print("Converting stat to MATLAB struct...")
     stat_mat = stat_to_mat_struct(stat)

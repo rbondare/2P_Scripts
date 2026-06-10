@@ -1,69 +1,44 @@
 #!/usr/bin/env python3
 """
-Suite2P Axon Detection Script
+Suite2P Axon Detection Script — V2
 Optimized for detecting faint, sparse axons as shown in fluorescence imaging
 
-Key differences from soma detection:
-- Much smaller diameter (axons ~1-2 μm vs soma ~15-20 μm)
-- Much lower detection thresholds
-- Higher spatial_scale to detect fine structures
-- Adjusted neuropil parameters
+Changes from V1
+---------------
+1. lam_percentile: 0.0 → 50.0
+   V1 set lam_percentile=0 to avoid an OOM that occurs when large axon ROIs
+   trigger size=int(radius*5) inside suite2p's percentile_filter. Setting it
+   to 0 fixes the OOM but includes all low-weight peripheral pixels in F,
+   adding substantial noise. 50 matches the original working AnimalRB6_250302_1656
+   ops and keeps only the top-50% brightest pixels per ROI mask. If an OOM
+   reappears, try 25 as a middle ground.
+
+2. spatial_taper: 3.45 → 50.0
+   V1 set spatial_taper=3.45 (= 3 × smooth_sigma), which is almost no
+   Fourier-edge tapering. The old working ops used the default 50 px. With
+   3.45 px the phase-correlation registration has edge-ringing artefacts that
+   degrade alignment and appear as jitter noise in F. Restored to 50 px.
+
+3. Legacy flat keys from the 0.14.4 ops template are now explicitly dropped
+   before the nested sub-dicts are set. Suite2p 1.0+ reads from the nested
+   sub-dicts and ignores the flat equivalents, but retaining them caused
+   confusion when reading saved ops (e.g. flat lam_percentile=50 coexisting
+   with nested lam_percentile=0). Dropping them makes the nested values the
+   single source of truth.
+
+4. Combined folder creation removed. V1's build_combined_without_flyback() had
+   issues saving the combined output reliably. V2 leaves outputs plane-separated
+   (plane0/, plane1/) and does not attempt to merge them.
+
+Everything else (paths, diameter, detection, classification, db) is unchanged.
 """
 
 import numpy as np
 import os
-import platform
-import shutil
-import tempfile
 import torch
 from pathlib import PureWindowsPath
 from suite2p import run_s2p
-from suite2p import io as suite2p_io
 
-
-def build_combined_without_flyback(source_save_folder, analysis_planes):
-    """Rebuild combined folder from only the analysis planes (no flyback).
-
-    Uses a temp folder so suite2p's combined() never sees the flyback plane
-    directory. Always rebuilds — caller is responsible for calling this only
-    after a fresh detection run.
-    """
-    combined_dir = os.path.join(source_save_folder, "combined")
-
-    # Always remove and rebuild — we were just called after a fresh detection run.
-    # (suite2p_io.save_mat() requires ops+arrays, not a path — can't regenerate in place.)
-    if os.path.exists(combined_dir):
-        print("Removing existing combined folder to rebuild from fresh detection outputs...")
-        shutil.rmtree(combined_dir)
-
-    temp_root = tempfile.mkdtemp(prefix="suite2p_combined_")
-    try:
-        for plane in analysis_planes:
-            src_plane = os.path.join(source_save_folder, f"plane{plane}")
-            if not os.path.isdir(src_plane):
-                continue
-            dst_plane = os.path.join(temp_root, f"plane{plane}")
-            os.makedirs(dst_plane, exist_ok=True)
-            for fname in [
-                "db.npy", "settings.npy",
-                "reg_outputs.npy", "detect_outputs.npy",
-                "stat.npy", "F.npy", "Fneu.npy",
-                "spks.npy", "iscell.npy", "redcell.npy",
-            ]:
-                src = os.path.join(src_plane, fname)
-                if os.path.exists(src):
-                    shutil.copy2(src, os.path.join(dst_plane, fname))
-
-        suite2p_io.combined(temp_root, save=True)
-
-        temp_combined = os.path.join(temp_root, "combined")
-        final_combined = os.path.join(source_save_folder, "combined")
-        if os.path.exists(final_combined):
-            shutil.rmtree(final_combined)
-        shutil.copytree(temp_combined, final_combined)
-        print(f"Created combined folder (planes {analysis_planes}): {final_combined}")
-    finally:
-        shutil.rmtree(temp_root, ignore_errors=True)
 
 # GPU check — abort early if CUDA is not available so you don't run a long job on CPU by accident
 print("\n" + "="*70)
@@ -98,12 +73,12 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1711")
+data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1754")
 classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
-    # Drop all recording-specific keys — these must be recomputed for the new recording
+    # Drop recording-specific keys — must be recomputed for the new recording
     for drop_key in (
         'version',
         'save_path0', 'save_path', 'fast_disk', 'data_path',
@@ -114,6 +89,27 @@ if os.path.exists(settings_file):
         'Ly', 'Lx',                   # frame dimensions
         'tPC',                        # temporal PCs
         'ignore_flyback', 'nplanes',  # will be set via db dict
+        # --- legacy flat keys now owned by nested sub-dicts ---
+        # extraction
+        'lam_percentile', 'neuropil_extract',
+        'inner_neuropil_radius', 'min_neuropil_pixels', 'allow_overlap',
+        # neucoeff is intentionally kept as a flat key — merge.py reads ops["neucoeff"] directly
+        # detection
+        'soma_crop', 'threshold_scaling', 'max_overlap', 'denoise',
+        'connected', 'sparse_mode', 'nbinned', 'max_iterations',
+        'roidetect', 'anatomical_only',
+        # registration
+        'spatial_taper', 'smooth_sigma', 'smooth_sigma_time',
+        'nonrigid', 'maxregshiftNR', 'nimg_init', 'maxregshift',
+        'norm_frames', 'th_badframes', 'subpixel', 'two_step_registration',
+        'bidiphase', 'do_bidiphase', 'snr_thresh', 'reg_tif', 'reg_tif_chan2',
+        'align_by_chan',
+        # io
+        'combined', 'save_mat', 'save_NWB', 'delete_bin', 'move_bin',
+        # run
+        'do_registration', 'multiplane_parallel', 'spikedetect',
+        # classification
+        'classifier_path', 'use_builtin_classifier', 'preclassify',
     ):
         ops.pop(drop_key, None)
     print("Loaded base settings from WORKING axon ops (AnimalRB6_250302_1656)")
@@ -147,7 +143,8 @@ print("="*70)
 
 # suite2p 1.0+ uses NESTED settings. Flat keys like ops['combined'] or
 # ops['threshold_scaling'] are silently ignored — they must go in the
-# correct sub-dict. This was why 10 runs produced identical results.
+# correct sub-dict. Legacy flat keys from the old ops template were dropped
+# above so the nested values below are the single source of truth.
 
 ops['save_path0'] = data_path
 ops['diameter'] = 30              # flat top-level key — sigma=diameter/10=3px for sourcery (old ops used 20 on 2048-wide frame)
@@ -220,7 +217,7 @@ ops['extraction'] = {
     'neuropil_coefficient': 0.7,
     'inner_neuropil_radius': 2,
     'min_neuropil_pixels': 350,
-    'lam_percentile': 0.0,         # 0 = skip percentile_filter (large axon ROIs make size=int(radius*5) → OOM)
+    'lam_percentile': 50.0,        # V2: restored to match old working ops (was 0 in V1 to avoid OOM; try 25 if OOM recurs)
     'allow_overlap': True,
     'circular_neuropil': False,
 }
@@ -237,7 +234,7 @@ ops['registration'] = {
     'block_size': (128, 128),
     'smooth_sigma_time': 0,
     'smooth_sigma': 1.15,
-    'spatial_taper': 3.45,
+    'spatial_taper': 50.0,         # V2: restored to default 50 px (was 3.45 in V1 — too small, caused registration artefacts)
     'th_badframes': 1.0,
     'norm_frames': True,
     'snr_thresh': 0.8,
@@ -259,9 +256,9 @@ print(f"  combined: {ops['io']['combined']}  |  do_regmetrics: {ops['run']['do_r
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes': 3,                      # All 3 planes for correct alignment
+    'nplanes': 5,                      # All 3 planes for correct alignment
     'nchannels': 1,
-    'ignore_flyback': [2],             # Explicit plane index — plane2 is flyback (-1 does NOT work)
+    'ignore_flyback': [4],             # Explicit plane index — plane2 is flyback (-1 does NOT work)
 }
 
 # Check for existing binary files — only check real planes, not flyback
@@ -321,6 +318,7 @@ print(f"  diameter:             {ops.get('diameter', 'NOT SET')}  (sigma={ops.ge
 print(f"  threshold_scaling:    {ops['detection']['threshold_scaling']}")
 print(f"  npix_norm_max:        {ops['detection']['npix_norm_max']}")
 print(f"  lam_percentile:       {ops['extraction']['lam_percentile']}")
+print(f"  spatial_taper:        {ops['registration']['spatial_taper']}")
 print(f"  combined:             {ops['io']['combined']}")
 print(f"  do_regmetrics:        {ops['run']['do_regmetrics']}")
 print(f"  use_builtin_clf:      {ops['classification']['use_builtin_classifier']}")
@@ -332,19 +330,23 @@ print("="*70 + "\n")
 try:
     run_s2p(settings=ops, db=db)
 
-    # Create combined Fall.mat from real planes only (excludes flyback plane2)
-    suite2p_dir = os.path.join(data_path, 'suite2p')
-    print("\nBuilding combined folder from real planes only...")
-    build_combined_without_flyback(suite2p_dir, real_planes)
-
     # Read back what suite2p actually saved — this is ground truth for what ran
     saved_ops_path = os.path.join(data_path, 'suite2p', 'plane0', 'ops.npy')
     if os.path.exists(saved_ops_path):
         saved = np.load(saved_ops_path, allow_pickle=True).item()
+        saved_ext = saved.get('extraction', {})
+        saved_reg = saved.get('registration', {})
         print("\n" + "="*70)
         print("SAVED ops.npy — what suite2p ACTUALLY used:")
-        for key in ['diameter', 'spatial_hp_detect', 'sparse_mode', 'threshold_scaling', 'spatial_scale']:
-            print(f"  {key}: {saved.get(key, 'NOT SET')}")
+        print(f"  diameter:          {saved.get('diameter', 'NOT SET')}")
+        print(f"  spatial_hp_detect: {saved.get('spatial_hp_detect', 'NOT SET')}")
+        print(f"  sparse_mode:       {saved.get('sparse_mode', 'NOT SET')}")
+        print(f"  threshold_scaling: {saved.get('threshold_scaling', 'NOT SET')}")
+        print(f"  spatial_scale:     {saved.get('spatial_scale', 'NOT SET')}")
+        print(f"  lam_percentile (nested): {saved_ext.get('lam_percentile', 'NOT SET')}")
+        print(f"  lam_percentile (flat):   {saved.get('lam_percentile', 'NOT SET')}")
+        print(f"  spatial_taper (nested):  {saved_reg.get('spatial_taper', 'NOT SET')}")
+        print(f"  spatial_taper (flat):    {saved.get('spatial_taper', 'NOT SET')}")
         print("="*70)
 
     print("\n" + "="*70)
@@ -357,7 +359,7 @@ try:
     print("   - Higher values → fewer detections (missing faint axons)")
     print("3. Check iscell classifications")
     print()
-    
+
 except Exception as e:
     print(f"\n Error during processing: {e}")
     import traceback
