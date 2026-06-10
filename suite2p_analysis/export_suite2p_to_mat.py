@@ -49,28 +49,42 @@ def sanitize_value(v):
     return v
 
 
-def stat_to_mat_struct(stat_arr):
+def stat_to_mat_cell(stat_arr):
     """
-    Convert a numpy array of stat dicts into a form scipy can write
-    as a MATLAB struct array.
+    Convert stat dicts to a (1, N) numpy object array.
+    scipy.io.savemat writes object arrays as MATLAB cell arrays, giving
+    Fall.stat{n}.med access — identical to suite2p's own save_mat output.
     """
-    empty = np.array([], dtype=np.float64)
-
-    # Collect fields present in ANY roi (union), filtered to our allow-list
-    all_fields = []
-    seen = set()
-    for roi in stat_arr:
-        for field in STAT_FIELDS_FOR_MAT:
-            if field in roi and field not in seen:
-                all_fields.append(field)
-                seen.add(field)
-
-    dtype = [(f, object) for f in all_fields]
-    mat_struct = np.zeros(len(stat_arr), dtype=dtype)
+    cell = np.empty((1, len(stat_arr)), dtype=object)
     for i, roi in enumerate(stat_arr):
-        for field in all_fields:
-            mat_struct[i][field] = sanitize_value(roi.get(field, None)) if field in roi else empty
-    return mat_struct
+        cell[0, i] = {f: sanitize_value(roi.get(f))
+                      for f in STAT_FIELDS_FOR_MAT if f in roi}
+    return cell
+
+
+def load_ops_safe(plane_dir):
+    """
+    Load ops.npy and return a dict containing only MATLAB-serialisable fields.
+    None values, Path objects, and mixed-type lists are silently dropped —
+    these are the fields that crash scipy.io.savemat in the original suite2p GUI.
+    Falls back to minimal stubs if ops.npy is absent.
+    """
+    ops_path = os.path.join(plane_dir, 'ops.npy')
+    if not os.path.exists(ops_path):
+        return {'max_proj': np.zeros((512, 512), dtype=np.float32),
+                'meanImg':  np.zeros((512, 512), dtype=np.float32)}
+    ops = np.load(ops_path, allow_pickle=True).item()
+    safe = {}
+    for k, v in ops.items():
+        if v is None:
+            continue
+        if isinstance(v, np.ndarray):
+            safe[k] = v
+        elif isinstance(v, (int, float, bool, str,
+                            np.integer, np.floating, np.bool_)):
+            safe[k] = v
+        # Path objects, dicts, lists-with-None, etc. are dropped
+    return safe
 
 
 def main():
@@ -113,17 +127,27 @@ def main():
         print(f"  masked {n_constituents} hidden constituent ROI(s) (inmerge>0) → iscell set to 0 in Fall.mat")
         print(f"  real cells after masking: {int(iscell[:, 0].sum())}")
 
-    print("Converting stat to MATLAB struct...")
-    stat_mat = stat_to_mat_struct(stat)
+    print("Converting stat to MATLAB cell array...")
+    stat_mat = stat_to_mat_cell(stat)
+
+    print("Loading ops...")
+    ops = load_ops_safe(plane_dir)
+
+    redcell_path = os.path.join(plane_dir, 'redcell.npy')
+    redcell = (np.load(redcell_path, allow_pickle=True)
+               if os.path.exists(redcell_path)
+               else np.zeros((len(stat), 2), dtype=np.float32))
 
     out_path = os.path.join(plane_dir, "Fall.mat")
     print(f"Writing {out_path} ...")
     scipy.io.savemat(out_path, {
-        "stat":   stat_mat,
-        "F":      F,
-        "Fneu":   Fneu,
-        "spks":   spks,
-        "iscell": iscell,
+        "stat":    stat_mat,
+        "F":       F,
+        "Fneu":    Fneu,
+        "spks":    spks,
+        "iscell":  iscell,
+        "ops":     ops,
+        "redcell": redcell,
     }, do_compression=True)
 
     size_mb = os.path.getsize(out_path) / 1e6

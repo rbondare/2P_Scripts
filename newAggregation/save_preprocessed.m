@@ -557,7 +557,11 @@ if ~proj
         S2Presult(f).cellstats = Fall(f).stat(Ncell)';
 
         for n = 1:numel(Ncell)
-            S2Presult(f).center(n, :) = Fall(f).stat{Ncell(n)}.med;
+            if iscell(Fall(f).stat)
+                S2Presult(f).center(n, :) = Fall(f).stat{Ncell(n)}.med;
+            else
+                S2Presult(f).center(n, :) = Fall(f).stat(Ncell(n)).med;
+            end
         end
 
         if multicolor
