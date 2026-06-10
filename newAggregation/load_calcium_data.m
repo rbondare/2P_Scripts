@@ -134,8 +134,9 @@ temp = cellfun(@(x) str2double(x(6:end)), temp);
 S2Pdirs = S2Pdirs(sort_idx);
 
 % Check for combined and projection data
-combined = exist([suite2p_dir 'combined'], 'dir') == 7;
-proj = exist([suite2p_dir 'proj'], 'dir') == 7;
+combined      = exist([suite2p_dir 'combined'], 'dir') == 7;
+combined_fall = combined && exist([suite2p_dir 'combined' filesep 'Fall.mat'], 'file') == 2;
+proj          = exist([suite2p_dir 'proj'],     'dir') == 7;
 
 % Determine if multicolor from SI_Info
 if ~isempty(SI_Info) && isfield(SI_Info, 'hChannels') && isfield(SI_Info.hChannels, 'channelsActive')
@@ -145,8 +146,8 @@ else
 end
 
 fprintf('Loading suite2p data from %s\n', suite2p_dir);
-fprintf('  Planes: %d, Combined: %d, Projection: %d, Multicolor: %d\n', ...
-    numel(S2Pdirs), combined, proj, multicolor);
+fprintf('  Planes: %d, Combined Fall.mat: %d, Projection: %d, Multicolor: %d\n', ...
+    numel(S2Pdirs), combined_fall, proj, multicolor);
 
 % Load combined iscell if available
 if combined
@@ -161,10 +162,14 @@ else
     redcellComb = [];
 end
 
-% Load Fall data
+% Load Fall data — combined/Fall.mat takes priority over plane-by-plane
 if proj
     % Load from projection folder
     Fall = load([S2Pdirs(1).folder filesep 'proj' filesep 'suite2p' filesep 'plane0' filesep 'Fall.mat']);
+elseif combined_fall
+    % Combined file already merges all planes — classifications baked in
+    Fall = load([suite2p_dir 'combined' filesep 'Fall.mat']);
+    fprintf('  Loaded from combined/Fall.mat (%d ROIs)\n', size(Fall.F, 1));
 else
     % Load from first plane
     Fall = load([S2Pdirs(1).folder filesep S2Pdirs(1).name filesep 'Fall.mat']);
@@ -206,6 +211,14 @@ else
                 temp = rmfield(temp, 'redcell');
             end
 
+            % Align fields so struct array assignment doesn't fail when
+            % planes have different field sets (e.g. manually-generated vs suite2p)
+            all_fields = union(fieldnames(Fall), fieldnames(temp));
+            for fi = 1:numel(all_fields)
+                fn = all_fields{fi};
+                if ~isfield(Fall, fn);  Fall(1).(fn) = []; end
+                if ~isfield(temp, fn);  temp.(fn)   = []; end
+            end
             Fall(f) = temp;
 
             % Apply combined iscell
@@ -215,6 +228,22 @@ else
                 if multicolor && ~isempty(redcellComb)
                     Fall(f).redcell = redcellComb(1:size(Fall(f).iscell, 1), :);
                     redcellComb(1:size(Fall(f).iscell, 1), :) = [];
+                end
+            end
+        end
+
+        % Guarantee every plane element has the same field set
+        if numel(Fall) > 1
+            all_fields = fieldnames(Fall(1));
+            for i = 2:numel(Fall)
+                all_fields = union(all_fields, fieldnames(Fall(i)));
+            end
+            for i = 1:numel(Fall)
+                for fi = 1:numel(all_fields)
+                    fn = all_fields{fi};
+                    if ~isfield(Fall(i), fn)
+                        Fall(i).(fn) = [];
+                    end
                 end
             end
         end
