@@ -37,6 +37,11 @@ config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
 % --- Import DLC Before Aggregation ---
 config_import_dlc = true;            % Run import_video_behavior before aggregation
 
+% --- Calibration Override ---
+% Set to a positive integer to force a specific CalibrationModel entry (index into ModelParams).
+% Leave empty [] to use automatic date-based selection.
+config_cal_idx = [];       % e.g. config_cal_idx = 5;
+
 %% ===== GET EXPERIMENT LIST =====
 fprintf('=== Universal Aggregation Script ===\n');
 fprintf('Source: %s\n', config_source);
@@ -161,6 +166,7 @@ for i = 1:numel(experiments)
         save_args = {'ca_type', config_ca_type, ...
             'ca_format', ca_format, ...
             'config', exp.config, ...
+            'cal_idx', config_cal_idx, ...
             'overwrite_intermediate', false};
         if ~isempty(exp.stim_file)
             save_args = [save_args, {'stim_file', exp.stim_file}];

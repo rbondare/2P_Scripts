@@ -67,6 +67,7 @@ addParameter(p, 'process_behavior', true, @islogical);
 addParameter(p, 'config', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'overwrite_intermediate', false, @islogical);
 addParameter(p, 'stim_file', '', @ischar);
+addParameter(p, 'cal_idx', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && x >= 1));
 parse(p, recording_path, varargin{:});
 
 ca_type = p.Results.ca_type;
@@ -77,6 +78,7 @@ process_behavior = p.Results.process_behavior;
 config = p.Results.config;
 overwrite_intermediate = p.Results.overwrite_intermediate;
 stim_file = p.Results.stim_file;
+cal_idx = p.Results.cal_idx;
 
 % If ca_format is 'none', disable calcium processing
 if strcmp(ca_format, 'none')
@@ -952,6 +954,17 @@ for cp = 1:numel(cal_paths)
         tmp = load(cal_paths{cp}, 'ModelParams');
         ModelParams = tmp.ModelParams;
         break;
+    end
+end
+if ~isempty(cal_idx) && ~isempty(ModelParams)
+    if cal_idx > numel(ModelParams)
+        warning('save_preprocessed:calIdxOOB', ...
+            'cal_idx %d exceeds available models (1-%d); using auto-selection.', ...
+            cal_idx, numel(ModelParams));
+    else
+        fprintf('  Calibration override: forcing model #%d (%s)\n', ...
+            cal_idx, char(datetime(ModelParams(cal_idx).Date, 'Format', 'yyyy-MMM-dd')));
+        ModelParams = ModelParams(cal_idx);
     end
 end
 try
