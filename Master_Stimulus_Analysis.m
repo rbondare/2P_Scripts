@@ -21,9 +21,9 @@ addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
 
 % Data files
 %baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
-baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
+baseline_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
 %drug_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
-drug_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
+drug_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
 %roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
 roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
 
@@ -1023,14 +1023,14 @@ if matched_rois_available && n_matched > 0
             drug_matched_all = [drug_matched_all; matched_resp(:)];
         end
         
-        % Validate
-        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all));
-        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all));
-        
+        % Validate — keep only positive values to reveal active-response spread
+        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all) & baseline_matched_all > 0);
+        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all) & drug_matched_all > 0);
+
         if length(baseline_matched_all) < 2 || length(drug_matched_all) < 2
             continue;
         end
-        
+
         % Collect y-limits
         all_y_limits = [all_y_limits; min(baseline_matched_all); max(baseline_matched_all); ...
                         min(drug_matched_all); max(drug_matched_all)];
@@ -1076,14 +1076,14 @@ if matched_rois_available && n_matched > 0
             drug_matched_all = [drug_matched_all; matched_resp(:)];
         end
         
-        % Validate
-        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all));
-        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all));
-        
+        % Validate — keep only positive values to reveal active-response spread
+        baseline_matched_all = baseline_matched_all(~isnan(baseline_matched_all) & ~isinf(baseline_matched_all) & baseline_matched_all > 7);
+        drug_matched_all = drug_matched_all(~isnan(drug_matched_all) & ~isinf(drug_matched_all) & drug_matched_all > 7);
+
         if length(baseline_matched_all) < 2 || length(drug_matched_all) < 2
             continue;
         end
-        
+
         % BASELINE VIOLIN at x_pos
         if length(baseline_matched_all) >= 2
             [f_bl, xi_bl] = ksdensity(baseline_matched_all, 'NumPoints', 150);
@@ -1154,7 +1154,170 @@ if matched_rois_available && n_matched > 0
     hold off;
     
     fprintf('Generated multi-stimulus comparison figure with %d stimuli\n', length(stim_labels));
-    
+
+    %% ==================== FIGURE: PAIRED DOT PLOT (per-neuron modulation) ====================
+    fprintf('========== GENERATING PAIRED DOT PLOTS ==========\n');
+
+    % Collect stimuli that have response data
+    valid_stim_fields = {};
+    for fi = 1:length(stim_fields)
+        d = master_data.(stim_fields{fi});
+        if isfield(d, 'baseline_responses') && ~isempty(d.baseline_responses)
+            valid_stim_fields{end+1} = stim_fields{fi}; %#ok<AGROW>
+        end
+    end
+    n_valid = length(valid_stim_fields);
+
+    fig_paired = figure('Position', [100 50 min(420*n_valid, 1800) 540], ...
+        'NumberTitle', 'off', 'Name', 'PerNeuron_PairedModulation', 'Color', 'w');
+
+    for sp_idx = 1:n_valid
+        field_name = valid_stim_fields{sp_idx};
+        d = master_data.(field_name);
+        stim_type = d.stimulus_type;
+
+        % Per-neuron mean ΔF/F across ALL presentations and timepoints
+        all_base_fr = [];
+        for i = 1:length(d.baseline_responses)
+            all_base_fr = [all_base_fr, d.baseline_responses{i}(d.base_match_idx_local, :)]; %#ok<AGROW>
+        end
+        base_mean = mean(all_base_fr, 2);   % n_matched × 1
+
+        all_drug_fr = [];
+        for i = 1:length(d.drug_responses)
+            all_drug_fr = [all_drug_fr, d.drug_responses{i}(d.drug_match_idx_local, :)]; %#ok<AGROW>
+        end
+        drug_mean = mean(all_drug_fr, 2);   % n_matched × 1
+
+        % Remove NaN/Inf
+        ok = ~isnan(base_mean) & ~isinf(base_mean) & ~isnan(drug_mean) & ~isinf(drug_mean);
+        base_mean = base_mean(ok);
+        drug_mean = drug_mean(ok);
+
+        n_n      = numel(base_mean);
+        changes  = drug_mean - base_mean;
+        pct_up   = 100 * mean(changes > 0);
+
+        % ---- Per-neuron diverging colour (blue=suppressed, red=enhanced) ----
+        max_abs = max(prctile(abs(changes), 95), eps);
+        t       = max(-1, min(1, changes / max_abs));   % n×1, clamped [-1,1]
+        c_blue  = [0.15 0.40 0.75];
+        c_red   = [0.80 0.15 0.10];
+        c_white = [1 1 1];
+        neuron_colors = repmat(c_white, n_n, 1);
+        neg = t < 0;  pos = ~neg;
+        neuron_colors(neg,:) = c_white + abs(t(neg)) * (c_blue - c_white);  % (k×1)*(1×3)
+        neuron_colors(pos,:) = c_white + t(pos)      * (c_red  - c_white);
+
+        % ---- Reproducible jitter so each neuron's two dots align ----
+        rng(sp_idx * 7);  % deterministic per stimulus
+        dx = (rand(n_n, 1) - 0.5) * 0.35;
+
+        subplot(1, n_valid, sp_idx);
+        hold on;
+
+        % Layer 1: all connecting lines in one call (grey, very transparent)
+        x_l = reshape([(0+dx)'; (1+dx)'; nan(1,n_n)], [], 1);
+        y_l = reshape([base_mean'; drug_mean'; nan(1,n_n)], [], 1);
+        plot(x_l, y_l, '-', 'Color', [0.55 0.55 0.55 0.07], 'LineWidth', 0.5);
+
+        % Layer 2: coloured dots at each endpoint (colour encodes direction/magnitude)
+        scatter(0+dx, base_mean, 22, neuron_colors, 'o', 'filled', ...
+            'MarkerFaceAlpha', 0.75, 'MarkerEdgeAlpha', 0);
+        scatter(1+dx, drug_mean, 22, neuron_colors, 'o', 'filled', ...
+            'MarkerFaceAlpha', 0.75, 'MarkerEdgeAlpha', 0);
+
+        % Layer 3: mean ± SEM summary — thick connecting line + capped error bars
+        bm = mean(base_mean);  bs = std(base_mean) / sqrt(n_n);
+        dm = mean(drug_mean);  ds = std(drug_mean)  / sqrt(n_n);
+        plot([0 1], [bm dm], 'k-', 'LineWidth', 2.5);
+        errorbar(0, bm, bs, 'k-', 'LineWidth', 2, 'CapSize', 7);
+        errorbar(1, dm, ds, 'k-', 'LineWidth', 2, 'CapSize', 7);
+        plot(0, bm, 'ko', 'MarkerSize', 9, 'MarkerFaceColor', 'w', 'LineWidth', 2);
+        plot(1, dm, 'ko', 'MarkerSize', 9, 'MarkerFaceColor', 'w', 'LineWidth', 2);
+
+        hold off;
+        set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline','Drug'}, 'FontSize', 10);
+        xlim([-0.5 1.5]);
+        ylabel('Mean \DeltaF/F', 'FontSize', 10);
+        title(sprintf('%s\n%.0f%% \\uparrow  |  %.0f%% \\downarrow', ...
+            strrep(stim_type,'_','\_'), pct_up, 100-pct_up), ...
+            'FontSize', 10, 'FontWeight', 'bold');
+        grid on; box off;
+        set(gca, 'LineWidth', 1.2, 'FontSize', 10);
+    end
+
+    sgtitle(sprintf('Per-Neuron Drug Modulation — Paired Mean \\DeltaF/F  (n=%d matched neurons)', n_matched), ...
+        'FontSize', 13, 'FontWeight', 'bold');
+
+    %% ==================== FIGURE: MODULATION INDEX CDF ====================
+    fprintf('========== GENERATING MODULATION INDEX CDF ==========\n');
+
+    fig_cdf = figure('Position', [100 50 min(420*n_valid, 1800) 540], ...
+        'NumberTitle', 'off', 'Name', 'ModulationIndex_CDF', 'Color', 'w');
+
+    for sp_idx = 1:n_valid
+        field_name = valid_stim_fields{sp_idx};
+        d = master_data.(field_name);
+        stim_type = d.stimulus_type;
+
+        % Re-use per-neuron means (same extraction as above)
+        all_base_fr = [];
+        for i = 1:length(d.baseline_responses)
+            all_base_fr = [all_base_fr, d.baseline_responses{i}(d.base_match_idx_local, :)]; %#ok<AGROW>
+        end
+        base_mean = mean(all_base_fr, 2);
+
+        all_drug_fr = [];
+        for i = 1:length(d.drug_responses)
+            all_drug_fr = [all_drug_fr, d.drug_responses{i}(d.drug_match_idx_local, :)]; %#ok<AGROW>
+        end
+        drug_mean = mean(all_drug_fr, 2);
+
+        ok = ~isnan(base_mean) & ~isinf(base_mean) & ~isnan(drug_mean) & ~isinf(drug_mean);
+        base_mean = base_mean(ok);
+        drug_mean = drug_mean(ok);
+
+        % Symmetric modulation index: (drug - base) / (|drug| + |base|)
+        % Bounded [-1, 1]: positive = enhanced, negative = suppressed, 0 = no change
+        denom  = abs(drug_mean) + abs(base_mean);
+        ok_mi  = denom > 0;
+        mi     = (drug_mean(ok_mi) - base_mean(ok_mi)) ./ denom(ok_mi);
+
+        pct_enhanced   = 100 * mean(mi > 0);
+        pct_suppressed = 100 * mean(mi < 0);
+
+        mi_sorted = sort(mi);
+        cdf_y     = (1:numel(mi_sorted))' / numel(mi_sorted);
+
+        subplot(1, n_valid, sp_idx);
+        hold on;
+
+        % Shaded background: blue = suppressed side, red = enhanced side
+        fill([-1 0 0 -1], [0 0 1 1], [0.20 0.45 0.80], 'FaceAlpha', 0.07, 'EdgeColor', 'none');
+        fill([0 1 1 0],   [0 0 1 1], [0.85 0.25 0.15], 'FaceAlpha', 0.07, 'EdgeColor', 'none');
+
+        % CDF
+        plot(mi_sorted, cdf_y, 'k-', 'LineWidth', 2.5);
+
+        % Reference lines
+        xline(0,   'r--', 'LineWidth', 1.8);
+        yline(0.5, '--',  'Color', [0.5 0.5 0.5], 'LineWidth', 1.2);
+
+        hold off;
+        xlabel('Modulation Index', 'FontSize', 10);
+        ylabel('Cumulative fraction', 'FontSize', 10);
+        xlim([-1 1]);  ylim([0 1]);
+        title(sprintf('%s\n%.0f%% \\uparrow  |  %.0f%% \\downarrow', ...
+            strrep(stim_type,'_','\_'), pct_enhanced, pct_suppressed), ...
+            'FontSize', 10, 'FontWeight', 'bold');
+        grid on; box off;
+        set(gca, 'LineWidth', 1.2, 'FontSize', 10);
+    end
+
+    sgtitle(sprintf('Modulation Index CDF — (drug \x2212 baseline) / (|drug| + |baseline|)  (n=%d neurons)', n_matched), ...
+        'FontSize', 13, 'FontWeight', 'bold');
+
     %% ==================== PAIRED STATISTICAL TESTS ====================
     fprintf('\n========== PAIRED STATISTICS (Baseline vs Drug - Matched ROIs) ==========\n');
     fprintf('Comparing same neurons across two conditions per stimulus\n\n');
