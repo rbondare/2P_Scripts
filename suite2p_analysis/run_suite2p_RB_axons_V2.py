@@ -73,7 +73,7 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1754")
+data_path = resolve_runtime_path(r"Z:\joeschgrp\Rotation Students\Dow\DATA_2P\AnimalDG3_260320_1311")
 classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
@@ -256,9 +256,9 @@ print(f"  combined: {ops['io']['combined']}  |  do_regmetrics: {ops['run']['do_r
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes': 5,                      # All 3 planes for correct alignment
+    'nplanes': 4,                     # All 3 planes for correct alignment
     'nchannels': 1,
-    'ignore_flyback': [4],             # Explicit plane index — plane2 is flyback (-1 does NOT work)
+    'ignore_flyback': [3],         # Explicit plane index — plane2 is flyback (-1 does NOT work)
 }
 
 # Check for existing binary files — only check real planes, not flyback

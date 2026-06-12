@@ -153,13 +153,14 @@ for m = 1:nModels
 end
 
 %% Plot — one figure per epoch, 3 rows (Forward / SideRight / RotRight)
+ball_fs    = 66;   % ball camera acquisition rate (Hz)
 dim_names  = {'Forward\_mm', 'SideRight\_mm', 'RotRight\_deg'};
 dim_fields = {'Forward_mm', 'SideRight_mm', 'RotRight_deg'};
 dim_units  = {'mm', 'mm', 'deg'};
 
 for ep = 1:numel(BallValues)
     N = size(BallValues{ep}, 1);
-    t = (0:N-1)';   % sample index (no ball-trigger timing needed for comparison)
+    t = (0:N-1)' / ball_fs;   % seconds
 
     fig = figure('Name', sprintf('Locomotion calibration preview — %s (%s)', ...
         RecordingName, epoch_labels{ep}), ...
@@ -187,13 +188,13 @@ for ep = 1:numel(BallValues)
                 'FontSize', 11, 'FontWeight', 'bold');
         end
         if d == 3
-            xlabel('Ball camera sample index', 'FontSize', 10);
+            xlabel('Time (s)', 'FontSize', 10);
         end
         grid on; box off;
         if d == 1
             legend('show', 'Location', 'best', 'FontSize', 8);
         end
-        xlim([0, N-1]);
+        xlim([0, (N-1)/ball_fs]);
     end
 
     linkaxes(findobj(fig, 'Type', 'axes'), 'x');
@@ -217,7 +218,7 @@ cal_alpha = 0.55;   % base transparency for calibration lines
 
 for ep = 1:numel(BallValues)
     N = size(BallValues{ep}, 1);
-    t = (0:N-1)';
+    t = (0:N-1)' / ball_fs;   % seconds
 
     figure('Name', sprintf('Raw sensors vs Calibrated — %s (%s)', ...
         RecordingName, epoch_labels{ep}), ...
@@ -238,10 +239,10 @@ for ep = 1:numel(BallValues)
             title('Raw sensor channels', 'FontSize', 10, 'FontWeight', 'bold');
         end
         if ch == 4
-            xlabel('Sample index', 'FontSize', 9);
+            xlabel('Time (s)', 'FontSize', 9);
         end
         grid on; box off;
-        xlim([0, N-1]);
+        xlim([0, (N-1)/ball_fs]);
     end
 
     % ---- Right column (col 2, rows 1-3): calibrated outputs, last 5 models ----
@@ -271,13 +272,97 @@ for ep = 1:numel(BallValues)
             legend('show', 'Location', 'best', 'FontSize', 7);
         end
         if d == 3
-            xlabel('Sample index', 'FontSize', 9);
+            xlabel('Time (s)', 'FontSize', 9);
         end
         grid on; box off;
-        xlim([0, N-1]);
+        xlim([0, (N-1)/ball_fs]);
     end
 
     linkaxes([ax_raw; ax_cal], 'x');
+end
+
+%% Plot — per-second sums (area under curve per 1-s bin, one figure per epoch)
+% Sums all frame values within each 1-second window → displacement / ADC per second
+
+for ep = 1:numel(BallValues)
+    N      = size(BallValues{ep}, 1);
+    n_sec  = floor(N / ball_fs);
+    if n_sec < 1; continue; end
+    t_sec  = (0:n_sec-1)';
+
+    % Helper: sum-bin a column vector into n_sec × 1
+    bin1s = @(x) sum(reshape(x(1:n_sec*ball_fs), ball_fs, n_sec), 1)';
+
+    % Bin raw channels
+    raw_sec = zeros(n_sec, 4);
+    for ch = 1:4
+        raw_sec(:, ch) = bin1s(BallValues{ep}(:, ch));
+    end
+
+    % Bin calibrated outputs for last 5 models
+    cal_sec = cell(numel(last5_idx), numel(dim_fields));
+    for mi = 1:numel(last5_idx)
+        m = last5_idx(mi);
+        for d = 1:3
+            cal_sec{mi, d} = bin1s(cal_results{m}{ep}.(dim_fields{d}));
+        end
+    end
+
+    figure('Name', sprintf('Per-second sums — %s (%s)', RecordingName, epoch_labels{ep}), ...
+        'NumberTitle', 'off', 'Color', 'w', 'Position', [200, 30, 1300, 820]);
+
+    sgtitle(sprintf('%s  –  %s  |  per-second sums', ...
+        strrep(RecordingName, '_', '\_'), epoch_labels{ep}), ...
+        'FontSize', 12, 'FontWeight', 'bold');
+
+    % Left column: raw sensor channels (summed per second)
+    ax_raw2 = gobjects(4, 1);
+    for ch = 1:4
+        ax_raw2(ch) = subplot(4, 2, (ch - 1) * 2 + 1);
+        bar(t_sec, raw_sec(:, ch), 1, 'FaceColor', sensor_colors(ch, :), 'EdgeColor', 'none');
+        ylabel(sprintf('Ch%d (ADC·s)', ch), 'FontSize', 9);
+        if ch == 1
+            title('Raw sensor channels', 'FontSize', 10, 'FontWeight', 'bold');
+        end
+        if ch == 4
+            xlabel('Time (s)', 'FontSize', 9);
+        end
+        grid on; box off;
+        xlim([-0.5, n_sec - 0.5]);
+    end
+
+    % Right column: calibrated outputs (summed per second), last 5 models
+    ax_cal2 = gobjects(3, 1);
+    for d = 1:3
+        ax_cal2(d) = subplot(4, 2, (d - 1) * 2 + 2);
+        hold on;
+        for mi = 1:numel(last5_idx)
+            m  = last5_idx(mi);
+            if m == auto_idx; continue; end
+            plot(t_sec, cal_sec{mi, d}, '-', ...
+                'Color', [colors5(mi, :), cal_alpha], 'LineWidth', 1.2, ...
+                'DisplayName', legend5{mi});
+        end
+        auto_mi = find(last5_idx == auto_idx, 1);
+        if ~isempty(auto_mi)
+            plot(t_sec, cal_sec{auto_mi, d}, '-', ...
+                'Color', [colors5(auto_mi, :), 0.90], 'LineWidth', 2.5, ...
+                'DisplayName', legend5{auto_mi});
+        end
+        hold off;
+        ylabel([dim_names{d} ' (' dim_units{d} '·s)'], 'FontSize', 9);
+        if d == 1
+            title('Calibrated (last 5 models)', 'FontSize', 10, 'FontWeight', 'bold');
+            legend('show', 'Location', 'best', 'FontSize', 7);
+        end
+        if d == 3
+            xlabel('Time (s)', 'FontSize', 9);
+        end
+        grid on; box off;
+        xlim([-0.5, n_sec - 0.5]);
+    end
+
+    linkaxes([ax_raw2; ax_cal2], 'x');
 end
 
 %% Print calibration coefficient table

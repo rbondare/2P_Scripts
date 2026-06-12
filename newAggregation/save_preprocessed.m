@@ -214,7 +214,7 @@ end
 %% Process stimulus data
 if process_stimulus
     [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-        StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file);
+        StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file, cal_idx);
 
     if ~isempty(Stimulusoptions)
         Data.Stimuli = Stimulusoptions;
@@ -554,7 +554,7 @@ if ~proj
         S2Presult(f).F = Fall(f).F(logical(Fall(f).iscell(:, 1)), 1:size(FT, 2));
         S2Presult(f).Fneu = Fall(f).Fneu(logical(Fall(f).iscell(:, 1)), 1:size(FT, 2));
         S2Presult(f).center = nan(numel(Ncell), 2);
-        S2Presult(f).cellstats = Fall(f).stat(Ncell)';
+        S2Presult(f).cellstats = reshape(Fall(f).stat(Ncell), [], 1);
 
         for n = 1:numel(Ncell)
             if iscell(Fall(f).stat)
@@ -580,7 +580,7 @@ else
     S2Presult.F = Fall.F(logical(Fall.iscell(:, 1)), 1:size(FT, 2));
     S2Presult.Fneu = Fall.Fneu(logical(Fall.iscell(:, 1)), 1:size(FT, 2));
     S2Presult.center = nan(numel(Ncell), 2);
-    S2Presult.cellstats = Fall.stat(Ncell)';
+    S2Presult.cellstats = reshape(Fall.stat(Ncell), [], 1);
 
     if multicolor
         S2Presult.redcell = Fall.redcell(Ncell, :);
@@ -607,6 +607,19 @@ Ca_centroid_voxel = cat(1, S2Presult(:).center);
 Ca_cellstats = cat(1, S2Presult(:).cellstats);
 
 % Convert cellstats from cell to struct array
+% First union all field names so structs from different planes are compatible
+all_stat_fields = fieldnames(Ca_cellstats{1});
+for n = 2:numel(Ca_cellstats)
+    all_stat_fields = union(all_stat_fields, fieldnames(Ca_cellstats{n}));
+end
+for n = 1:numel(Ca_cellstats)
+    for fi = 1:numel(all_stat_fields)
+        fn = all_stat_fields{fi};
+        if ~isfield(Ca_cellstats{n}, fn)
+            Ca_cellstats{n}.(fn) = [];
+        end
+    end
+end
 Ca_cellstats2 = Ca_cellstats{1};
 for n = 1:numel(Ca_cellstats)
     Ca_cellstats2(n) = Ca_cellstats{n};
@@ -762,7 +775,7 @@ end
 
 
 function [Stimulusoptions, BallCamData, LocomotionCal] = process_stimulus_data(...
-    StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file)
+    StimPath, Headers, SI_Info, Triggers, multi, dtA, acq_timestamps, stim_file, cal_idx)
 %PROCESS_STIMULUS_DATA Load and process stimulus files
 
 Stimulusoptions = [];

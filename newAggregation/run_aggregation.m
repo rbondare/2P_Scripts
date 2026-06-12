@@ -24,13 +24,15 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 % Works with any source: e.g. source='stimulus' + animals={'AnimalRB5'}
 % will scan the stimulus folder but only process AnimalRB5.
 % Leave empty {} to process all animals found.
-config_animals = {'AnimalRB6'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+config_animals = {'AnimalDG1'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = true;      % false = allow behavior-only processing
 config_require_stimulus = true;      % true = require stimulus files
 config_check_processed = true;       % true = skip already processed recordings
-config_debug_discovery = true;      % true = print include/exclude reason per recording
+config_debug_discovery = false;      % true = print include/exclude reason per recording
+config_fail_fast      = false;      % true = stop on first error instead of continuing (use with debug)
+use_fail_fast         = @() config_fail_fast;  % function handle prevents UNRCH static-analysis warning
 config_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
 config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
 
@@ -40,7 +42,7 @@ config_import_dlc = true;            % Run import_video_behavior before aggregat
 % --- Calibration Override ---
 % Set to a positive integer to force a specific CalibrationModel entry (index into ModelParams).
 % Leave empty [] to use automatic date-based selection.
-config_cal_idx = 10;       % e.g. config_cal_idx = 5;
+config_cal_idx = [];       % e.g. config_cal_idx = 5;
 
 %% ===== GET EXPERIMENT LIST =====
 fprintf('=== Universal Aggregation Script ===\n');
@@ -183,6 +185,9 @@ for i = 1:numel(experiments)
         end
         error_count = error_count + 1;
         error_recordings{end+1} = exp.name; %#ok<SAGROW>
+        if use_fail_fast()
+            rethrow(ME);
+        end
     end
 end
 
