@@ -1,39 +1,49 @@
 %% Loom_Flashes_ZETA_Analysis.m
-% Standalone analysis for looming and sparse_local_global_flashes:
-%   1. Matched-cell triggered average, baseline vs drug
-%   2. Violin plots of each cell's post-onset response (all matched
-%      cells, then restricted to ZETA-responsive cells only)
-%   3. Onset-vs-formula cross-checks (does the red-frame/reconstructed
-%      onset for each individual trial match what the naive
-%      stimulus_trial_t formula would have predicted)
-%   4. ZETA p-value distribution sanity check (should look broadly
-%      uniform/flat, with an excess near 0 only for real responders --
-%      a skewed or spiky distribution would flag a problem with the
-%      test setup itself, not just "few responsive cells")
-%   5. Responsive-vs-non-responsive triggered average, per condition --
-%      the direct visual check that ZETA's call matches what the actual
-%      traces look like
+% Matched-cell baseline-vs-drug figures for looming and
+% sparse_local_global_flashes. Saves everything into
+% analysis_figures/<baseline>_vs_<drug>/ next to this script. Per
+% stimulus:
+%   1. Raw dF/F transient (time-resolved, population mean +/- SEM)
+%   2. Histogram of per-cell peak-window response -- raw dF/F, and as a
+%      baseline z-score
+%   3. Violin of per-cell peak-window response -- raw dF/F, raw dF/F with
+%      negative cells removed, and as a baseline z-score
+%   4. Per-cell z-scored heatmap (matched cells, baseline | drug side by
+%      side, same row order, shared color scale)
 %
-% Kept separate from Master_Stimulus_Analysis.m until validated -- will
-% be merged in once confirmed. See project memory
-% "project-stimulus-timing-architecture" for the full architecture
-% writeup and open questions this script doesn't resolve.
-
-addpath(genpath(fullfile(pwd, 'zetatest')));
-addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
+% Why z-score at all: raw windowed dF/F isn't zero-centered, so a violin/
+% histogram of raw per-cell values piles up near (and below) zero -- see
+% "Calcium Imaging and the Curse of Negativity" (Frontiers 2020).
+% Z-scoring each cell against its own pre-onset baseline noise is the
+% standard fix. Kept the raw-dF/F versions alongside it on request.
+%
+% No ZETA dependency. Kept separate from Master_Stimulus_Analysis.m until
+% validated. See project memory "project-stimulus-timing-architecture" and
+% "project-aggregation-pipeline-fixes" for the timing-fix background.
 
 %% ====================== CONFIGURATION ======================
-baseline_file  = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
-drug_file      = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
-roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
+baseline_file  = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1444_preprocessed.mat";
+drug_file      = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1609_preprocessed.mat";
+roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_1444_V1.mat";
 selected_plane_idx = 1;
-
-zeta_alpha      = 0.05;
-zeta_resamp_num = 100;     % toolbox default is 250; reduced for runtime, see note in script
 
 loom_pre  = 2; loom_post  = 5;    % trial-aligned window, looming (seconds around onset)
 flash_pre = 1; flash_post = 4;    % trial-aligned window, flashes
 n_com     = 100;                 % points in the common trial-aligned time grid
+n_bins    = 40;                  % histogram bin count (finer than before, to see the shift)
+
+% Per-cell peak window: matches the actual response transient, NOT the
+% full post-onset window. A full-window mean cancels a peak-then-undershoot
+% response toward zero (confirmed on flashes: 118/649 cells had a strong
+% 0-0.8s peak >0.3 but a near-zero 0-4s mean) -- see
+% project_aggregation_pipeline_fixes memory.
+loom_peak_window  = [0.5 1.5];   % looming's sharp peak sits here (checked via population trace)
+flash_peak_window = [0   0.8];   % flashes' peak before the undershoot begins
+
+outdir = fullfile(fileparts(mfilename('fullpath')), 'analysis_figures', ...
+    sprintf('%s_vs_%s', recording_name_from_path(baseline_file), recording_name_from_path(drug_file)));
+if ~exist(outdir, 'dir'); mkdir(outdir); end
+fprintf('Figures will be saved to: %s\n', outdir);
 
 %% ====================== LOAD + PLANE SUBSET + ROI MATCHING ======================
 fprintf('Loading baseline: %s\n', baseline_file);
@@ -48,27 +58,21 @@ D = load(drug_file);
 fprintf('Matched cells in selected plane: %d\n', n_matched);
 
 %% ====================== ONSETS (red-frame ground truth) ======================
+% TimeStimulusFrame is directly camera-clock-correct now (RedFrameSynchronized=true
+% for every stimulus block, including looming) -- no manual anchor-correction
+% against TimeProjector is needed for either stimulus.
 loom_onsets_base  = get_looming_onsets(B.Stimuli, B.Triggers);
 loom_onsets_drug  = get_looming_onsets(D.Stimuli, D.Triggers);
-[flash_onsets_base, flash_anchor_base, flash_anchor_dt_base, flash_onsets_rel_base] = get_flash_onsets(B.Stimuli, B.Triggers);
-[flash_onsets_drug, flash_anchor_drug, flash_anchor_dt_drug, flash_onsets_rel_drug] = get_flash_onsets(D.Stimuli, D.Triggers);
+flash_onsets_base = get_flash_onsets(B.Stimuli);
+flash_onsets_drug = get_flash_onsets(D.Stimuli);
 
 fprintf('Looming onsets: baseline=%d, drug=%d\n', numel(loom_onsets_base), numel(loom_onsets_drug));
 fprintf('Flash onsets:   baseline=%d, drug=%d\n', numel(flash_onsets_base), numel(flash_onsets_drug));
 
 %% ====================== ONSET-VS-FORMULA CROSS-CHECK ======================
-% Looming: how far is each individual red-frame onset from the naive
-% stimulus_trial_t*(k-1) formula? (Should be irregular/large -- that's
-% the whole reason we use red frames instead of the formula for looming.)
 fprintf('\n--- Looming onset vs formula ---\n');
 check_loom_onset_formula(B.Stimuli, loom_onsets_base, 'baseline');
 check_loom_onset_formula(D.Stimuli, loom_onsets_drug, 'drug');
-
-% Flashes: how much did the red-frame anchor correction shift things,
-% relative to just trusting TimeStimulusFrame(1) directly?
-fprintf('\n--- Flashes anchor correction ---\n');
-check_flash_anchor_correction(B.Stimuli, flash_anchor_base, flash_anchor_dt_base, flash_onsets_rel_base, 'baseline');
-check_flash_anchor_correction(D.Stimuli, flash_anchor_drug, flash_anchor_dt_drug, flash_onsets_rel_drug, 'drug');
 
 %% ====================== TRIAL-ALIGNED EXTRACTION ======================
 [Ca_loom_base, t_com_loom]   = align_trials_to_onsets(loom_onsets_base, base_dff, B.TimeCa, loom_pre, loom_post, n_com);
@@ -76,92 +80,77 @@ check_flash_anchor_correction(D.Stimuli, flash_anchor_drug, flash_anchor_dt_drug
 [Ca_flash_base, t_com_flash] = align_trials_to_onsets(flash_onsets_base, base_dff, B.TimeCa, flash_pre, flash_post, n_com);
 [Ca_flash_drug, ~]           = align_trials_to_onsets(flash_onsets_drug, drug_dff, D.TimeCa, flash_pre, flash_post, n_com);
 
-% Per-cell trial-aggregated response (median across trials -- robust to
-% the kind of single-outlier-trial issue we found earlier)
+% Per-cell trial-aggregated response (median across trials), matched cells only.
 resp_loom_base  = median(Ca_loom_base(base_match_idx_local, :, :), 3, 'omitnan');
 resp_loom_drug  = median(Ca_loom_drug(drug_match_idx_local, :, :), 3, 'omitnan');
 resp_flash_base = median(Ca_flash_base(base_match_idx_local, :, :), 3, 'omitnan');
 resp_flash_drug = median(Ca_flash_drug(drug_match_idx_local, :, :), 3, 'omitnan');
 
-%% ====================== PLOT: TRIGGERED AVERAGE, MATCHED CELLS, BASELINE VS DRUG ======================
+%% ====================== 1. RAW dF/F TRANSIENT ======================
 plot_matched_comparison(t_com_loom, resp_loom_base, resp_loom_drug, ...
-    sprintf('Looming: baseline vs drug (n = %d matched cells)', n_matched));
+    sprintf('Looming - raw dF-F transient (n = %d matched cells)', n_matched), outdir);
 plot_matched_comparison(t_com_flash, resp_flash_base, resp_flash_drug, ...
-    sprintf('Flashes: baseline vs drug (n = %d matched cells)', n_matched));
+    sprintf('Flashes - raw dF-F transient (n = %d matched cells)', n_matched), outdir);
 
-%% ====================== ZETA RESPONSIVENESS (matched cells only) ======================
-fprintf('\nRunning ZETA: looming, baseline (%d cells)...\n', n_matched);
-loom_p_base  = run_zeta_population(base_dff(base_match_idx_local, :), B.TimeCa(1,:)', loom_onsets_base,  loom_post, zeta_resamp_num);
-fprintf('Running ZETA: looming, drug...\n');
-loom_p_drug  = run_zeta_population(drug_dff(drug_match_idx_local, :), D.TimeCa(1,:)', loom_onsets_drug,  loom_post, zeta_resamp_num);
-fprintf('Running ZETA: flashes, baseline...\n');
-flash_p_base = run_zeta_population(base_dff(base_match_idx_local, :), B.TimeCa(1,:)', flash_onsets_base, flash_post, zeta_resamp_num);
-fprintf('Running ZETA: flashes, drug...\n');
-flash_p_drug = run_zeta_population(drug_dff(drug_match_idx_local, :), D.TimeCa(1,:)', flash_onsets_drug, flash_post, zeta_resamp_num);
+%% ====================== PER-CELL METRICS ======================
+% Raw dF/F: mean over the peak window, in dF/F units.
+loom_raw_base  = mean(resp_loom_base(:,  t_com_loom  >= loom_peak_window(1)  & t_com_loom  <= loom_peak_window(2)),  2);
+loom_raw_drug  = mean(resp_loom_drug(:,  t_com_loom  >= loom_peak_window(1)  & t_com_loom  <= loom_peak_window(2)),  2);
+flash_raw_base = mean(resp_flash_base(:, t_com_flash >= flash_peak_window(1) & t_com_flash <= flash_peak_window(2)), 2);
+flash_raw_drug = mean(resp_flash_drug(:, t_com_flash >= flash_peak_window(1) & t_com_flash <= flash_peak_window(2)), 2);
 
-% Responsive = significant in EITHER condition (so drug-induced silencing
-% of a baseline-responsive cell doesn't drop it from the comparison) --
-% used for the violin plots below.
-loom_responsive  = (loom_p_base < zeta_alpha) | (loom_p_drug < zeta_alpha);
-flash_responsive = (flash_p_base < zeta_alpha) | (flash_p_drug < zeta_alpha);
+% Baseline z-score: (peak-window mean - pre-onset baseline mean) /
+% pre-onset baseline std, per trial, then median across trials.
+loom_z_base  = compute_baseline_zscore(Ca_loom_base,  base_match_idx_local, t_com_loom,  loom_peak_window);
+loom_z_drug  = compute_baseline_zscore(Ca_loom_drug,  drug_match_idx_local, t_com_loom,  loom_peak_window);
+flash_z_base = compute_baseline_zscore(Ca_flash_base, base_match_idx_local, t_com_flash, flash_peak_window);
+flash_z_drug = compute_baseline_zscore(Ca_flash_drug, drug_match_idx_local, t_com_flash, flash_peak_window);
 
-% Condition-specific masks -- used for the responsive-vs-non-responsive
-% triggered-average check below, where we want to know "did THIS
-% condition's own ZETA call match THIS condition's own traces" rather
-% than mixing in the other condition's responsiveness.
-loom_responsive_base  = loom_p_base  < zeta_alpha;
-loom_responsive_drug  = loom_p_drug  < zeta_alpha;
-flash_responsive_base = flash_p_base < zeta_alpha;
-flash_responsive_drug = flash_p_drug < zeta_alpha;
+%% ====================== 2. HISTOGRAMS (raw dF/F and z-score) ======================
+plot_response_histogram(loom_raw_base, loom_raw_drug, 'Looming - raw dF-F histogram', ...
+    'Mean dF/F (peak window, per cell)', n_bins, outdir);
+plot_response_histogram(flash_raw_base, flash_raw_drug, 'Flashes - raw dF-F histogram', ...
+    'Mean dF/F (peak window, per cell)', n_bins, outdir);
+plot_response_histogram(loom_z_base, loom_z_drug, 'Looming - z-score histogram', ...
+    'Peak-window z-score (vs pre-onset baseline), per cell', n_bins, outdir);
+plot_response_histogram(flash_z_base, flash_z_drug, 'Flashes - z-score histogram', ...
+    'Peak-window z-score (vs pre-onset baseline), per cell', n_bins, outdir);
 
-fprintf('\nLooming ZETA-responsive:  %d / %d matched cells (either condition)\n', sum(loom_responsive), n_matched);
-fprintf('  baseline only: %d, drug only: %d\n', sum(loom_responsive_base), sum(loom_responsive_drug));
-fprintf('Flashes ZETA-responsive:  %d / %d matched cells (either condition)\n', sum(flash_responsive), n_matched);
-fprintf('  baseline only: %d, drug only: %d\n', sum(flash_responsive_base), sum(flash_responsive_drug));
+%% ====================== 3. VIOLINS (raw, raw positive-only, z-score) ======================
+plot_violin_comparison(loom_raw_base, loom_raw_drug, 'Looming - raw dF-F violin', ...
+    'Mean dF/F (peak window, per cell)', n_matched, outdir);
+plot_violin_comparison(flash_raw_base, flash_raw_drug, 'Flashes - raw dF-F violin', ...
+    'Mean dF/F (peak window, per cell)', n_matched, outdir);
 
-%% ====================== ZETA P-VALUE SANITY CHECK ======================
-% Under the null (no real response), p-values should be roughly uniform
-% on [0,1] -- a flat histogram. A real responsive subpopulation shows up
-% as an excess near 0 on top of that flat background. A histogram that's
-% skewed/spiky everywhere (not just near 0) would indicate a problem with
-% the test setup itself (e.g. dblUseMaxDur or resampling count badly
-% mismatched to the data), not just "few responsive cells".
-plot_zeta_pvalue_check(loom_p_base, loom_p_drug, 'Looming: ZETA p-value distribution');
-plot_zeta_pvalue_check(flash_p_base, flash_p_drug, 'Flashes: ZETA p-value distribution');
+loom_pos_mask  = loom_raw_base  >= 0 & loom_raw_drug  >= 0;
+flash_pos_mask = flash_raw_base >= 0 & flash_raw_drug >= 0;
+plot_violin_comparison(loom_raw_base(loom_pos_mask), loom_raw_drug(loom_pos_mask), ...
+    'Looming - raw dF-F violin, negative cells removed', 'Mean dF/F (peak window, per cell)', sum(loom_pos_mask), outdir);
+plot_violin_comparison(flash_raw_base(flash_pos_mask), flash_raw_drug(flash_pos_mask), ...
+    'Flashes - raw dF-F violin, negative cells removed', 'Mean dF/F (peak window, per cell)', sum(flash_pos_mask), outdir);
 
-%% ====================== PER-CELL SCALAR METRIC FOR VIOLINS ======================
-% Mean dF/F over the post-onset window, per cell, from the
-% already-trial-aggregated (median) response
-loom_val_base  = mean(resp_loom_base(:,  t_com_loom  >= 0), 2);
-loom_val_drug  = mean(resp_loom_drug(:,  t_com_loom  >= 0), 2);
-flash_val_base = mean(resp_flash_base(:, t_com_flash >= 0), 2);
-flash_val_drug = mean(resp_flash_drug(:, t_com_flash >= 0), 2);
+plot_violin_comparison(loom_z_base, loom_z_drug, 'Looming - z-score violin', ...
+    'Peak-window z-score (vs pre-onset baseline), per cell', n_matched, outdir);
+plot_violin_comparison(flash_z_base, flash_z_drug, 'Flashes - z-score violin', ...
+    'Peak-window z-score (vs pre-onset baseline), per cell', n_matched, outdir);
 
-%% ====================== VIOLIN PLOTS ======================
-plot_violin_comparison(loom_val_base, loom_val_drug, 'Looming -- all matched cells', n_matched);
-plot_violin_comparison(loom_val_base(loom_responsive), loom_val_drug(loom_responsive), ...
-    'Looming -- ZETA-responsive cells only', sum(loom_responsive));
+%% ====================== 4. Z-SCORED HEATMAPS ======================
+loomZ_base_trace  = compute_baseline_zscore_trace(Ca_loom_base,  base_match_idx_local, t_com_loom);
+loomZ_drug_trace  = compute_baseline_zscore_trace(Ca_loom_drug,  drug_match_idx_local, t_com_loom);
+flashZ_base_trace = compute_baseline_zscore_trace(Ca_flash_base, base_match_idx_local, t_com_flash);
+flashZ_drug_trace = compute_baseline_zscore_trace(Ca_flash_drug, drug_match_idx_local, t_com_flash);
 
-plot_violin_comparison(flash_val_base, flash_val_drug, 'Flashes -- all matched cells', n_matched);
-plot_violin_comparison(flash_val_base(flash_responsive), flash_val_drug(flash_responsive), ...
-    'Flashes -- ZETA-responsive cells only', sum(flash_responsive));
+plot_zscore_heatmap(t_com_loom, loomZ_base_trace, loomZ_drug_trace, loom_z_base, 'Looming - z-scored heatmap', outdir);
+plot_zscore_heatmap(t_com_flash, flashZ_base_trace, flashZ_drug_trace, flash_z_base, 'Flashes - z-scored heatmap', outdir);
 
-%% ====================== RESPONSIVE VS NON-RESPONSIVE TRIGGERED AVERAGE ======================
-% The direct validity check: do the cells ZETA calls significant in THIS
-% condition actually show a visible bump in THIS condition's own
-% triggered average, and do the non-responsive cells look flat by
-% comparison? Uses each condition's own ZETA call (not the "either
-% condition" mask used for the violins above).
-plot_responsive_vs_nonresponsive(t_com_loom, resp_loom_base, loom_responsive_base, ...
-    'Looming, baseline: ZETA-responsive vs non-responsive');
-plot_responsive_vs_nonresponsive(t_com_loom, resp_loom_drug, loom_responsive_drug, ...
-    'Looming, drug: ZETA-responsive vs non-responsive');
-plot_responsive_vs_nonresponsive(t_com_flash, resp_flash_base, flash_responsive_base, ...
-    'Flashes, baseline: ZETA-responsive vs non-responsive');
-plot_responsive_vs_nonresponsive(t_com_flash, resp_flash_drug, flash_responsive_drug, ...
-    'Flashes, drug: ZETA-responsive vs non-responsive');
+fprintf('\nAll figures saved to: %s\n', outdir);
 
 %% ============= HELPER FUNCTIONS =============
+
+function name = recording_name_from_path(filepath)
+    [~, name, ~] = fileparts(filepath);
+    name = regexprep(name, '_preprocessed$', '');
+end
 
 function [dff_plane, roi_idx] = subset_plane(S, plane_idx)
     centroid = S.CaData(1).Ca_centroid_voxel;
@@ -187,33 +176,29 @@ function loom_onsets = get_looming_onsets(Stimuli, Triggers)
     % One red sync frame per trial, fired at the true onset of that
     % trial's loom (looming has no continuous periodic red-sync rhythm,
     % unlike the other stimulus types -- see project memory).
-    loom_idx   = find(strcmp({Stimuli.type}, 'looming'), 1);
-    time_start = Stimuli(loom_idx).TimeStimulusFrame(1);
-    time_end   = Stimuli(loom_idx).TimeStimulusFrame(end);
+    loom_idx = find(strcmp({Stimuli.type}, 'looming'), 1);
+    s = Stimuli(loom_idx);
+    if ~s.RedFrameSynchronized
+        warning('Looming: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
+    end
+    % Inclusive bounds: TimeStimulusFrame(1) lands exactly on the trial-1
+    % pulse, so a strict > would silently drop it.
     PT = Triggers.TimeProjector;
-    loom_onsets = PT(PT > time_start & PT < time_end)';
+    loom_onsets = PT(PT >= s.TimeStimulusFrame(1) & PT <= s.TimeStimulusFrame(end))';
 end
 
-function [flash_onsets, anchor, anchor_dt, flash_onsets_rel] = get_flash_onsets(Stimuli, Triggers)
+function flash_onsets = get_flash_onsets(Stimuli)
     % Flash onset times are not recorded directly -- reconstructed by
     % replaying the same RNG draws used at presentation time
-    % (reconstructFlashes.m), then anchored to the block's real start via
-    % the nearest red frame (this stimulus also uses PC-clock fallback
-    % timing, same ~3.3s session-wide clock offset as the other stimuli --
-    % confirmed root cause: stimulus PC and ScanImage PC are physically
-    % separate, unsynced clocks; see project memory).
+    % (reconstructFlashes.m), then anchored directly to TimeStimulusFrame(1),
+    % which is now camera-clock-correct on its own (RedFrameSynchronized=true).
     flash_idx = find(strcmp({Stimuli.type}, 'sparse_local_global_flashes'), 1);
     s = Stimuli(flash_idx);
-    block_start = s.TimeStimulusFrame(1);
-    flash_onsets_rel = reconstructFlashes(s);
-
-    PT = Triggers.TimeProjector;
-    [anchor_dt, anchor_loc] = min(abs(PT - block_start));
-    anchor = PT(anchor_loc);
-    if anchor_dt > 1
-        warning('Flashes: nearest red frame is %.2f s from TimeStimulusFrame(1) -- check block alignment', anchor_dt);
+    if ~s.RedFrameSynchronized
+        warning('Flashes: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
     end
-    flash_onsets = anchor + flash_onsets_rel;
+    flash_onsets_rel = reconstructFlashes(s);
+    flash_onsets = s.TimeStimulusFrame(1) + flash_onsets_rel;
 end
 
 function [Ca_trials, t_com] = align_trials_to_onsets(onsets, dff, TimeCa, pre_window_sec, post_window_sec, n_com)
@@ -231,18 +216,42 @@ function [Ca_trials, t_com] = align_trials_to_onsets(onsets, dff, TimeCa, pre_wi
     end
 end
 
-function vec_p = run_zeta_population(dff_matched, vecTime, onsets, dblUseMaxDur, intResampNum)
-    % One zetatstest call per cell -- operates on the raw continuous
-    % trace + event onset times directly (not the trial-aligned array).
-    n_cells = size(dff_matched, 1);
-    vec_p = nan(n_cells, 1);
-    onsets = onsets(:);
-    for c = 1:n_cells
-        vec_p(c) = zetatstest(vecTime, dff_matched(c, :)', onsets, dblUseMaxDur, intResampNum, 0);
+function z = compute_baseline_zscore(Ca_trials, match_idx, t_com, peak_window)
+    % Per-cell, per-trial: (peak-window mean - pre-onset baseline mean) /
+    % pre-onset baseline std; then median across trials.
+    pre_idx  = t_com < 0;
+    peak_idx = t_com >= peak_window(1) & t_com <= peak_window(2);
+    Ca_sel   = Ca_trials(match_idx, :, :);
+    n_trials = size(Ca_sel, 3);
+
+    z_trial = nan(size(Ca_sel, 1), n_trials);
+    for tr = 1:n_trials
+        base_mean = mean(Ca_sel(:, pre_idx, tr), 2, 'omitnan');
+        base_std  = std(Ca_sel(:, pre_idx, tr), 0, 2, 'omitnan');
+        peak_mean = mean(Ca_sel(:, peak_idx, tr), 2, 'omitnan');
+        z_trial(:, tr) = (peak_mean - base_mean) ./ base_std;
     end
+    z = median(z_trial, 2, 'omitnan');
 end
 
-function plot_matched_comparison(t_com, resp_base, resp_drug, fig_title)
+function Z = compute_baseline_zscore_trace(Ca_trials, match_idx, t_com)
+    % Same per-trial baseline normalization as compute_baseline_zscore,
+    % but keeps the full time course instead of collapsing to one window
+    % -- used for the heatmaps.
+    pre_idx  = t_com < 0;
+    Ca_sel   = Ca_trials(match_idx, :, :);
+    n_trials = size(Ca_sel, 3);
+
+    Z_trial = nan(size(Ca_sel));
+    for tr = 1:n_trials
+        base_mean = mean(Ca_sel(:, pre_idx, tr), 2, 'omitnan');
+        base_std  = std(Ca_sel(:, pre_idx, tr), 0, 2, 'omitnan');
+        Z_trial(:, :, tr) = (Ca_sel(:, :, tr) - base_mean) ./ base_std;
+    end
+    Z = median(Z_trial, 3, 'omitnan');
+end
+
+function plot_matched_comparison(t_com, resp_base, resp_drug, fig_title, outdir)
     % resp_base/resp_drug: [n_cells x n_com], already trial-aggregated per cell
     mean_base = mean(resp_base, 1, 'omitnan');
     sem_base  = std(resp_base, 0, 1, 'omitnan') / sqrt(size(resp_base, 1));
@@ -267,47 +276,130 @@ function plot_matched_comparison(t_com, resp_base, resp_drug, fig_title)
     title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
     legend('Location', 'best');
     set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
+    save_current_fig(fig_title, outdir);
 end
 
-function plot_violin_comparison(vals_base, vals_drug, fig_title, n_cells)
-    % One violin per condition (baseline at x=0, drug at x=1), each dot
-    % is one matched cell's post-onset mean dF/F.
-    vals_base = vals_base(~isnan(vals_base));
-    vals_drug = vals_drug(~isnan(vals_drug));
+function plot_violin_comparison(vals_base, vals_drug, fig_title, ylab, n_cells, outdir)
+    % One violin per condition (baseline at x=0, drug at x=1). Muted fill
+    % + white median bar + small low-alpha dots, plus a paired (signrank)
+    % significance bracket.
+    color_base = [0.55 0.75 0.70];   % muted teal
+    color_drug = [0.70 0.60 0.78];   % muted purple
 
-    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 600 600]);
+    valid = ~isnan(vals_base) & ~isnan(vals_drug);
+    vals_base = vals_base(valid);
+    vals_drug = vals_drug(valid);
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 600 650]);
     hold on;
 
+    plot_one_violin(0, vals_base, color_base);
+    plot_one_violin(1, vals_drug, color_drug);
+
     if numel(vals_base) >= 2
-        [f_bl, xi_bl] = ksdensity(vals_base, 'NumPoints', 150);
-        f_bl = f_bl / max(f_bl) * 0.4;
-        patch([f_bl, fliplr(-f_bl)], [xi_bl, fliplr(xi_bl)], [0.2 0.6 1], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 1.5);
-        plot([-0.4 0.4], [median(vals_base) median(vals_base)], 'k-', 'LineWidth', 2.5);
-        x_jitter = max(min(randn(numel(vals_base), 1)*0.12, 0.4), -0.4);
-        scatter(x_jitter, vals_base, 20, [0.3 0.3 0.3], 'o', 'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
+        p_signrank = signrank(vals_base, vals_drug);
+        y_top = max([vals_base; vals_drug]);
+        y_span = range([vals_base; vals_drug]);
+        y_bracket = y_top + 0.08 * y_span;
+        plot([0 0 1 1], [y_bracket-0.02*y_span, y_bracket, y_bracket, y_bracket-0.02*y_span], 'k-', 'LineWidth', 1, 'HandleVisibility', 'off');
+        text(0.5, y_bracket + 0.03*y_span, sig_stars(p_signrank), 'HorizontalAlignment', 'center', 'FontSize', 14, 'FontWeight', 'bold');
+        fprintf('  %s: paired signrank p = %.4g\n', fig_title, p_signrank);
     end
 
-    if numel(vals_drug) >= 2
-        [f_dr, xi_dr] = ksdensity(vals_drug, 'NumPoints', 150);
-        f_dr = f_dr / max(f_dr) * 0.4;
-        patch([f_dr + 1, fliplr(-f_dr + 1)], [xi_dr, fliplr(xi_dr)], [1 0.5 0.2], 'FaceAlpha', 0.8, 'EdgeColor', 'black', 'LineWidth', 1.5);
-        plot([1-0.4 1+0.4], [median(vals_drug) median(vals_drug)], 'k-', 'LineWidth', 2.5);
-        x_jitter = 1 + max(min(randn(numel(vals_drug), 1)*0.12, 0.4), -0.4);
-        scatter(x_jitter, vals_drug, 20, [0.3 0.3 0.3], 'o', 'MarkerFaceAlpha', 0.3, 'MarkerEdgeAlpha', 0.2);
-    end
-
-    set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'Box', 'off');
-    ylabel('Mean dF/F (post-onset, per cell)', 'FontSize', 11);
+    set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'Box', 'off', 'XLim', [-0.6 1.6]);
+    ylabel(ylab, 'FontSize', 11);
     title(sprintf('%s (n = %d)', fig_title, n_cells), 'FontSize', 12, 'Interpreter', 'none');
-    grid on;
+    save_current_fig(fig_title, outdir);
+end
+
+function plot_one_violin(x0, vals, fill_color)
+    if numel(vals) < 2; return; end
+    [f, xi] = ksdensity(vals, 'NumPoints', 150);
+    f = f / max(f) * 0.38;
+    patch(x0 + [f, fliplr(-f)], [xi, fliplr(xi)], fill_color, 'FaceAlpha', 0.85, 'EdgeColor', [0.3 0.3 0.3], 'LineWidth', 1);
+    plot(x0 + [-0.38 0.38], [median(vals) median(vals)], 'w-', 'LineWidth', 2.5);
+    x_jitter = x0 + max(min(randn(numel(vals), 1)*0.10, 0.35), -0.35);
+    scatter(x_jitter, vals, 14, [0.25 0.25 0.25], 'o', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0);
+end
+
+function stars = sig_stars(p)
+    if p < 0.001; stars = '***';
+    elseif p < 0.01; stars = '**';
+    elseif p < 0.05; stars = '*';
+    else; stars = 'n.s.';
+    end
+end
+
+function plot_response_histogram(vals_base, vals_drug, fig_title, xlab, n_bins, outdir)
+    % Normalized-overlay histogram of the per-cell metric.
+    vals_base = vals_base(~isnan(vals_base));
+    vals_drug = vals_drug(~isnan(vals_drug));
+    if isempty(vals_base) && isempty(vals_drug); return; end
+
+    edges = linspace(min([vals_base; vals_drug]), max([vals_base; vals_drug]), n_bins+1);
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 700 450]);
+    hold on;
+    histogram(vals_base, edges, 'Normalization', 'probability', ...
+        'FaceColor', [0.2 0.6 1], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', sprintf('Baseline (n=%d)', numel(vals_base)));
+    histogram(vals_drug, edges, 'Normalization', 'probability', ...
+        'FaceColor', [1 0.5 0.2], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', sprintf('Drug (n=%d)', numel(vals_drug)));
+    xline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+
+    xlabel(xlab, 'FontSize', 11);
+    ylabel('Probability', 'FontSize', 11);
+    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
+    legend('Location', 'best');
+    set(gca, 'Box', 'off');
+    save_current_fig(fig_title, outdir);
+end
+
+function plot_zscore_heatmap(t_com, Z_base, Z_drug, sort_vals, fig_title, outdir)
+    % Z_base/Z_drug: [n_cells x n_com], per-cell z-scored trial-aligned
+    % traces, matched cells, same row order in both panels. Rows sorted
+    % by sort_vals (baseline peak z-score), descending, so the strongest
+    % baseline responders sit at the top of BOTH panels -- makes it easy
+    % to see whether the same cells are still the strong responders under
+    % drug, or whether the ranking shifts.
+    [~, order] = sort(sort_vals, 'descend', 'MissingPlacement', 'last');
+    Zb = Z_base(order, :);
+    Zd = Z_drug(order, :);
+
+    clim = prctile([Zb(:); Zd(:)], [1 99]);
+    clim = max(abs(clim)) * [-1 1];   % symmetric around 0
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 1100 650]);
+    colormap(diverging_colormap());
+
+    subplot(1,2,1);
+    imagesc(t_com, 1:size(Zb,1), Zb, clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    xlabel('Time from onset (s)'); ylabel('Matched cell # (sorted by baseline peak z-score)');
+    title('Baseline');
+
+    subplot(1,2,2);
+    imagesc(t_com, 1:size(Zd,1), Zd, clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    xlabel('Time from onset (s)');
+    title('Drug');
+    cb = colorbar; cb.Label.String = 'z-score (vs pre-onset baseline)';
+
+    sgtitle(sprintf('%s (n = %d matched cells)', fig_title, size(Zb,1)), 'FontWeight', 'bold');
+    save_current_fig(fig_title, outdir);
+end
+
+function cmap = diverging_colormap(n)
+    if nargin < 1; n = 256; end
+    half = floor(n/2);
+    neg = [linspace(0.05,1,half)', linspace(0.05,1,half)', ones(half,1)];   % blue -> white
+    pos = [ones(n-half,1), linspace(1,0.05,n-half)', linspace(1,0.05,n-half)']; % white -> red
+    cmap = [neg; pos];
 end
 
 function check_loom_onset_formula(Stimuli, onsets, label)
     % How far is each individual red-frame onset from the naive
     % stimulus_trial_t*(k-1) formula prediction? Expected to be large and
-    % irregular for looming (that's why we use red frames at all here) --
-    % this just makes that explicit and per-trial instead of only the
-    % session-wide averages already written up in project memory.
+    % irregular for looming (that's why we use red frames at all here).
     loom_idx   = find(strcmp({Stimuli.type}, 'looming'), 1);
     trial_t    = Stimuli(loom_idx).stimulus_trial_t;
     time_start = Stimuli(loom_idx).TimeStimulusFrame(1);
@@ -322,75 +414,9 @@ function check_loom_onset_formula(Stimuli, onsets, label)
         'VariableNames', {'trial', 'detected_onset_s', 'formula_onset_s', 'delta_s'}));
 end
 
-function check_flash_anchor_correction(Stimuli, anchor, anchor_dt, flash_onsets_rel, label)
-    % How much does the per-block red-frame anchor correction shift each
-    % flash onset relative to just trusting TimeStimulusFrame(1) (the
-    % uncorrected PC-clock-fallback timing) directly?
-    flash_idx   = find(strcmp({Stimuli.type}, 'sparse_local_global_flashes'), 1);
-    block_start = Stimuli(flash_idx).TimeStimulusFrame(1);
-
-    uncorrected_onsets = block_start + flash_onsets_rel(:);
-    corrected_onsets    = anchor + flash_onsets_rel(:);
-
-    fprintf('  %s: block_start=%.3f s, nearest red frame=%.3f s, correction=+%.3f s applied uniformly to all %d onsets\n', ...
-        label, block_start, anchor, anchor_dt, numel(flash_onsets_rel));
-    disp(table((1:numel(flash_onsets_rel))', uncorrected_onsets, corrected_onsets, ...
-        'VariableNames', {'flash', 'uncorrected_onset_s', 'corrected_onset_s'}));
-end
-
-function plot_zeta_pvalue_check(p_base, p_drug, fig_title)
-    % Sanity check on the test itself, not the biology: under the null,
-    % p-values should be roughly flat/uniform on [0,1]. A real responsive
-    % subpopulation shows up as an excess near 0 on top of that flat
-    % background. A histogram that's skewed/spiky everywhere (not just
-    % near 0) would point to a problem with dblUseMaxDur/resampling, not
-    % just "few responsive cells".
-    n_bins = 20;
-
-    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 700 450]);
-    hold on;
-    histogram(p_base, n_bins, 'BinLimits', [0 1], 'Normalization', 'probability', ...
-        'FaceColor', [0.2 0.6 1], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', 'Baseline');
-    histogram(p_drug, n_bins, 'BinLimits', [0 1], 'Normalization', 'probability', ...
-        'FaceColor', [1 0.5 0.2], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', 'Drug');
-    yline(1/n_bins, 'k--', 'LineWidth', 1, 'DisplayName', 'Expected flat height under null');
-
-    xlabel('ZETA p-value', 'FontSize', 11);
-    ylabel('Probability', 'FontSize', 11);
-    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
-    legend('Location', 'best');
-    set(gca, 'Box', 'off'); xlim([0 1]);
-end
-
-function plot_responsive_vs_nonresponsive(t_com, resp, responsive_mask, fig_title)
-    % resp: [n_cells x n_com], already trial-aggregated per cell.
-    % responsive_mask: logical, this condition's own ZETA call.
-    resp_yes = resp(responsive_mask, :);
-    resp_no  = resp(~responsive_mask, :);
-
-    mean_yes = mean(resp_yes, 1, 'omitnan');
-    sem_yes  = std(resp_yes, 0, 1, 'omitnan') / sqrt(max(size(resp_yes, 1), 1));
-    mean_no  = mean(resp_no, 1, 'omitnan');
-    sem_no   = std(resp_no, 0, 1, 'omitnan') / sqrt(max(size(resp_no, 1), 1));
-
-    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 900 500]);
-    hold on;
-    x_sh = [t_com, fliplr(t_com)];
-
-    y_sh_no = [(mean_no + sem_no), fliplr(mean_no - sem_no)];
-    fill(x_sh, y_sh_no, [0.6 0.6 0.6], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
-    plot(t_com, mean_no, '-', 'Color', [0.6 0.6 0.6], 'LineWidth', 2, ...
-        'DisplayName', sprintf('Non-responsive (n=%d)', sum(~responsive_mask)));
-
-    y_sh_yes = [(mean_yes + sem_yes), fliplr(mean_yes - sem_yes)];
-    fill(x_sh, y_sh_yes, [0.85 0.1 0.1], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
-    plot(t_com, mean_yes, '-', 'Color', [0.85 0.1 0.1], 'LineWidth', 2.5, ...
-        'DisplayName', sprintf('ZETA-responsive (n=%d)', sum(responsive_mask)));
-
-    xline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
-    xlabel('Time from onset (s)', 'FontSize', 11);
-    ylabel('dF/F (mean \pm SEM)', 'FontSize', 11);
-    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
-    legend('Location', 'best');
-    set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
+function save_current_fig(fig_title, outdir)
+    safe_name = regexprep(fig_title, '[^a-zA-Z0-9]+', '_');
+    outfile = fullfile(outdir, [safe_name '.png']);
+    saveas(gcf, outfile);
+    fprintf('Saved %s\n', outfile);
 end

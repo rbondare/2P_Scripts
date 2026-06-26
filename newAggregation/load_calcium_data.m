@@ -162,14 +162,11 @@ else
     redcellComb = [];
 end
 
-% Load Fall data — combined/Fall.mat takes priority over plane-by-plane
+% Load Fall data — always per-plane so Fall stays a 1xN struct array;
+% combined/Fall.mat is only used above for the merged iscell/redcell overlay
 if proj
     % Load from projection folder
     Fall = load([S2Pdirs(1).folder filesep 'proj' filesep 'suite2p' filesep 'plane0' filesep 'Fall.mat']);
-elseif combined_fall
-    % Combined file already merges all planes — classifications baked in
-    Fall = load([suite2p_dir 'combined' filesep 'Fall.mat']);
-    fprintf('  Loaded from combined/Fall.mat (%d ROIs)\n', size(Fall.F, 1));
 else
     % Load from first plane
     Fall = load([S2Pdirs(1).folder filesep S2Pdirs(1).name filesep 'Fall.mat']);

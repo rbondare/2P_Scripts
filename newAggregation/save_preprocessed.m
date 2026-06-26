@@ -1011,7 +1011,17 @@ function Stimopts = synchronize_red_frames(Stimopts, PT, timestamps, Stimnumber,
 %   using projector trigger times as reference
 
 Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(Stimnumber,1) & PT <= timestamps(Stimnumber,2)+1);
-Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count))-1, Stimopts.red_sync_nth_frame) == 0);
+num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count));
+is_flag_based = Stimopts.red_sync_nth_frame == 0;
+if ~is_flag_based
+    Red_frame_number = find(mod(0:num_frames-1, Stimopts.red_sync_nth_frame) == 0);
+else
+    % red_sync_nth_frame==0 means no periodic sync (e.g. looming): red frames are
+    % flagged once per trial instead, at subtrial_frame_count==1 (the trial's first
+    % frame, per present_stimulus_addnew.m's redframe_flag, which only fires for this case)
+    sfc = Stimopts.Frameinfo.subtrial_frame_count(~isnan(Stimopts.Frameinfo.frame_count));
+    Red_frame_number = find(sfc == 1);
+end
 
 % Handle edge cases where red frame count doesn't match projector sync count
 if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
@@ -1031,7 +1041,6 @@ if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
 end
 
 % If still mismatched or insufficient points, fall back to using PC clock times
-num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count));
 if numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     warning('Projector sync frames not matching! Using PC Clock Times instead');
     Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
@@ -1040,6 +1049,26 @@ elseif num_frames < 1
     warning('Stimulus has no valid frames! Setting TimeStimulusFrame to NaN');
     Stimopts.TimeStimulusFrame = nan(1, numel(Stimopts.Frameinfo.frametime));
     Stimopts.RedFrameSynchronized = false;
+elseif is_flag_based
+    % Trial-anchored red frames are sparse and separated by an inter-trial
+    % WaitSecs() that advances real time but not frame_count, so interpolating
+    % or extrapolating across anchors (like the periodic case below) would
+    % smear that wait into the per-frame mapping. Instead anchor each frame to
+    % its own trial's onset and propagate using the actually-recorded
+    % frame-to-frame time (Frameinfo.frametime) -- never bridging across a
+    % trial boundary with an assumed constant rate.
+    ft = Stimopts.Frameinfo.frametime(~isnan(Stimopts.Frameinfo.frame_count));
+    Stimopts.TimeStimulusFrame = nan(1, num_frames);
+    for a = 1:numel(Red_frame_number)
+        if a < numel(Red_frame_number)
+            seg = Red_frame_number(a):(Red_frame_number(a+1)-1);
+        else
+            seg = Red_frame_number(a):num_frames;
+        end
+        Stimopts.TimeStimulusFrame(seg) = Timestamp_Projected_Sync_Frames(a) + ...
+            seconds(ft(seg) - ft(Red_frame_number(a)));
+    end
+    Stimopts.RedFrameSynchronized = true;
 else
     % Interpolate to map stimulus frame numbers to camera-synchronized times
     Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...

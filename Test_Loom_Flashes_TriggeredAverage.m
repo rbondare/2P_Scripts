@@ -1,10 +1,13 @@
 %% Quick validation: triggered-average response for looming and flashes
-% Baseline recording only. Purpose: visually confirm that (1) looming's
-% per-trial red-frame onsets and (2) flashes' reconstructed onsets (via
-% reconstructFlashes.m) both line up with real calcium transients. If
-% the timing is right, both should show a rise shortly after t=0; if
-% wrong, the average will look flat/noisy since misaligned trials wash
-% each other out.
+% Baseline recording only. Confirms that (1) looming's per-trial red-frame
+% onsets and (2) flashes' reconstructed onsets (via reconstructFlashes.m)
+% both line up with real calcium transients -- a rise shortly after t=0 in
+% both means timing is correct; a flat/noisy average means it isn't.
+%
+% TimeStimulusFrame is now directly camera-clock-correct end-to-end
+% (RedFrameSynchronized=true for every stimulus block, including looming)
+% so no manual anchor-correction against TimeProjector is needed for
+% either stimulus anymore -- see project_aggregation_pipeline_fixes memory.
 
 addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
 
@@ -20,50 +23,47 @@ base_dff_full = B.CaData(1).Ca_dFF;
 centroid = B.CaData(1).Ca_centroid_voxel;
 centroidZ = centroid(:, 3);
 unique_planes = unique(centroidZ);
-selected_roi_idx = find(centroidZ == unique_planes(selected_plane_idx));
+selected_plane = unique_planes(selected_plane_idx);
+selected_roi_idx = find(centroidZ == selected_plane);
 base_dff = base_dff_full(selected_roi_idx, :);
 
 %% ====================== LOOMING ======================
 loom_idx = find(strcmp({B.Stimuli.type}, 'looming'), 1);
 loom_s = B.Stimuli(loom_idx);
-loom_time_start = loom_s.TimeStimulusFrame(1);
-loom_time_end   = loom_s.TimeStimulusFrame(end);
+if ~loom_s.RedFrameSynchronized
+    warning('Looming: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
+end
 
 PT = B.Triggers.TimeProjector;
-loom_onsets = PT(PT > loom_time_start & PT < loom_time_end)';
+% Inclusive bounds: TimeStimulusFrame(1) now lands exactly on the trial-1
+% pulse, so a strict > would silently drop it.
+loom_onsets = PT(PT >= loom_s.TimeStimulusFrame(1) & PT <= loom_s.TimeStimulusFrame(end))';
 fprintf('Looming: %d onsets found (expected %d trials)\n', numel(loom_onsets), loom_s.trials);
 
-[Ca_loom, t_com_loom] = align_trials_to_onsets(loom_onsets, base_dff, B.TimeCa, 2, 5, 100);
+[Ca_loom, t_com_loom] = align_trials_to_onsets(loom_onsets, base_dff, B.TimeCa, selected_plane, 2, 5, 100);
 plot_triggered_average(t_com_loom, Ca_loom, 'Looming', [0.2 0.6 1]);
 
 %% ====================== FLASHES ======================
 flash_idx = find(strcmp({B.Stimuli.type}, 'sparse_local_global_flashes'), 1);
 flash_s = B.Stimuli(flash_idx);
-flash_block_start = flash_s.TimeStimulusFrame(1);
-
-[flash_onsets_rel, ~, ~] = reconstructFlashes(flash_s);
-
-[anchor_dt, anchor_loc] = min(abs(PT - flash_block_start));
-anchor = PT(anchor_loc);
-fprintf('Flashes: red-frame anchor = %.3f s (%.3f s from TimeStimulusFrame(1) = %.3f s)\n', ...
-    anchor, anchor_dt, flash_block_start);
-if anchor_dt > 1
-    warning('Nearest red frame is %.2f s from TimeStimulusFrame(1) -- check block alignment', anchor_dt);
+if ~flash_s.RedFrameSynchronized
+    warning('Flashes: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
 end
 
-flash_onsets_abs = anchor + flash_onsets_rel;
+[flash_onsets_rel, ~, ~] = reconstructFlashes(flash_s);
+flash_onsets_abs = flash_s.TimeStimulusFrame(1) + flash_onsets_rel;
 fprintf('Flashes: %d reconstructed onsets\n', numel(flash_onsets_abs));
 
-[Ca_flash, t_com_flash] = align_trials_to_onsets(flash_onsets_abs, base_dff, B.TimeCa, 1, 4, 100);
+[Ca_flash, t_com_flash] = align_trials_to_onsets(flash_onsets_abs, base_dff, B.TimeCa, selected_plane, 1, 4, 100);
 plot_triggered_average(t_com_flash, Ca_flash, 'Sparse local/global flashes', [1 0.5 0.2]);
 
 %% ============= HELPER FUNCTIONS =============
-function [Ca_trials, t_com] = align_trials_to_onsets(onsets, dff, TimeCa, pre_window_sec, post_window_sec, n_com)
+function [Ca_trials, t_com] = align_trials_to_onsets(onsets, dff, TimeCa, plane, pre_window_sec, post_window_sec, n_com)
     t_com     = linspace(-pre_window_sec, post_window_sec, n_com);
     n_rois    = size(dff, 1);
     n_trials  = numel(onsets);
     Ca_trials = nan(n_rois, n_com, n_trials);
-    time_vec  = TimeCa(1, :);
+    time_vec  = TimeCa(plane, :);
 
     for k = 1:n_trials
         idx = find(time_vec > onsets(k) - pre_window_sec & time_vec < onsets(k) + post_window_sec);
@@ -92,7 +92,7 @@ function plot_triggered_average(t_com, Ca_trials, fig_name, mean_color)
     set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
 
     safe_name = regexprep(fig_name, '[^a-zA-Z0-9]+', '_');
-    outfile = fullfile(tempdir, sprintf('test_%s.png', safe_name));
+    outfile = fullfile(fileparts(mfilename('fullpath')), sprintf('test_%s.png', safe_name));
     saveas(gcf, outfile);
     fprintf('Saved %s\n', outfile);
 end

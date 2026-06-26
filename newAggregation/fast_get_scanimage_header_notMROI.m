@@ -150,7 +150,21 @@ function [header,numImages,imgInfo,rawStream] = fast_get_scanimage_header_notMRO
     numFrames = hdr.numFrames; % per slice
     %numDiscardFrames = hdr.numDiscardFrames;
     %discardFlybackframesEnabled = hdr.discardFlybackframesEnabled;
-    
+
+    % hdr.numSlices/numFrames come from ScanImage's "actual" counters
+    % (hStackManager.actualNumSlices etc.), which can come back as 0/Inf
+    % even when the file contains complete, real volumes. When that
+    % happens, recover the geometry from the configured (not "actual")
+    % slice count and the always-reliable per-volume frame count instead.
+    if (numSlices == 0 || ~isfinite(numFrames)) ...
+            && isfield(header,'SI') && isfield(header.SI,'hStackManager') ...
+            && header.SI.hStackManager.numSlices > 0 ...
+            && isfinite(hdr.numFramesPerVolume) && hdr.numFramesPerVolume > 0
+        numSlices = header.SI.hStackManager.numSlices;
+        numFrames = 1;
+        numVolumes = floor(numImages / numChans / hdr.numFramesPerVolume);
+    end
+
     if any(strcmpi('raw',flags))
         Aout = hTif.data(); % this reads in all the data from the Tiff
         if (numImages ~= size(Aout,3))
