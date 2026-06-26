@@ -46,7 +46,7 @@ config.DLCDir = 'Z:\joeschgrp\Group Members\Rima\DLCData\';
 config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
 config.CameraDir = 'Z:\joeschgrp\Group Members\Rima\preCamera\';
 %config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
-config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P\AnimalRB6\';
+config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P\';
 
 % Set all DG-specific paths
 
