@@ -847,10 +847,17 @@ if ~isempty(Stimulusoptions) && isfield(Stimulusoptions(1), 'type')
     if ~strcmp(Stimulusoptions(1).type, 'training')
         % Non-training stimulus: synchronize using projector triggers
         fprintf('Synchronizing stimulus frames for non-training paradigm\n');
+        % Map each stimulus block to its correct acquisition file via nearest
+        % end-time match (same helper already used below for training stimuli).
+        % Without this, Stimnumber was used directly as a row index into
+        % Stimulus_acquisition_start_stop_timestamp, which has one row per TIF
+        % acquisition file -- not one per stimulus block -- so any inter-block
+        % dead time recorded as its own acquisition broke the mapping for every block.
+        StimAcqNumber = match_stim_to_acq(Stimulusoptions, Stimulus_acquisition_start_stop_timestamp, SI_Info);
         for Stimnumber = 1:numel(Stimulusoptions)
             stim_sync = synchronize_red_frames(...
                 Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, ...
-                Stimnumber, SI_Info);
+                StimAcqNumber(Stimnumber), SI_Info);
             
             % Copy synchronized fields back to stimulus struct
             Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;

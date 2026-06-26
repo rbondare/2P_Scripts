@@ -72,11 +72,11 @@ settings['dcnv_preprocess']['prctile_baseline'] = 8.0
 db = {
 #    'data_path': [r"Y:\Rotation Students\Dow\DATA_2P\AnimalDG1_260302_1422"],
 #    'save_path0': r"Y:\Rotation Students\Dow\DATA_2P\AnimalDG1_260302_1422",
-     'data_path': [r"Y:\Rotation Students\Dow\DATA_2P\AnimalDG3_260318_1235"],
-     'save_path0': r"Y:\Rotation Students\Dow\DATA_2P\AnimalDG3_260318_1235",
+     'data_path': [r"Z:\joeschgrp\Rotation Students\Dow\DATA_2P\AnimalDG3_260320_1311"],
+     'save_path0': r"Z:\joeschgrp\Rotation Students\Dow\DATA_2P\AnimalDG3_260320_1311",
      'nplanes':        4,
      'nchannels':      1,
-     'ignore_flyback': [-1],
+     'ignore_flyback': [3],
 }
 
 run_s2p(db=db, settings=settings)

@@ -41,25 +41,25 @@ config.AnimalFolder = 'Z:\joeschgrp\Group Members\Rima\Animals\';
 config.OutputDir = 'Z:\joeschgrp\Group Members\Rima\Aggregated\';
 config.OutputCopyDir = '';  % Backup directory (empty for now)
 %config.StimBasePath = 'Z:\Group Members\Rima\Stimulus';
-config.StimBasePath = 'Z:\joeschgrp\Group Members\Rima\Stimulus_Axons\';
+config.StimBasePath = 'Z:\joeschgrp\Group Members\Rima\Stimulus\';
 config.DLCDir = 'Z:\joeschgrp\Group Members\Rima\DLCData\';
 config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
 config.CameraDir = 'Z:\joeschgrp\Group Members\Rima\preCamera\';
-config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
-%config.DATA_2P = 'C:\Users\rbondarenko\projects\DATA_2P\TEST\';
+%config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
+config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P\AnimalRB6\';
 
 % Set all DG-specific paths
 
-config.AnimalFolder = 'Z:\joeschgrp\Group Members\Rima\Animals\';
-config.OutputDir = 'Z:\joeschgrp\Group Members\Rima\Aggregated\';
-config.OutputCopyDir = '';  % Backup directory (empty for now)
-%config.StimBasePath = 'Z:\Group Members\Rima\Stimulus';
-config.StimBasePath = 'Z:\joeschgrp\Group Members\Rima\Stimulus_Axons\';
-config.DLCDir = 'Z:\joeschgrp\Group Members\Rima\DLCData\';
-config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
-config.CameraDir = 'Z:\joeschgrp\Group Members\Rima\preCamera\';
-config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
-%config.DATA_2P = 'C:\Users\rbondarenko\projects\DATA_2P\TEST\';
+% config.AnimalFolder = 'Z:\joeschgrp\Group Members\Rima\Animals\';
+% config.OutputDir = 'Z:\joeschgrp\Group Members\Rima\Aggregated\';
+% config.OutputCopyDir = '';  % Backup directory (empty for now)
+% %config.StimBasePath = 'Z:\Group Members\Rima\Stimulus';
+% config.StimBasePath = 'Z:\joeschgrp\Group Members\Rima\Stimulus_Axons\';
+% config.DLCDir = 'Z:\joeschgrp\Group Members\Rima\DLCData\';
+% config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
+% config.CameraDir = 'Z:\joeschgrp\Group Members\Rima\preCamera\';
+% config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
+% %config.DATA_2P = 'C:\Users\rbondarenko\projects\DATA_2P\TEST\';
 
 % Append animal name subfolder to IntermediateDir
 config.IntermediateDir = fullfile(config.IntermediateDir, animal_name, filesep);

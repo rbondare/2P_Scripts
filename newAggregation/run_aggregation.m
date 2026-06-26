@@ -24,7 +24,7 @@ config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalR
 % Works with any source: e.g. source='stimulus' + animals={'AnimalRB5'}
 % will scan the stimulus folder but only process AnimalRB5.
 % Leave empty {} to process all animals found.
-config_animals = {'AnimalDG1'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
+config_animals = {'AnimalRB19'};                 % e.g., {'AnimalRB5', 'AnimalRB14'}
 
 % --- Processing Options ---
 config_require_calcium = true;      % false = allow behavior-only processing
@@ -34,7 +34,7 @@ config_debug_discovery = false;      % true = print include/exclude reason per r
 config_fail_fast      = false;      % true = stop on first error instead of continuing (use with debug)
 use_fail_fast         = @() config_fail_fast;  % function handle prevents UNRCH static-analysis warning
 config_ca_type = 1;                  % Calcium data type: 1=Raw, 2=di_masks, 3=di
-config_ca_format = 'auto';           % 'auto', 'suite2p', 'caiman', 'none'
+config_ca_format = 'suite2p';           % 'auto', 'suite2p', 'caiman', 'none'
 
 % --- Import DLC Before Aggregation ---
 config_import_dlc = true;            % Run import_video_behavior before aggregation

@@ -1,0 +1,6 @@
+# Figures / diagnostic output
+*.png
+
+# Local scratch/test workspace (copied data, downloaded repos, test outputs -- not source)
+local_diag_cache/
+

@@ -1,0 +1,46 @@
+=== Top-level fields in B ===
+    {'AnimalInfo'      }
+    {'Behav'           }
+    {'CaData'          }
+    {'DLCSupporting'   }
+    {'Headers'         }
+    {'Img_max'         }
+    {'LocomotionCal'   }
+    {'LocomotionNonCal'}
+    {'SI_Info'         }
+    {'Stimuli'         }
+    {'TimeCa'          }
+    {'Triggers'        }
+    {'VideoParams'     }
+
+=== Fields in B.Triggers ===
+    {'TimeProjector'          }
+    {'TimeCamera'             }
+    {'TimeBall'               }
+    {'TimingProblems'         }
+    {'Stimulus_acq_timestamps'}
+
+
+=== All stimulus blocks (B) ===
+ 1  type=spontaneous                     red_sync_nth_frame=5     trials=1     start=11.776  end=311.766  RedFrameSync=0
+ 2  type=sparse_local_global_flashes     red_sync_nth_frame=5     trials=1     start=361.031  end=541.018  RedFrameSync=0
+ 3  type=checkers2                       red_sync_nth_frame=5     trials=1     start=576.739  end=876.729  RedFrameSync=0
+ 4  type=moving_bar                      red_sync_nth_frame=5     trials=3     start=915.663  end=1083.970  RedFrameSync=0
+ 5  type=grating                         red_sync_nth_frame=5     trials=1     start=1107.461  end=1267.670  RedFrameSync=0
+ 6  type=looming                         red_sync_nth_frame=0     trials=5     start=1300.375  end=1367.475  RedFrameSync=0
+
+=== All stimulus blocks (D) ===
+ 1  type=moving_bar                      red_sync_nth_frame=5     trials=3     start=1.772  end=170.095  RedFrameSync=0
+ 2  type=looming                         red_sync_nth_frame=0     trials=5     start=204.133  end=273.232  RedFrameSync=0
+ 3  type=checkers2                       red_sync_nth_frame=5     trials=1     start=303.260  end=603.262  RedFrameSync=0
+ 4  type=sparse_local_global_flashes     red_sync_nth_frame=5     trials=1     start=651.993  end=831.999  RedFrameSync=0
+ 5  type=grating                         red_sync_nth_frame=5     trials=1     start=857.782  end=1017.998  RedFrameSync=0
+
+=== B: flash block [361.031, 541.018], red pulses within +/-15s ===
+n pulses in window = 2161
+anchor (nearest to block_start) = 364.3190  (dt=3.2881, AFTER block_start)
+
+=== D: flash block [651.993, 831.999], red pulses within +/-15s ===
+n pulses in window = 2160
+anchor (nearest to block_start) = 655.3421  (dt=3.3490, AFTER block_start)
+Saved 2 figures

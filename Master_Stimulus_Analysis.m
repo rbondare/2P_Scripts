@@ -663,7 +663,12 @@ for field_idx = 1:length(stim_fields)
         case 'full_field_flash'
             analyze_full_field_flash_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
                 data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
-            
+
+        case 'looming'
+            analyze_looming_stimulus(B.Stimuli, base_dff, B.TimeCa, B.Triggers, ...
+                D.Stimuli, drug_dff, D.TimeCa, D.Triggers, ...
+                base_match_idx_local, drug_match_idx_local, matched_rois_available);
+
         case 'spontaneous'
             % Spontaneous activity: no specific trigger, but can analyze statistics
             fprintf('  (Spontaneous activity - no stimulus-triggered analysis)\n');
@@ -1870,4 +1875,174 @@ function analyze_full_field_flash_stimulus(~, ~, ~, ~, ...
     set(gca, 'LineWidth', 1.5, 'FontSize', 10);
     
     sgtitle('Full-Field Flash: Stimulus-Triggered Responses', 'FontSize', 12, 'FontWeight', 'bold');
+end
+
+function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Triggers, ...
+        drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers, ...
+        base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    % Looming-triggered response, matched cells, baseline vs drug.
+    % Looming fires exactly one red sync frame per trial, at the true
+    % onset of that trial's loom (unlike the other stimulus types, which
+    % have a continuous periodic red-sync rhythm). Trials are NOT evenly
+    % spaced -- each has a randomized wait period beforehand -- so onsets
+    % must come directly from these red frames, not from
+    % stimulus_trial_t x trial_index.
+
+    fprintf('    - Analyzing looming stimulus (matched baseline vs drug)\n');
+
+    if ~matched_rois_available
+        fprintf('      (No matched ROIs available -- skipping looming baseline/drug comparison)\n');
+        return;
+    end
+
+    [Ca_base, t_com_base] = extract_looming_trials(base_Stimuli, base_dff, base_TimeCa, base_Triggers);
+    [Ca_drug, t_com_drug] = extract_looming_trials(drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers);
+
+    if isempty(Ca_base) || isempty(Ca_drug)
+        fprintf('      (Looming stimulus missing in baseline or drug -- skipping)\n');
+        return;
+    end
+    if ~isequal(size(t_com_base), size(t_com_drug)) || max(abs(t_com_base - t_com_drug)) > 1e-6
+        warning('Baseline and drug looming analysis windows differ (stimulus_trial_t mismatch?) -- using baseline time axis');
+    end
+    t_com = t_com_base;
+
+    % Restrict to matched cells. Use the MEDIAN across each condition's own
+    % trials, not the mean -- with only a handful of trials per cell, a
+    % single large-but-unreliable trial can otherwise dominate the mean
+    % and flip a cell's responsive/non-responsive classification. The
+    % median requires a majority of trials to be elevated instead.
+    resp_base = median(Ca_base(base_match_idx_local, :, :), 3, 'omitnan');   % [n_matched x n_com]
+    resp_drug = median(Ca_drug(drug_match_idx_local, :, :), 3, 'omitnan');   % [n_matched x n_com]
+    n_matched = size(resp_base, 1);
+
+    %% Plot 1: baseline vs drug, all matched cells
+    plot_looming_comparison(t_com, resp_base, resp_drug, ...
+        sprintf('Looming-triggered response: baseline vs drug (n = %d matched cells)', n_matched));
+
+    %% Responsive-cell classification: mean dF/F > 0.2 from 1s post-onset to end of window
+    post1s         = t_com >= 1;
+    post_mean_base = mean(resp_base(:, post1s), 2);
+    post_mean_drug = mean(resp_drug(:, post1s), 2);
+    responsive_base = post_mean_base > 0.2;
+    responsive_drug = post_mean_drug > 0.2;
+    pct_base         = 100 * sum(responsive_base) / n_matched;
+    pct_drug         = 100 * sum(responsive_drug) / n_matched;
+
+    fprintf('      Responsive cells (mean dF/F > 0.2, %.1fs to %.1fs post-onset):\n', t_com(find(post1s, 1)), t_com(end));
+    fprintf('        Baseline: %d / %d (%.1f%%)\n', sum(responsive_base), n_matched, pct_base);
+    fprintf('        Drug:     %d / %d (%.1f%%)\n', sum(responsive_drug), n_matched, pct_drug);
+
+    %% Plot 2: % responsive cells, baseline vs drug
+    figure('Name', 'Looming: % responsive cells', 'NumberTitle', 'off', ...
+        'Position', [100 100 500 500]);
+    bar([pct_base, pct_drug], 'FaceColor', 'flat', 'CData', [0.2 0.6 1; 1 0.5 0.2]);
+    set(gca, 'XTickLabel', {'Baseline', 'Drug'}, 'Box', 'off');
+    ylabel('Responsive cells (%)', 'FontSize', 11);
+    title('Looming-responsive matched cells', 'FontSize', 12);
+    ylim([0, 100]);
+
+    %% Plot 3: baseline vs drug, only cells responsive in BOTH conditions
+    responsive_both = responsive_base & responsive_drug;
+    n_both = sum(responsive_both);
+    fprintf('      Responsive in both conditions: %d / %d (%.1f%%)\n', n_both, n_matched, 100*n_both/n_matched);
+
+    if n_both > 0
+        plot_looming_comparison(t_com, resp_base(responsive_both, :), resp_drug(responsive_both, :), ...
+            sprintf('Looming-triggered response: baseline vs drug (n = %d responsive-in-both cells)', n_both));
+    else
+        fprintf('      (No cells responsive in both conditions -- skipping Plot 3)\n');
+    end
+
+    %% Plot 4: paired per-cell comparison -- diagnostic for mean vs. %-responsive dissociation
+    cat_neither   = ~responsive_base & ~responsive_drug;
+    cat_base_only =  responsive_base & ~responsive_drug;
+    cat_drug_only = ~responsive_base &  responsive_drug;
+    cat_both      =  responsive_base &  responsive_drug;
+
+    figure('Name', 'Looming: per-cell baseline vs drug', 'NumberTitle', 'off', ...
+        'Position', [100 100 550 550]);
+    hold on;
+    scatter(post_mean_base(cat_neither),   post_mean_drug(cat_neither),   25, [0.6 0.6 0.6], 'filled', 'MarkerFaceAlpha', 0.6, 'DisplayName', 'Neither');
+    scatter(post_mean_base(cat_base_only), post_mean_drug(cat_base_only), 25, [0.2 0.6 1],   'filled', 'MarkerFaceAlpha', 0.8, 'DisplayName', 'Baseline only');
+    scatter(post_mean_base(cat_drug_only), post_mean_drug(cat_drug_only), 25, [1 0.5 0.2],   'filled', 'MarkerFaceAlpha', 0.8, 'DisplayName', 'Drug only');
+    scatter(post_mean_base(cat_both),      post_mean_drug(cat_both),      25, [0.3 0.1 0.5], 'filled', 'MarkerFaceAlpha', 0.8, 'DisplayName', 'Both');
+
+    ax_lim = [min([post_mean_base; post_mean_drug; 0]) - 0.05, max([post_mean_base; post_mean_drug]) + 0.05];
+    plot(ax_lim, ax_lim, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+    xline(0.2, ':', 'Color', [0.4 0.4 0.4], 'HandleVisibility', 'off');
+    yline(0.2, ':', 'Color', [0.4 0.4 0.4], 'HandleVisibility', 'off');
+    xlim(ax_lim); ylim(ax_lim); axis square;
+    xlabel('Baseline: mean dF/F (1s-end post-onset)', 'FontSize', 11);
+    ylabel('Drug: mean dF/F (1s-end post-onset)', 'FontSize', 11);
+    title(sprintf('Per-cell post-onset response (n = %d matched cells)', n_matched), 'FontSize', 12);
+    legend('Location', 'best');
+    set(gca, 'Box', 'off');
+end
+
+function [Ca_trials, t_com] = extract_looming_trials(Stimuli, dff, TimeCa, Triggers)
+    % Slices and aligns each looming trial in one recording to a common
+    % time grid, using the per-trial red sync frame as the true onset.
+
+    Ca_trials = [];
+    t_com     = [];
+
+    loom_idx = find(strcmp({Stimuli.type}, 'looming'), 1);
+    if isempty(loom_idx)
+        return;
+    end
+
+    trial_t    = Stimuli(loom_idx).stimulus_trial_t;
+    time_start = Stimuli(loom_idx).TimeStimulusFrame(1);
+    time_end   = Stimuli(loom_idx).TimeStimulusFrame(end);
+
+    PT          = Triggers.TimeProjector;
+    loom_onsets = PT(PT > time_start & PT < time_end)';
+    n_trials    = numel(loom_onsets);
+
+    pre_window_sec  = 2;                        % adjustable
+    post_window_sec = trial_t - pre_window_sec; % rest of the trial cycle
+    n_com           = 100;
+    t_com           = linspace(-pre_window_sec, post_window_sec, n_com);
+
+    n_rois    = size(dff, 1);
+    Ca_trials = nan(n_rois, n_com, n_trials);
+    time_vec  = TimeCa(1, :);
+
+    for k = 1:n_trials
+        idx = find(time_vec > loom_onsets(k) - pre_window_sec & ...
+                   time_vec < loom_onsets(k) + post_window_sec);
+        if numel(idx) < 2; continue; end
+        t_rel = time_vec(idx) - loom_onsets(k);
+        Ca_trials(:, :, k) = interp1(t_rel(:), dff(:, idx)', t_com(:), 'linear', 'extrap')';
+    end
+end
+
+function plot_looming_comparison(t_com, resp_base, resp_drug, fig_title)
+    % resp_base/resp_drug: [n_cells x n_com], already trial-averaged per cell
+
+    mean_base = mean(resp_base, 1, 'omitnan');
+    sem_base  = std(resp_base, 0, 1, 'omitnan') / sqrt(size(resp_base, 1));
+    mean_drug = mean(resp_drug, 1, 'omitnan');
+    sem_drug  = std(resp_drug, 0, 1, 'omitnan') / sqrt(size(resp_drug, 1));
+
+    figure('Name', 'Looming: baseline vs drug', 'NumberTitle', 'off', ...
+        'Position', [100 100 900 500]);
+    hold on;
+    x_sh = [t_com, fliplr(t_com)];
+
+    y_sh_base = [(mean_base + sem_base), fliplr(mean_base - sem_base)];
+    fill(x_sh, y_sh_base, [0.2 0.6 1], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    plot(t_com, mean_base, '-', 'Color', [0.2 0.6 1], 'LineWidth', 2.5, 'DisplayName', 'Baseline');
+
+    y_sh_drug = [(mean_drug + sem_drug), fliplr(mean_drug - sem_drug)];
+    fill(x_sh, y_sh_drug, [1 0.5 0.2], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    plot(t_com, mean_drug, '-', 'Color', [1 0.5 0.2], 'LineWidth', 2.5, 'DisplayName', 'Drug');
+
+    xline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+    xlabel('Time from loom onset (s)', 'FontSize', 11);
+    ylabel('dF/F (mean \pm SEM)', 'FontSize', 11);
+    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
+    legend('Location', 'best');
+    set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
 end
