@@ -13,6 +13,7 @@
 %   6. Stimulus-specific analysis 
 
 clear; clc; close all;
+global MASTER_OUTDIR
 
 % Add violin plot utilities to path
 addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
@@ -27,10 +28,19 @@ drug_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_p
 %roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
 roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
 
+% Figures from the new stimulus-specific/MI sections are saved here (the
+% pre-existing heatmap/histogram/violin/CDF/regression sections above were
+% always interactive-only and are left as-is).
+[~, base_name, ~] = fileparts(baseline_file); base_name = regexprep(base_name, '_preprocessed$', '');
+[~, drug_name, ~] = fileparts(drug_file);     drug_name = regexprep(drug_name, '_preprocessed$', '');
+MASTER_OUTDIR = fullfile(fileparts(mfilename('fullpath')), 'analysis_figures', sprintf('%s_vs_%s', base_name, drug_name), 'master');
+if ~exist(MASTER_OUTDIR, 'dir'); mkdir(MASTER_OUTDIR); end
+fprintf('New stimulus-specific/MI figures will be saved to: %s\n', MASTER_OUTDIR);
+
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane_idx = 1;           % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'grating', 'looming'};
+stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'grating', 'moving_bar', 'looming'};
 
 % Visualization
 max_neurons_display = 1000;    % For heatmap readability
@@ -643,38 +653,76 @@ end
 
 fprintf('\n========== STIMULUS-SPECIFIC ANALYSIS ==========\n');
 
+% Per-cell metrics captured here feed the cross-stimulus modulation-index
+% section below -- empty unless that stimulus type was actually analyzed.
+mi_metric_base = struct('looming', [], 'flashes', [], 'moving_bar', [], 'grating', [], 'spontaneous', []);
+mi_metric_drug = mi_metric_base;
+
 % For each stimulus type, perform specialized analysis
 for field_idx = 1:length(stim_fields)
     field_name = stim_fields{field_idx};
     data = master_data.(field_name);
     stim_type = data.stimulus_type;
-    
+
     fprintf('\nAnalyzing "%s"...\n', stim_type);
-    
+
     switch stim_type
         case 'grating'
-            analyze_grating_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
-                data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
-            
- %       case 'moving_bar'
-%            analyze_moving_bar_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
- %               data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
-            
+            [mi_metric_base.grating, mi_metric_drug.grating] = analyze_grating_stimulus(...
+                B.Stimuli, base_dff, B.TimeCa, D.Stimuli, drug_dff, D.TimeCa, ...
+                base_match_idx_local, drug_match_idx_local, matched_rois_available);
+
+        case 'moving_bar'
+            [mi_metric_base.moving_bar, mi_metric_drug.moving_bar] = analyze_moving_bar_stimulus(...
+                B.Stimuli, base_dff, B.TimeCa, D.Stimuli, drug_dff, D.TimeCa, ...
+                base_match_idx_local, drug_match_idx_local, matched_rois_available);
+
         case 'full_field_flash'
             analyze_full_field_flash_stimulus(B.Stimuli, D.Stimuli, base_dff, drug_dff, ...
                 data, base_match_idx_local, drug_match_idx_local, matched_rois_available);
 
+        case 'sparse_local_global_flashes'
+            [mi_metric_base.flashes, mi_metric_drug.flashes] = analyze_flashes_stimulus(...
+                B.Stimuli, base_dff, B.TimeCa, D.Stimuli, drug_dff, D.TimeCa, ...
+                base_match_idx_local, drug_match_idx_local, matched_rois_available);
+
         case 'looming'
-            analyze_looming_stimulus(B.Stimuli, base_dff, B.TimeCa, B.Triggers, ...
+            [mi_metric_base.looming, mi_metric_drug.looming] = analyze_looming_stimulus(...
+                B.Stimuli, base_dff, B.TimeCa, B.Triggers, ...
                 D.Stimuli, drug_dff, D.TimeCa, D.Triggers, ...
                 base_match_idx_local, drug_match_idx_local, matched_rois_available);
 
         case 'spontaneous'
-            % Spontaneous activity: no specific trigger, but can analyze statistics
-            fprintf('  (Spontaneous activity - no stimulus-triggered analysis)\n');
-            
+            [mi_metric_base.spontaneous, mi_metric_drug.spontaneous] = analyze_spontaneous_stimulus(...
+                B.Stimuli, base_dff, B.TimeCa, D.Stimuli, drug_dff, D.TimeCa, ...
+                base_match_idx_local, drug_match_idx_local, matched_rois_available);
+
         otherwise
             fprintf('  (No specific analysis for this stimulus type)\n');
+    end
+end
+
+%% ====================== MODULATION INDEX (z-score based) ======================
+if matched_rois_available && n_matched > 0
+    fprintf('\n========== GENERATING MODULATION INDEX (z-score based) ==========\n');
+    mi_fields = fieldnames(mi_metric_base);
+    mi_by_stim = {}; mi_labels = {};
+    for mi_idx = 1:numel(mi_fields)
+        fn = mi_fields{mi_idx};
+        vb = mi_metric_base.(fn); vd = mi_metric_drug.(fn);
+        if isempty(vb) || isempty(vd); continue; end
+        mi = compute_modulation_index(vb, vd);
+        if numel(mi) < 2; continue; end
+        mi_by_stim{end+1}  = mi; %#ok<SAGROW>
+        mi_labels{end+1}   = fn; %#ok<SAGROW>
+        fprintf('  %-12s: n=%d, %.0f%% up, %.0f%% down, median MI=%+.3f\n', ...
+            fn, numel(mi), 100*mean(mi>0), 100*mean(mi<0), median(mi));
+    end
+    if ~isempty(mi_by_stim)
+        plot_mi_violin_grid(mi_by_stim, mi_labels);
+        plot_mi_spread_histogram(mi_by_stim, mi_labels);
+    else
+        fprintf('  (No stimulus had a usable per-cell metric for MI -- skipping)\n');
     end
 end
 
@@ -1412,11 +1460,18 @@ if matched_rois_available && n_matched > 0
     
     %% ==================== MODULATION PLOTS (Linear Regression) ====================
     fprintf('========== GENERATING BASELINE vs DRUG MODULATION PLOTS ==========\n');
-    
+
     % Create one large figure with regression plots for all stimuli
     fig_modulation = figure('Position', [100 100 1400 900], 'NumberTitle', 'off', ...
         'Name', 'Baseline_vs_Drug_Modulation');
-    
+
+    % Grid sized to the number of stimuli with response data (was a fixed
+    % 2x2, which broke once more than 4 stimulus types were configured).
+    n_grid = sum(arrayfun(@(i) isfield(master_data.(stim_fields{i}), 'baseline_responses') && ...
+        ~isempty(master_data.(stim_fields{i}).baseline_responses), 1:length(stim_fields)));
+    grid_cols = ceil(sqrt(max(n_grid,1)));
+    grid_rows = ceil(max(n_grid,1) / grid_cols);
+
     n_stim_plots = 0;
     for field_idx = 1:length(stim_fields)
         field_name = stim_fields{field_idx};
@@ -1454,9 +1509,9 @@ if matched_rois_available && n_matched > 0
         end
         
         n_stim_plots = n_stim_plots + 1;
-        
+
         % Create subplot
-        subplot(2, 2, n_stim_plots);
+        subplot(grid_rows, grid_cols, n_stim_plots);
         
         % Scatter plot
         scatter(baseline_per_neuron, drug_per_neuron, 100, 'o', 'filled', ...
@@ -1611,9 +1666,11 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
             time_end = max(stim_time_values(:));
         end
         
-        % Find frame indices using STRICT inequalities (exclude boundaries)
-        % Matches user's: find(TimeCa(1,:) > stim_start & TimeCa(1,:) < stim_end)
-        frame_idx = find(time_vector > time_start & time_vector < time_end);
+        % Inclusive bounds: TimeStimulusFrame(1) can land exactly on a real
+        % red-sync pulse (RedFrameSynchronized=true), so a strict > would
+        % occasionally drop the boundary frame -- see
+        % project_aggregation_pipeline_fixes memory.
+        frame_idx = find(time_vector >= time_start & time_vector <= time_end);
         
         % Validate
         if isempty(frame_idx) || length(frame_idx) < 2
@@ -1734,63 +1791,12 @@ function response_3d = cell_responses_to_3d(response_cell)
     end
 end
 
-function analyze_grating_stimulus(B_Stimuli, ~, ~, ~, ~, ~, ~, ~)
-    % Analyze grating stimulus: find preferred directions, average responses
-    % [SCAFFOLD - Parameters available for future implementation]
-    
-    fprintf('    - Extracting direction preferences\n');
-    
-    % Find all directions
-    directions = {};
-    for i = 1:length(B_Stimuli)
-        if isfield(B_Stimuli(i), 'type') && strcmp(B_Stimuli(i).type, 'grating')
-            if isfield(B_Stimuli(i), 'specParams') && isfield(B_Stimuli(i).specParams, 'direction')
-                dir_val = B_Stimuli(i).specParams.direction;
-                directions{end+1} = dir_val;
-            end
-        end
-    end
-    
-    if isempty(directions)
-        fprintf('      (Could not extract direction information)\n');
-        return;
-    end
-    
-    unique_dirs = unique(directions);
-    fprintf('    - Found %d unique directions: %s\n', length(unique_dirs), sprintf('%.0f° ', [unique_dirs{:}]));
-    
-    % For each direction, plot stimulus-triggered average at onset
-    % This would require syncing to stimulus onset - implementation depends on
-    % exact requirements for grating onset detection
-    fprintf('    - Direction-tuning analysis: available but requires stimulus onset detection\n');
-end
-
-function analyze_moving_bar_stimulus(~, ~, ~, ~, ...
-    ~, ~, ~, ~)
-    % Analyze moving bar stimulus: extract stimulus-triggered responses at onset
-    % [SCAFFOLD - Parameters available for future implementation]
-    
-    fprintf('    - Extracting moving bar onset responses\n');
-    
-    % Extract onset responses (first ~100 frames of each stimulus)
-    onset_window = 100;
-    
-    baseline_onsets = {};
-    drug_onsets = {};
-    
-    for i = 1:length(data.baseline_responses)
-        onset = data.baseline_responses{i}(:, 1:min(onset_window, size(data.baseline_responses{i}, 2)));
-        baseline_onsets{i} = onset;
-    end
-    
-    for i = 1:length(data.drug_responses)
-        onset = data.drug_responses{i}(:, 1:min(onset_window, size(data.drug_responses{i}, 2)));
-        drug_onsets{i} = onset;
-    end
-    
-    fprintf('    - Stimulus-triggered average: extracted %d baseline and %d drug presentations\n', ...
-        length(baseline_onsets), length(drug_onsets));
-end
+% NOTE: analyze_grating_stimulus and analyze_moving_bar_stimulus are now
+% defined further down as thin wrappers around the shared
+% analyze_direction_stimulus implementation (direction reconstruction via
+% RNG replay + per-angle chunking) -- the old scaffolds that lived here
+% (which referenced an undefined `data` variable and looked for a
+% nonexistent specParams.direction field) have been removed.
 
 function analyze_full_field_flash_stimulus(~, ~, ~, ~, ...
     ~, ~, ~, ~)
@@ -1877,7 +1883,7 @@ function analyze_full_field_flash_stimulus(~, ~, ~, ~, ...
     sgtitle('Full-Field Flash: Stimulus-Triggered Responses', 'FontSize', 12, 'FontWeight', 'bold');
 end
 
-function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Triggers, ...
+function [z_base, z_drug] = analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Triggers, ...
         drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers, ...
         base_match_idx_local, drug_match_idx_local, matched_rois_available)
     % Looming-triggered response, matched cells, baseline vs drug.
@@ -1887,7 +1893,12 @@ function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Trig
     % spaced -- each has a randomized wait period beforehand -- so onsets
     % must come directly from these red frames, not from
     % stimulus_trial_t x trial_index.
+    %
+    % Returns [z_base, z_drug]: per-matched-cell baseline z-score (peak
+    % window vs pre-onset noise), for the cross-stimulus modulation-index
+    % section -- empty if matched ROIs/looming data aren't available.
 
+    z_base = []; z_drug = [];
     fprintf('    - Analyzing looming stimulus (matched baseline vs drug)\n');
 
     if ~matched_rois_available
@@ -1916,6 +1927,13 @@ function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Trig
     resp_drug = median(Ca_drug(drug_match_idx_local, :, :), 3, 'omitnan');   % [n_matched x n_com]
     n_matched = size(resp_base, 1);
 
+    % Baseline z-score (peak window ~0.5-1.5s, matches looming's sharp
+    % peak -- see project_aggregation_pipeline_fixes memory) for the
+    % cross-stimulus modulation-index section.
+    loom_peak_window = [0.5 1.5];
+    z_base = compute_baseline_zscore(Ca_base, base_match_idx_local, t_com, loom_peak_window);
+    z_drug = compute_baseline_zscore(Ca_drug, drug_match_idx_local, t_com, loom_peak_window);
+
     %% Plot 1: baseline vs drug, all matched cells
     plot_looming_comparison(t_com, resp_base, resp_drug, ...
         sprintf('Looming-triggered response: baseline vs drug (n = %d matched cells)', n_matched));
@@ -1941,6 +1959,7 @@ function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Trig
     ylabel('Responsive cells (%)', 'FontSize', 11);
     title('Looming-responsive matched cells', 'FontSize', 12);
     ylim([0, 100]);
+    save_master_fig('Looming_pct_responsive_cells');
 
     %% Plot 3: baseline vs drug, only cells responsive in BOTH conditions
     responsive_both = responsive_base & responsive_drug;
@@ -1978,6 +1997,7 @@ function analyze_looming_stimulus(base_Stimuli, base_dff, base_TimeCa, base_Trig
     title(sprintf('Per-cell post-onset response (n = %d matched cells)', n_matched), 'FontSize', 12);
     legend('Location', 'best');
     set(gca, 'Box', 'off');
+    save_master_fig('Looming_per_cell_baseline_vs_drug');
 end
 
 function [Ca_trials, t_com] = extract_looming_trials(Stimuli, dff, TimeCa, Triggers)
@@ -1993,11 +2013,17 @@ function [Ca_trials, t_com] = extract_looming_trials(Stimuli, dff, TimeCa, Trigg
     end
 
     trial_t    = Stimuli(loom_idx).stimulus_trial_t;
+    if isfield(Stimuli(loom_idx), 'RedFrameSynchronized') && ~Stimuli(loom_idx).RedFrameSynchronized
+        warning('Looming: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
+    end
     time_start = Stimuli(loom_idx).TimeStimulusFrame(1);
     time_end   = Stimuli(loom_idx).TimeStimulusFrame(end);
 
+    % Inclusive bounds: TimeStimulusFrame(1) lands exactly on the trial-1
+    % pulse, so a strict > would silently drop it (see
+    % project_aggregation_pipeline_fixes memory).
     PT          = Triggers.TimeProjector;
-    loom_onsets = PT(PT > time_start & PT < time_end)';
+    loom_onsets = PT(PT >= time_start & PT <= time_end)';
     n_trials    = numel(loom_onsets);
 
     pre_window_sec  = 2;                        % adjustable
@@ -2045,4 +2071,533 @@ function plot_looming_comparison(t_com, resp_base, resp_drug, fig_title)
     title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
     legend('Location', 'best');
     set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
+    save_master_fig(fig_title);
+end
+
+%% ====================== DIRECTION RECONSTRUCTION (moving_bar / grating) ======================
+% Direction order is NOT saved anywhere in the stim file (only the
+% available orientation list, e.g. specParams.bar_orientations, is saved
+% -- never the realized per-trial order). It is only recoverable by
+% replaying the RNG from the saved seed, matching
+% present_stimulus_addnew.m's project>0 branch exactly (confirmed via
+% this lab's data: SetUp==1 -> project==1):
+%   for R=1:trials
+%       new_trial=true; if reset_rng_each_trial; rng(rseed); end
+%       ... case 'moving_bar'/'grating': if new_trial
+%             orientations = specParams.X_orientations(randperm(numel(...)));
+%   end
+% Zero other random draws happen between the rng() reset and this
+% randperm() call, and reset_rng_each_trial=true for both stimulus types
+% in this data, so EVERY outer trial repeat gets the IDENTICAL order --
+% one randperm() call covers all repeats. Validated empirically (not just
+% assumed): same-subtrial-position responses correlate ~0.20 on average
+% across moving_bar's 3 repeats, vs ~0.00 for a shifted-position control
+% -- see project_aggregation_pipeline_fixes memory for the full check.
+function order = reconstruct_direction_order(Stimopts, orientation_field)
+    rng(Stimopts.randomseed);
+    orientations = Stimopts.specParams.(orientation_field);
+    order = orientations(randperm(numel(orientations)));
+end
+
+function [Ca_subtrials, t_com, direction_of] = extract_direction_trials(...
+        Stimuli, dff, TimeCa, stype, orientation_field, pre_window_sec, post_window_sec, n_com)
+    % Slices every individual subtrial (one per orientation presentation)
+    % to a common time grid, anchored on that subtrial's own onset
+    % (Frameinfo.subtrial_frame_count==1, same mechanism already
+    % validated for looming's per-trial onsets), and labels each subtrial
+    % with its reconstructed realized direction.
+    Ca_subtrials = []; t_com = []; direction_of = [];
+
+    idx = find(strcmp({Stimuli.type}, stype), 1);
+    if isempty(idx); return; end
+    s = Stimuli(idx);
+    if isfield(s, 'RedFrameSynchronized') && ~s.RedFrameSynchronized
+        warning('%s: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset', stype);
+    end
+
+    order = reconstruct_direction_order(s, orientation_field);
+    n_dir = numel(order);
+
+    sfc = s.Frameinfo.subtrial_frame_count(~isnan(s.Frameinfo.frame_count));
+    subtrial_starts = find(sfc == 1);
+    n_subtrials = numel(subtrial_starts);
+    if n_subtrials == 0; return; end
+
+    pos_of       = mod((0:n_subtrials-1), n_dir) + 1;  % 1..n_dir, repeating
+    direction_of = order(pos_of);
+    onsets       = s.TimeStimulusFrame(subtrial_starts);
+
+    t_com    = linspace(-pre_window_sec, post_window_sec, n_com);
+    n_rois   = size(dff, 1);
+    Ca_subtrials = nan(n_rois, n_com, n_subtrials);
+    time_vec = TimeCa(1, :);
+    for k = 1:n_subtrials
+        fidx = find(time_vec >= onsets(k)-pre_window_sec & time_vec <= onsets(k)+post_window_sec);
+        if numel(fidx) < 2; continue; end
+        t_rel = time_vec(fidx) - onsets(k);
+        Ca_subtrials(:, :, k) = interp1(t_rel(:), dff(:, fidx)', t_com(:), 'linear', 'extrap')';
+    end
+end
+
+function [Ca_by_dir, unique_dirs] = chunk_by_direction(Ca_subtrials, direction_of)
+    % Averages (median) repeats of the SAME realized direction together --
+    % "the calcium data needs to correspond to the same direction in
+    % both [conditions]": baseline's direction X gets compared against
+    % drug's direction X, matched by actual angle, not subtrial position.
+    unique_dirs = unique(direction_of);
+    n_rois = size(Ca_subtrials, 1);
+    n_com  = size(Ca_subtrials, 2);
+    Ca_by_dir = nan(n_rois, n_com, numel(unique_dirs));
+    for d = 1:numel(unique_dirs)
+        cols = direction_of == unique_dirs(d);
+        Ca_by_dir(:, :, d) = median(Ca_subtrials(:, :, cols), 3, 'omitnan');
+    end
+end
+
+function [z_base, z_drug] = analyze_direction_stimulus(stype, orientation_field, ...
+        base_Stimuli, base_dff, base_TimeCa, drug_Stimuli, drug_dff, drug_TimeCa, ...
+        base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    % Shared implementation for moving_bar and grating: reconstruct
+    % realized direction per subtrial, average repeats of the same
+    % direction, compare baseline vs drug at matched angles, then collapse
+    % to each cell's own preferred direction (from baseline) for the
+    % population-level plot suite (transient/violin/histogram/heatmap),
+    % consistent with the looming/flashes plots already built.
+    %
+    % Returns [z_base, z_drug]: per-matched-cell preferred-direction
+    % baseline z-score, for the cross-stimulus modulation-index section.
+
+    z_base = []; z_drug = [];
+    fprintf('    - Analyzing %s stimulus (direction-resolved, matched baseline vs drug)\n', stype);
+    if ~matched_rois_available
+        fprintf('      (No matched ROIs available -- skipping)\n');
+        return;
+    end
+
+    pre_window_sec = 1; post_window_sec = 6; n_com = 100;
+
+    [Ca_base, t_com, dir_base] = extract_direction_trials(base_Stimuli, base_dff, base_TimeCa, ...
+        stype, orientation_field, pre_window_sec, post_window_sec, n_com);
+    [Ca_drug, ~, dir_drug] = extract_direction_trials(drug_Stimuli, drug_dff, drug_TimeCa, ...
+        stype, orientation_field, pre_window_sec, post_window_sec, n_com);
+
+    if isempty(Ca_base) || isempty(Ca_drug)
+        fprintf('      (%s missing in baseline or drug -- skipping)\n', stype);
+        return;
+    end
+
+    [Ca_by_dir_base, dirs_base] = chunk_by_direction(Ca_base(base_match_idx_local, :, :), dir_base);
+    [Ca_by_dir_drug, dirs_drug] = chunk_by_direction(Ca_drug(drug_match_idx_local, :, :), dir_drug);
+
+    common_dirs = intersect(dirs_base, dirs_drug);
+    if numel(common_dirs) < numel(union(dirs_base, dirs_drug))
+        warning('%s: baseline/drug direction sets differ -- using %d common directions', stype, numel(common_dirs));
+    end
+    [~, ib]  = ismember(common_dirs, dirs_base);
+    [~, idr] = ismember(common_dirs, dirs_drug);
+    Ca_by_dir_base = Ca_by_dir_base(:, :, ib);
+    Ca_by_dir_drug = Ca_by_dir_drug(:, :, idr);
+    n_matched = size(Ca_by_dir_base, 1);
+
+    %% Tuning curve: population mean response amplitude vs direction
+    peak_window = [0.5, min(4, post_window_sec)];
+    peak_idx = t_com >= peak_window(1) & t_com <= peak_window(2);
+    amp_base = squeeze(mean(mean(Ca_by_dir_base(:, peak_idx, :), 2, 'omitnan'), 1, 'omitnan'));
+    amp_drug = squeeze(mean(mean(Ca_by_dir_drug(:, peak_idx, :), 2, 'omitnan'), 1, 'omitnan'));
+
+    figure('Name', sprintf('%s_tuning_curve', stype), 'NumberTitle', 'off', 'Position', [100 100 700 500]);
+    plot(common_dirs, amp_base, 'o-', 'Color', [0.2 0.6 1], 'LineWidth', 2, ...
+        'MarkerFaceColor', [0.2 0.6 1], 'DisplayName', 'Baseline'); hold on;
+    plot(common_dirs, amp_drug, 'o-', 'Color', [1 0.5 0.2], 'LineWidth', 2, ...
+        'MarkerFaceColor', [1 0.5 0.2], 'DisplayName', 'Drug');
+    xlabel('Direction (deg)', 'FontSize', 11); ylabel('Mean dF/F (peak window, population)', 'FontSize', 11);
+    title(sprintf('%s: population tuning curve (n=%d matched cells)', stype, n_matched), ...
+        'FontSize', 12, 'Interpreter', 'none');
+    legend('Location', 'best'); set(gca, 'Box', 'off'); xticks(common_dirs);
+    save_master_fig(sprintf('%s_tuning_curve', stype));
+
+    %% Each cell's own preferred direction (from baseline), then the standard plot suite there
+    amp_per_cell_base = squeeze(mean(Ca_by_dir_base(:, peak_idx, :), 2, 'omitnan'));  % n_cells x n_dirs
+    [~, pref_dir_idx] = max(amp_per_cell_base, [], 2);
+
+    resp_base_pref = nan(n_matched, numel(t_com));
+    resp_drug_pref = nan(n_matched, numel(t_com));
+    for c = 1:n_matched
+        resp_base_pref(c, :) = Ca_by_dir_base(c, :, pref_dir_idx(c));
+        resp_drug_pref(c, :) = Ca_by_dir_drug(c, :, pref_dir_idx(c));
+    end
+
+    plot_matched_comparison_master(t_com, resp_base_pref, resp_drug_pref, ...
+        sprintf('%s: baseline vs drug at each cell''s preferred direction (n=%d)', stype, n_matched));
+
+    z_base = compute_baseline_zscore_from_resp(resp_base_pref, t_com, peak_window);
+    z_drug = compute_baseline_zscore_from_resp(resp_drug_pref, t_com, peak_window);
+
+    plot_violin_master(z_base, z_drug, sprintf('%s -- preferred-direction z-score', stype), ...
+        'Peak-window z-score (preferred direction), per cell', n_matched);
+    plot_response_histogram_master(z_base, z_drug, sprintf('%s -- preferred-direction z-score distribution', stype), ...
+        'Peak-window z-score (preferred direction), per cell', 30);
+
+    [~, sort_idx] = sort(z_base, 'descend', 'MissingPlacement', 'last');
+    plot_heatmap_master(t_com, resp_base_pref(sort_idx, :), resp_drug_pref(sort_idx, :), ...
+        sprintf('%s -- preferred-direction heatmap', stype));
+end
+
+function [z_base, z_drug] = analyze_moving_bar_stimulus(base_Stimuli, base_dff, base_TimeCa, ...
+        drug_Stimuli, drug_dff, drug_TimeCa, base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    [z_base, z_drug] = analyze_direction_stimulus('moving_bar', 'bar_orientations', ...
+        base_Stimuli, base_dff, base_TimeCa, drug_Stimuli, drug_dff, drug_TimeCa, ...
+        base_match_idx_local, drug_match_idx_local, matched_rois_available);
+end
+
+function [z_base, z_drug] = analyze_grating_stimulus(base_Stimuli, base_dff, base_TimeCa, ...
+        drug_Stimuli, drug_dff, drug_TimeCa, base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    [z_base, z_drug] = analyze_direction_stimulus('grating', 'grating_orientations', ...
+        base_Stimuli, base_dff, base_TimeCa, drug_Stimuli, drug_dff, drug_TimeCa, ...
+        base_match_idx_local, drug_match_idx_local, matched_rois_available);
+end
+
+%% ====================== FLASHES (sparse_local_global_flashes) ======================
+function get_onsets = get_flash_onsets(Stimuli)
+    % Flash onsets are reconstructed by replaying the RNG draws used at
+    % presentation time (reconstructFlashes.m), anchored directly to
+    % TimeStimulusFrame(1), which is camera-clock-correct on its own
+    % (RedFrameSynchronized=true) -- no manual anchor-correction needed.
+    flash_idx = find(strcmp({Stimuli.type}, 'sparse_local_global_flashes'), 1);
+    if isempty(flash_idx); get_onsets = []; return; end
+    s = Stimuli(flash_idx);
+    if isfield(s, 'RedFrameSynchronized') && ~s.RedFrameSynchronized
+        warning('Flashes: RedFrameSynchronized=false -- timing fell back to PC clock, expect an offset');
+    end
+    flash_onsets_rel = reconstructFlashes(s);
+    get_onsets = s.TimeStimulusFrame(1) + flash_onsets_rel;
+end
+
+function [z_base, z_drug] = analyze_flashes_stimulus(base_Stimuli, base_dff, base_TimeCa, ...
+        drug_Stimuli, drug_dff, drug_TimeCa, base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    % Returns [z_base, z_drug]: per-matched-cell baseline z-score, for the
+    % cross-stimulus modulation-index section.
+    z_base = []; z_drug = [];
+    fprintf('    - Analyzing flashes stimulus (matched baseline vs drug)\n');
+    if ~matched_rois_available
+        fprintf('      (No matched ROIs available -- skipping)\n');
+        return;
+    end
+
+    pre_window_sec = 1; post_window_sec = 4; n_com = 100;
+    peak_window = [0 0.8];
+
+    base_onsets = get_flash_onsets(base_Stimuli);
+    drug_onsets = get_flash_onsets(drug_Stimuli);
+    if isempty(base_onsets) || isempty(drug_onsets)
+        fprintf('      (Flashes missing in baseline or drug -- skipping)\n');
+        return;
+    end
+
+    Ca_base = align_trials_to_onsets_master(base_onsets, base_dff, base_TimeCa, pre_window_sec, post_window_sec, n_com);
+    Ca_drug = align_trials_to_onsets_master(drug_onsets, drug_dff, drug_TimeCa, pre_window_sec, post_window_sec, n_com);
+    t_com = linspace(-pre_window_sec, post_window_sec, n_com);
+
+    resp_base = median(Ca_base(base_match_idx_local, :, :), 3, 'omitnan');
+    resp_drug = median(Ca_drug(drug_match_idx_local, :, :), 3, 'omitnan');
+    n_matched = size(resp_base, 1);
+
+    plot_matched_comparison_master(t_com, resp_base, resp_drug, ...
+        sprintf('Flashes: baseline vs drug (n=%d matched cells)', n_matched));
+
+    z_base = compute_baseline_zscore(Ca_base, base_match_idx_local, t_com, peak_window);
+    z_drug = compute_baseline_zscore(Ca_drug, drug_match_idx_local, t_com, peak_window);
+
+    plot_violin_master(z_base, z_drug, 'Flashes -- z-score', 'Peak-window z-score (vs pre-onset baseline), per cell', n_matched);
+    plot_response_histogram_master(z_base, z_drug, 'Flashes -- z-score distribution', ...
+        'Peak-window z-score (vs pre-onset baseline), per cell', 30);
+
+    [~, sort_idx] = sort(z_base, 'descend', 'MissingPlacement', 'last');
+    plot_heatmap_master(t_com, resp_base(sort_idx, :), resp_drug(sort_idx, :), 'Flashes -- heatmap');
+end
+
+%% ====================== SPONTANEOUS ======================
+function [base_mean, drug_mean] = analyze_spontaneous_stimulus(base_Stimuli, base_dff, base_TimeCa, ...
+        drug_Stimuli, drug_dff, drug_TimeCa, base_match_idx_local, drug_match_idx_local, matched_rois_available)
+    % No discrete onset to align to -- per-cell mean dF/F over the whole
+    % spontaneous block, baseline vs drug. Z-scoring doesn't apply here
+    % (no separate baseline window to score against). Returns
+    % [base_mean, drug_mean] for the cross-stimulus modulation-index
+    % section (raw mean dF/F based, not z-scored, for this stimulus only).
+    base_mean = []; drug_mean = [];
+    fprintf('    - Analyzing spontaneous activity (matched baseline vs drug)\n');
+    if ~matched_rois_available
+        fprintf('      (No matched ROIs available -- skipping)\n');
+        return;
+    end
+
+    base_mean = spontaneous_block_mean(base_Stimuli, base_dff, base_TimeCa, base_match_idx_local);
+    drug_mean = spontaneous_block_mean(drug_Stimuli, drug_dff, drug_TimeCa, drug_match_idx_local);
+    if isempty(base_mean) || isempty(drug_mean)
+        fprintf('      (Spontaneous missing in baseline or drug -- skipping)\n');
+        return;
+    end
+    n_matched = numel(base_mean);
+
+    plot_violin_master(base_mean, drug_mean, 'Spontaneous -- mean dF/F', 'Mean dF/F over block, per cell', n_matched);
+    plot_response_histogram_master(base_mean, drug_mean, 'Spontaneous -- mean dF/F distribution', ...
+        'Mean dF/F over block, per cell', 30);
+end
+
+function block_mean = spontaneous_block_mean(Stimuli, dff, TimeCa, match_idx_local)
+    idx = find(strcmp({Stimuli.type}, 'spontaneous'), 1);
+    if isempty(idx); block_mean = []; return; end
+    s = Stimuli(idx);
+    time_start = s.TimeStimulusFrame(1);
+    time_end   = s.TimeStimulusFrame(end);
+    time_vec   = TimeCa(1, :);
+    fidx = find(time_vec >= time_start & time_vec <= time_end);
+    block_mean = mean(dff(match_idx_local, fidx), 2, 'omitnan');
+end
+
+%% ====================== SHARED PLOTTING / METRIC HELPERS (pastel style) ======================
+function Ca_trials = align_trials_to_onsets_master(onsets, dff, TimeCa, pre_window_sec, post_window_sec, n_com)
+    t_com    = linspace(-pre_window_sec, post_window_sec, n_com);
+    n_rois   = size(dff, 1);
+    n_trials = numel(onsets);
+    Ca_trials = nan(n_rois, n_com, n_trials);
+    time_vec  = TimeCa(1, :);
+    for k = 1:n_trials
+        idx = find(time_vec > onsets(k) - pre_window_sec & time_vec < onsets(k) + post_window_sec);
+        if numel(idx) < 2; continue; end
+        t_rel = time_vec(idx) - onsets(k);
+        Ca_trials(:, :, k) = interp1(t_rel(:), dff(:, idx)', t_com(:), 'linear', 'extrap')';
+    end
+end
+
+function z = compute_baseline_zscore(Ca_trials, match_idx, t_com, peak_window)
+    % Per-cell, per-trial: (peak-window mean - pre-onset baseline mean) /
+    % pre-onset baseline std; then median across trials.
+    pre_idx  = t_com < 0;
+    peak_idx = t_com >= peak_window(1) & t_com <= peak_window(2);
+    Ca_sel   = Ca_trials(match_idx, :, :);
+    n_trials = size(Ca_sel, 3);
+    z_trial = nan(size(Ca_sel, 1), n_trials);
+    for tr = 1:n_trials
+        base_mean = mean(Ca_sel(:, pre_idx, tr), 2, 'omitnan');
+        base_std  = std(Ca_sel(:, pre_idx, tr), 0, 2, 'omitnan');
+        peak_mean = mean(Ca_sel(:, peak_idx, tr), 2, 'omitnan');
+        z_trial(:, tr) = (peak_mean - base_mean) ./ base_std;
+    end
+    z = median(z_trial, 2, 'omitnan');
+end
+
+function z = compute_baseline_zscore_from_resp(resp, t_com, peak_window)
+    % Same idea as compute_baseline_zscore, but for a trace that's already
+    % been repeat-averaged upstream (e.g. chunk_by_direction's per-angle
+    % median) -- z-scores the single merged trace against its own
+    % pre-onset segment directly.
+    pre_idx  = t_com < 0;
+    peak_idx = t_com >= peak_window(1) & t_com <= peak_window(2);
+    base_mean = mean(resp(:, pre_idx), 2, 'omitnan');
+    base_std  = std(resp(:, pre_idx), 0, 2, 'omitnan');
+    peak_mean = mean(resp(:, peak_idx), 2, 'omitnan');
+    z = (peak_mean - base_mean) ./ base_std;
+end
+
+function plot_matched_comparison_master(t_com, resp_base, resp_drug, fig_title)
+    mean_base = mean(resp_base, 1, 'omitnan');
+    sem_base  = std(resp_base, 0, 1, 'omitnan') / sqrt(size(resp_base, 1));
+    mean_drug = mean(resp_drug, 1, 'omitnan');
+    sem_drug  = std(resp_drug, 0, 1, 'omitnan') / sqrt(size(resp_drug, 1));
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 900 500]);
+    hold on;
+    x_sh = [t_com, fliplr(t_com)];
+    y_sh_base = [(mean_base + sem_base), fliplr(mean_base - sem_base)];
+    fill(x_sh, y_sh_base, [0.2 0.6 1], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    plot(t_com, mean_base, '-', 'Color', [0.2 0.6 1], 'LineWidth', 2.5, 'DisplayName', 'Baseline');
+    y_sh_drug = [(mean_drug + sem_drug), fliplr(mean_drug - sem_drug)];
+    fill(x_sh, y_sh_drug, [1 0.5 0.2], 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    plot(t_com, mean_drug, '-', 'Color', [1 0.5 0.2], 'LineWidth', 2.5, 'DisplayName', 'Drug');
+    xline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+    xlabel('Time from onset (s)', 'FontSize', 11);
+    ylabel('dF/F (mean \pm SEM)', 'FontSize', 11);
+    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
+    legend('Location', 'best'); set(gca, 'Box', 'off'); xlim([t_com(1), t_com(end)]);
+    save_master_fig(fig_title);
+end
+
+function plot_violin_master(vals_base, vals_drug, fig_title, ylab, n_cells)
+    % Muted pastel fill + white median bar + small low-alpha dots, plus a
+    % paired (signrank) significance bracket -- same aesthetic established
+    % for the looming/flashes violins.
+    color_base = [0.55 0.75 0.70];   % muted teal
+    color_drug = [0.70 0.60 0.78];   % muted purple
+
+    valid = ~isnan(vals_base) & ~isnan(vals_drug);
+    vals_base = vals_base(valid); vals_drug = vals_drug(valid);
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 600 650]);
+    hold on;
+    plot_one_violin_master(0, vals_base, color_base);
+    plot_one_violin_master(1, vals_drug, color_drug);
+
+    if numel(vals_base) >= 2
+        p_signrank = signrank(vals_base, vals_drug);
+        y_top  = max([vals_base; vals_drug]);
+        y_span = range([vals_base; vals_drug]);
+        y_bracket = y_top + 0.08 * y_span;
+        plot([0 0 1 1], [y_bracket-0.02*y_span, y_bracket, y_bracket, y_bracket-0.02*y_span], ...
+            'k-', 'LineWidth', 1, 'HandleVisibility', 'off');
+        text(0.5, y_bracket + 0.03*y_span, sig_stars_master(p_signrank), ...
+            'HorizontalAlignment', 'center', 'FontSize', 14, 'FontWeight', 'bold');
+        fprintf('      %s: paired signrank p = %.4g\n', fig_title, p_signrank);
+    end
+
+    set(gca, 'XTick', [0 1], 'XTickLabel', {'Baseline', 'Drug'}, 'Box', 'off', 'XLim', [-0.6 1.6]);
+    ylabel(ylab, 'FontSize', 11);
+    title(sprintf('%s (n = %d)', fig_title, n_cells), 'FontSize', 12, 'Interpreter', 'none');
+    save_master_fig(fig_title);
+end
+
+function plot_one_violin_master(x0, vals, fill_color)
+    if numel(vals) < 2; return; end
+    [f, xi] = ksdensity(vals, 'NumPoints', 150);
+    f = f / max(f) * 0.38;
+    patch(x0 + [f, fliplr(-f)], [xi, fliplr(xi)], fill_color, 'FaceAlpha', 0.85, 'EdgeColor', [0.3 0.3 0.3], 'LineWidth', 1);
+    plot(x0 + [-0.38 0.38], [median(vals) median(vals)], 'w-', 'LineWidth', 2.5);
+    x_jitter = x0 + max(min(randn(numel(vals), 1)*0.10, 0.35), -0.35);
+    scatter(x_jitter, vals, 14, [0.25 0.25 0.25], 'o', 'filled', 'MarkerFaceAlpha', 0.25, 'MarkerEdgeAlpha', 0);
+end
+
+function stars = sig_stars_master(p)
+    if p < 0.001; stars = '***';
+    elseif p < 0.01; stars = '**';
+    elseif p < 0.05; stars = '*';
+    else; stars = 'n.s.';
+    end
+end
+
+function plot_response_histogram_master(vals_base, vals_drug, fig_title, xlab, n_bins)
+    vals_base = vals_base(~isnan(vals_base));
+    vals_drug = vals_drug(~isnan(vals_drug));
+    if isempty(vals_base) && isempty(vals_drug); return; end
+    edges = linspace(min([vals_base; vals_drug]), max([vals_base; vals_drug]), n_bins+1);
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 700 450]);
+    hold on;
+    histogram(vals_base, edges, 'Normalization', 'probability', ...
+        'FaceColor', [0.2 0.6 1], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', sprintf('Baseline (n=%d)', numel(vals_base)));
+    histogram(vals_drug, edges, 'Normalization', 'probability', ...
+        'FaceColor', [1 0.5 0.2], 'FaceAlpha', 0.6, 'EdgeColor', 'none', 'DisplayName', sprintf('Drug (n=%d)', numel(vals_drug)));
+    xline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+    xlabel(xlab, 'FontSize', 11); ylabel('Probability', 'FontSize', 11);
+    title(fig_title, 'FontSize', 12, 'Interpreter', 'none');
+    legend('Location', 'best'); set(gca, 'Box', 'off');
+    save_master_fig(fig_title);
+end
+
+function plot_heatmap_master(t_com, resp_base, resp_drug, fig_title)
+    % Per-cell traces, baseline | drug side by side, SAME row order
+    % (sorted by baseline, passed in pre-sorted), shared diverging color
+    % scale centered at 0.
+    clim = prctile([resp_base(:); resp_drug(:)], [1 99]);
+    clim = max(abs(clim)) * [-1 1];
+    if any(~isfinite(clim)) || clim(1) == clim(2); clim = [-1 1]; end
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 1100 650]);
+    colormap(diverging_colormap_master());
+
+    subplot(1,2,1);
+    imagesc(t_com, 1:size(resp_base,1), resp_base, clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    xlabel('Time from onset (s)'); ylabel('Matched cell # (sorted by baseline)'); title('Baseline');
+
+    subplot(1,2,2);
+    imagesc(t_com, 1:size(resp_drug,1), resp_drug, clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    xlabel('Time from onset (s)'); title('Drug');
+    cb = colorbar; cb.Label.String = 'dF/F (z-scored upstream where applicable)';
+
+    sgtitle(sprintf('%s (n = %d matched cells)', fig_title, size(resp_base,1)), 'FontWeight', 'bold');
+    save_master_fig(fig_title);
+end
+
+function cmap = diverging_colormap_master(n)
+    if nargin < 1; n = 256; end
+    half = floor(n/2);
+    neg = [linspace(0.05,1,half)', linspace(0.05,1,half)', ones(half,1)];
+    pos = [ones(n-half,1), linspace(1,0.05,n-half)', linspace(1,0.05,n-half)'];
+    cmap = [neg; pos];
+end
+
+function save_master_fig(fig_title)
+    % Saves the current figure into MASTER_OUTDIR (set once at the top of
+    % the script). Only used by the new stimulus-specific/MI plotting
+    % functions -- the pre-existing heatmap/histogram/violin/CDF sections
+    % above remain interactive-only, unchanged.
+    global MASTER_OUTDIR
+    if isempty(MASTER_OUTDIR); return; end
+    safe_name = regexprep(fig_title, '[^a-zA-Z0-9]+', '_');
+    outfile = fullfile(MASTER_OUTDIR, [safe_name '.png']);
+    saveas(gcf, outfile);
+    fprintf('      Saved %s\n', outfile);
+end
+
+%% ====================== MODULATION INDEX (z-score based) ======================
+function mi = compute_modulation_index(vals_base, vals_drug)
+    % MI = (drug - baseline) / (|drug| + |baseline|), bounded [-1, 1].
+    valid = ~isnan(vals_base) & ~isnan(vals_drug);
+    vb = vals_base(valid); vd = vals_drug(valid);
+    denom = abs(vd) + abs(vb);
+    ok = denom > 0;
+    mi = (vd(ok) - vb(ok)) ./ denom(ok);
+end
+
+function plot_mi_violin_grid(mi_by_stim, stim_labels)
+    % One pastel violin per stimulus, all on one axes, sharing the
+    % aesthetic established for the baseline-vs-drug violins (single
+    % distribution per stimulus here, since MI already collapses the
+    % paired comparison into one number per cell).
+    n_stim = numel(mi_by_stim);
+    colors = [0.55 0.75 0.70; 0.70 0.60 0.78; 0.85 0.65 0.45; 0.55 0.70 0.85; 0.75 0.75 0.55];
+
+    figure('Name', 'Modulation index -- violin', 'NumberTitle', 'off', 'Position', [100 100 max(250*n_stim,600) 650]);
+    hold on;
+    for s = 1:n_stim
+        mi = mi_by_stim{s};
+        if numel(mi) < 2; continue; end
+        plot_one_violin_master((s-1)*1.3, mi, colors(mod(s-1,size(colors,1))+1, :));
+    end
+    yline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+    set(gca, 'XTick', (0:n_stim-1)*1.3, 'XTickLabel', stim_labels, 'Box', 'off', 'TickLabelInterpreter', 'none');
+    ylabel('Modulation index (drug vs baseline)', 'FontSize', 11);
+    title('Modulation index per stimulus (bounded [-1, 1])', 'FontSize', 12);
+    save_master_fig('Modulation_index_violin');
+end
+
+function plot_mi_spread_histogram(mi_by_stim, stim_labels)
+    % Distribution of MI values between -1 and +1, shaded by
+    % up-/down-modulation, one panel per stimulus -- shows the SPREAD
+    % between up- and down-modulated cells, not just the mean shift.
+    n_stim = numel(mi_by_stim);
+    figure('Name', 'Modulation index -- spread histogram', 'NumberTitle', 'off', ...
+        'Position', [100 100 min(420*n_stim, 1800) 480]);
+    edges = linspace(-1, 1, 31);
+    for s = 1:n_stim
+        mi = mi_by_stim{s};
+        subplot(1, n_stim, s);
+        hold on;
+        fill([-1 0 0 -1], [0 0 1 1], [0.20 0.45 0.80], 'FaceAlpha', 0.07, 'EdgeColor', 'none');
+        fill([0 1 1 0],   [0 0 1 1], [0.85 0.25 0.15], 'FaceAlpha', 0.07, 'EdgeColor', 'none');
+        if numel(mi) >= 2
+            histogram(mi, edges, 'Normalization', 'probability', ...
+                'FaceColor', [0.4 0.4 0.4], 'FaceAlpha', 0.7, 'EdgeColor', 'none');
+        end
+        xline(0, 'k--', 'LineWidth', 1.5);
+        pct_up = 100*mean(mi>0); pct_down = 100*mean(mi<0);
+        xlim([-1 1]); xlabel('Modulation index', 'FontSize', 10); ylabel('Probability', 'FontSize', 10);
+        title(sprintf('%s\n%.0f%% up | %.0f%% down', strrep(stim_labels{s},'_','\_'), pct_up, pct_down), ...
+            'FontSize', 10, 'FontWeight', 'bold');
+        grid on; box off;
+        hold off;
+    end
+    sgtitle('Modulation index spread (z-score based, bounded [-1, 1])', 'FontSize', 13, 'FontWeight', 'bold');
+    save_master_fig('Modulation_index_spread_histogram');
 end
