@@ -18,7 +18,7 @@ roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane_idx = 1;        % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'grating', 'moving_bar', 'looming'};
+stimulus_types_to_analyze = {'moving_bar'};
 
 % Output folder for this recording pair (Plot_Stimulus_Results.m appends
 % per-stimulus and cross_stimulus subfolders under this).

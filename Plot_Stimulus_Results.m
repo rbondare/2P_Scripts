@@ -171,13 +171,13 @@ function produce_stimulus_figures(result, outdir)
 
     % ---- Heatmaps (4): {raw, z-score} x {sorted by baseline peak, unsorted} -- matched cells ----
     plot_heatmap(result.t_com, result.resp_base, result.resp_drug, ...
-        sprintf('%s_heatmap_raw_sorted', label), outdir, 'dF/F', false, true);
+        sprintf('%s_heatmap_raw_sorted', label), outdir, 'dF/F', false, 'baseline');
     plot_heatmap(result.t_com, result.resp_base, result.resp_drug, ...
-        sprintf('%s_heatmap_raw_unsorted', label), outdir, 'dF/F', false, false);
+        sprintf('%s_heatmap_raw_unsorted', label), outdir, 'dF/F', false, 'none');
     plot_heatmap(result.t_com, result.Ztrace_base, result.Ztrace_drug, ...
-        sprintf('%s_heatmap_zscore_sorted', label), outdir, 'z-score', true, true);
+        sprintf('%s_heatmap_zscore_sorted', label), outdir, 'z-score', true, 'baseline');
     plot_heatmap(result.t_com, result.Ztrace_base, result.Ztrace_drug, ...
-        sprintf('%s_heatmap_zscore_unsorted', label), outdir, 'z-score', true, false);
+        sprintf('%s_heatmap_zscore_unsorted', label), outdir, 'z-score', true, 'none');
 end
 
 function produce_direction_figures(result, outdir)
@@ -197,13 +197,32 @@ function produce_direction_figures(result, outdir)
     % erases.
     if ~isempty(result.resp_base_block)
         plot_heatmap(result.t_com_block, result.resp_base_block, result.resp_drug_block, ...
-            sprintf('%s_heatmap_block_raw_sorted', label), outdir, 'dF/F', false, true);
+            sprintf('%s_heatmap_block_raw_sorted', label), outdir, 'dF/F', false, 'baseline');
         plot_heatmap(result.t_com_block, result.resp_base_block, result.resp_drug_block, ...
-            sprintf('%s_heatmap_block_raw_unsorted', label), outdir, 'dF/F', false, false);
+            sprintf('%s_heatmap_block_raw_unsorted', label), outdir, 'dF/F', false, 'none');
+        plot_heatmap(result.t_com_block, result.resp_base_block, result.resp_drug_block, ...
+            sprintf('%s_heatmap_block_raw_sorted_by_drug', label), outdir, 'dF/F', false, 'drug');
         plot_heatmap(result.t_com_block, result.Ztrace_base_block, result.Ztrace_drug_block, ...
-            sprintf('%s_heatmap_block_zscore_sorted', label), outdir, 'z-score', true, true);
+            sprintf('%s_heatmap_block_zscore_sorted', label), outdir, 'z-score', true, 'baseline');
         plot_heatmap(result.t_com_block, result.Ztrace_base_block, result.Ztrace_drug_block, ...
-            sprintf('%s_heatmap_block_zscore_unsorted', label), outdir, 'z-score', true, false);
+            sprintf('%s_heatmap_block_zscore_unsorted', label), outdir, 'z-score', true, 'none');
+    end
+
+    % All cells (unmatched/full population), same continuous block, raw,
+    % unsorted -- the un-curated population, not just the matched subset.
+    if ~isempty(result.resp_base_block_all)
+        plot_heatmap(result.t_com_block, result.resp_base_block_all, result.resp_drug_block_all, ...
+            sprintf('%s_heatmap_block_raw_allcells_unsorted', label), outdir, 'dF/F', false, 'none');
+    end
+
+    % Trial-blocks-by-direction: subtrials reordered/concatenated so all
+    % repeats of one direction sit adjacent, then the next direction --
+    % trades real elapsed time for direction-tuning structure being
+    % visible as distinct blocks.
+    if ~isempty(result.resp_base_trialblocks)
+        plot_trialblocks_heatmap(result.resp_base_trialblocks, result.resp_drug_trialblocks, ...
+            result.trialblock_boundaries, result.trialblock_dir_labels, ...
+            sprintf('%s_heatmap_trialblocks_by_direction', label), outdir);
     end
 end
 
@@ -358,49 +377,71 @@ function plot_histogram(vals_base, vals_drug, fig_title, xlab, outdir)
     save_fig(fig_title, outdir);
 end
 
-function plot_heatmap(t_com, resp_base, resp_drug, fig_title, outdir, cbar_label, center_zero, do_sort)
-    % White/black (grayscale) heatmap, low=white, high=black. For
-    % center_zero (z-score) data the color limits are symmetric about 0;
-    % for raw dF/F they're a plain percentile range (raw activity isn't
-    % sign-balanced). do_sort=true sorts rows by baseline's own peak value
-    % (descending) and carries that order to drug; do_sort=false leaves
-    % rows in their natural matched-cell order (baseline row i still
-    % corresponds to drug row i either way).
+function plot_heatmap(t_com, resp_base, resp_drug, fig_title, outdir, cbar_label, center_zero, sort_mode)
+    % center_zero (z-score) data is sign-balanced around a meaningful 0, so
+    % it gets the diverging blue-white-red colormap with limits symmetric
+    % about 0. Raw dF/F is NOT sign-balanced (mostly-positive activity with
+    % no meaningful "negative" side) -- a diverging map puts white at the
+    % MIDDLE of the percentile range rather than at 0, which makes
+    % quiescent baseline activity read as blue instead of neutral. Raw gets
+    % a plain grayscale (white=low, black=high) sequential map instead --
+    % matches Master_Stimulus_Analysis.m's original convention (flipud(gray)
+    % for raw heatmaps, diverging only for z-score).
+    % sort_mode = 'baseline': rows sorted by baseline's own peak value
+    % (descending), that order carried to drug. 'drug': rows sorted by
+    % drug's own peak instead (its own, independent ranking -- NOT the
+    % same row-i-is-the-same-cell correspondence as 'baseline', since
+    % baseline and drug panels would then show DIFFERENT cell orders; only
+    % meant to be viewed side by side with a 'baseline'-sorted version of
+    % the same data, not as a single internally-consistent figure).
+    % 'none': natural matched-cell order, same row = same cell in both panels.
     if isempty(resp_base) || isempty(resp_drug); return; end
-    if do_sort
-        base_max = max(resp_base, [], 2); base_max(isnan(base_max)) = -Inf;
-        [~, order] = sort(base_max, 'descend');
-        ylab = 'Matched cell # (sorted by baseline peak)';
-    else
-        order = 1:size(resp_base, 1);
-        ylab = 'Matched cell # (unsorted)';
+    switch sort_mode
+        case 'baseline'
+            base_max = max(resp_base, [], 2); base_max(isnan(base_max)) = -Inf;
+            [~, order_base] = sort(base_max, 'descend');
+            order_drug = order_base;
+            ylab = 'Matched cell # (sorted by baseline peak)';
+        case 'drug'
+            drug_max = max(resp_drug, [], 2); drug_max(isnan(drug_max)) = -Inf;
+            [~, order_drug] = sort(drug_max, 'descend');
+            order_base = order_drug;
+            ylab = 'Matched cell # (sorted by drug peak)';
+        otherwise
+            order_base = 1:size(resp_base, 1);
+            order_drug = order_base;
+            ylab = 'Matched cell # (unsorted)';
     end
-    Zb = resp_base(order, :);
-    Zd = resp_drug(order, :);
+    Zb = resp_base(order_base, :);
+    Zd = resp_drug(order_drug, :);
 
     if center_zero
         clim = prctile([Zb(:); Zd(:)], [1 99]);
         clim = max(abs(clim)) * [-1 1];
         if any(~isfinite(clim)) || clim(1) == clim(2); clim = [-1 1]; end
     else
-        clim = [0 8];   % fixed raw dF/F range, matches the reference figure's convention
+        clim = [0, prctile([Zb(:); Zd(:)], 99)];
+        if any(~isfinite(clim)) || clim(1) == clim(2); clim = [0 1]; end
     end
 
-    original_colormap = gray;
-    reversed_colormap = flipud(original_colormap);
-
     figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 1100 650]);
-    colormap(reversed_colormap);
+    if center_zero
+        colormap(diverging_colormap());
+        onset_color = 'k--';
+    else
+        colormap(flipud(gray));
+        onset_color = 'r--';   % black would blend into high-activity (dark) cells on grayscale
+    end
 
     ax1 = subplot(1,2,1);
     imagesc(t_com, 1:size(Zb,1), Zb, clim);
-    hold on; xline(0, 'r--', 'LineWidth', 1); hold off;
+    hold on; xline(0, onset_color, 'LineWidth', 1); hold off;
     xlabel('Time / position'); ylabel(ylab); title('Baseline');
     pos1 = get(ax1, 'Position');
 
     ax2 = subplot(1,2,2);
     imagesc(t_com, 1:size(Zd,1), Zd, clim);
-    hold on; xline(0, 'r--', 'LineWidth', 1); hold off;
+    hold on; xline(0, onset_color, 'LineWidth', 1); hold off;
     xlabel('Time / position'); title('Drug');
     pos2 = get(ax2, 'Position');   % capture BEFORE adding the colorbar
     cb = colorbar;
@@ -410,6 +451,58 @@ function plot_heatmap(t_com, resp_base, resp_drug, fig_title, outdir, cbar_label
 
     sgtitle(sprintf('%s (n=%d matched cells)', fig_title, size(Zb,1)), 'FontWeight', 'bold', 'Interpreter', 'none');
     save_fig(fig_title, outdir);
+end
+
+function plot_trialblocks_heatmap(resp_base, resp_drug, boundaries, dir_labels, fig_title, outdir)
+    % X-axis is column index, NOT real elapsed time -- each direction's
+    % repeats are concatenated end-to-end (reorder_subtrials_by_direction.m
+    % built resp_base/resp_drug this way), with vertical separators +
+    % direction labels marking where each direction's block starts.
+    % Always sorted by baseline peak (matched cells only, raw dF/F).
+    if isempty(resp_base) || isempty(resp_drug); return; end
+    base_max = max(resp_base, [], 2); base_max(isnan(base_max)) = -Inf;
+    [~, order] = sort(base_max, 'descend');
+    Zb = resp_base(order, :);
+    Zd = resp_drug(order, :);
+    clim = [0, prctile([Zb(:); Zd(:)], 99)];
+    if any(~isfinite(clim)) || clim(1) == clim(2); clim = [0 1]; end
+
+    x_axis = 1:size(Zb, 2);
+    xtick_labels = arrayfun(@(d) sprintf('%g deg', d), dir_labels, 'UniformOutput', false);
+
+    figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 1200 650]);
+    colormap(flipud(gray));
+
+    ax1 = subplot(1,2,1);
+    imagesc(x_axis, 1:size(Zb,1), Zb, clim);
+    hold on; for b = boundaries(2:end); xline(b-0.5, 'r--', 'LineWidth', 1); end; hold off;
+    set(gca, 'XTick', boundaries, 'XTickLabel', xtick_labels); xtickangle(45);
+    ylabel('Matched cell # (sorted by baseline peak)'); title('Baseline');
+    pos1 = get(ax1, 'Position');
+
+    ax2 = subplot(1,2,2);
+    imagesc(x_axis, 1:size(Zd,1), Zd, clim);
+    hold on; for b = boundaries(2:end); xline(b-0.5, 'r--', 'LineWidth', 1); end; hold off;
+    set(gca, 'XTick', boundaries, 'XTickLabel', xtick_labels); xtickangle(45);
+    title('Drug');
+    pos2 = get(ax2, 'Position');
+    cb = colorbar; cb.Label.String = 'dF/F';
+    set(ax2, 'Position', pos2);
+    set(ax1, 'Position', [pos1(1) pos2(2) pos2(3) pos2(4)]);
+
+    sgtitle(sprintf('%s (n=%d matched cells, each block = repeats of 1 direction)', fig_title, size(Zb,1)), ...
+        'FontWeight', 'bold', 'Interpreter', 'none');
+    save_fig(fig_title, outdir);
+end
+
+function cmap = diverging_colormap(n)
+    % Blue (low) -> white (mid) -> red (high), matching the colormap
+    % Loom_Flashes_ZETA_Analysis.m has always used.
+    if nargin < 1; n = 256; end
+    half = floor(n/2);
+    neg = [linspace(0.05,1,half)', linspace(0.05,1,half)', ones(half,1)];      % blue -> white
+    pos = [ones(n-half,1), linspace(1,0.05,n-half)', linspace(1,0.05,n-half)']; % white -> red
+    cmap = [neg; pos];
 end
 
 function plot_all_stimuli_violin(metric_base_struct, metric_drug_struct, fig_title, ylab, outdir)

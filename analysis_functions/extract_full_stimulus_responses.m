@@ -55,10 +55,19 @@ function [responses, frame_ranges, time_ranges, properties] = extract_full_stimu
         stim_time_values = Stimuli(i).TimeStimulusFrame;
         time_start = stim_time_values(1);  % Use FIRST value as start
 
-        % Calculate end time explicitly: start + (duration x num_trials)
+        % Calculate end time: start + (duration x num_trials), but never
+        % less than the raw TimeStimulusFrame span. For grating/moving_bar,
+        % "trials" means outer REPEAT count and stimulus_trial_t is ONE
+        % SUBTRIAL's duration -- stimulus_trial_t*trials silently omits the
+        % per-direction multiplier and truncates the block to ~1/n_dir of
+        % its real length (confirmed against this dataset: moving_bar's
+        % stimulus_trial_t*trials=21s vs a true ~168s span; grating's
+        % 10s vs a true ~160s span). TimeStimulusFrame's own span is always
+        % the real, complete block regardless of what "trials" means for a
+        % given stimulus type, so take whichever estimate is larger.
         if isfield(Stimuli(i), 'stimulus_trial_t') && isfield(Stimuli(i), 'trials')
             stim_total_time = Stimuli(i).stimulus_trial_t * Stimuli(i).trials;
-            time_end = time_start + stim_total_time;
+            time_end = max(time_start + stim_total_time, max(stim_time_values(:)));
         else
             % Fallback if metadata missing
             time_end = max(stim_time_values(:));

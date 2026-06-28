@@ -24,7 +24,10 @@ function result = analyze_direction_stimulus(stype, orientation_field, ...
         'common_dirs', [], 'amp_base', [], 'amp_drug', [], ...
         'dir_mean_base', [], 'dir_sem_base', [], 'dir_mean_drug', [], 'dir_sem_drug', [], ...
         't_com_block', [], 'resp_base_block', [], 'resp_drug_block', [], ...
-        'Ztrace_base_block', [], 'Ztrace_drug_block', []);
+        'Ztrace_base_block', [], 'Ztrace_drug_block', [], ...
+        'resp_base_block_all', [], 'resp_drug_block_all', [], ...
+        'resp_base_trialblocks', [], 'resp_drug_trialblocks', [], ...
+        'trialblock_boundaries', [], 'trialblock_dir_labels', []);
 
     fprintf('    - Analyzing %s stimulus (direction-resolved, matched baseline vs drug)\n', stype);
     if ~matched_rois_available
@@ -141,7 +144,35 @@ function result = analyze_direction_stimulus(stype, orientation_field, ...
         result.resp_drug_block = resp_drug_block;
         result.Ztrace_base_block = Ztrace_base_block;
         result.Ztrace_drug_block = Ztrace_drug_block;
+
+        % All cells (unmatched/full population), same continuous block,
+        % raw only -- for the "unsorted, all neurons" heatmap.
+        all_base_idx = 1:size(block_base, 1);
+        all_drug_idx = 1:size(block_drug, 1);
+        [~, ~, resp_base_block_all] = whole_block_zscore_resampled(block_base, all_base_idx, t_com_block, dur_base_sec);
+        [~, ~, resp_drug_block_all] = whole_block_zscore_resampled(block_drug, all_drug_idx, t_com_block, dur_drug_sec);
+        result.resp_base_block_all = resp_base_block_all;
+        result.resp_drug_block_all = resp_drug_block_all;
     end
+
+    % ---- Trial-blocks-by-direction (matched cells) ----
+    % Reorders the same per-subtrial snippets (Ca_base/Ca_drug, before any
+    % direction-averaging) so all repeats of one direction sit adjacent,
+    % then the next direction's repeats, etc. -- common_dirs keeps both
+    % conditions in the SAME direction order/columns. Different from
+    % resp_base_block above (real chronological time); this trades real
+    % time for direction-tuning structure being visible at a glance.
+    [resp_base_trialblocks, boundaries_base, dir_labels] = reorder_subtrials_by_direction(...
+        Ca_base(base_match_idx_local, :, :), dir_base, common_dirs);
+    [resp_drug_trialblocks, boundaries_drug, ~] = reorder_subtrials_by_direction(...
+        Ca_drug(drug_match_idx_local, :, :), dir_drug, common_dirs);
+    if ~isequal(boundaries_base, boundaries_drug)
+        warning('%s: baseline/drug repeat counts differ -- trial-blocks columns won''t align 1:1', stype);
+    end
+    result.resp_base_trialblocks = resp_base_trialblocks;
+    result.resp_drug_trialblocks = resp_drug_trialblocks;
+    result.trialblock_boundaries = boundaries_base;
+    result.trialblock_dir_labels = dir_labels;
 end
 
 function [resp_pref, pref_dir_idx] = preferred_direction_resp(Ca, direction_of, peak_idx, t_com)
