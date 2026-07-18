@@ -162,11 +162,14 @@ end
 
 function [base_match_idx_local, drug_match_idx_local, n_matched] = match_rois(roi_match_file, base_roi_idx, drug_roi_idx)
     M = load(roi_match_file);
-    base_match_idx_global = M.roiMatchData.allSessionMapping(:, 1);
-    drug_match_idx_global = M.roiMatchData.allSessionMapping(:, 2);
-    [~, base_match_idx_local] = ismember(base_match_idx_global, base_roi_idx);
-    [~, drug_match_idx_local] = ismember(drug_match_idx_global, drug_roi_idx);
-    valid_matches = (base_match_idx_local > 0) & (drug_match_idx_local > 0);
+    % allSessionMapping stores per-plane-LOCAL suite2p ROI indices (1..cellCount
+    % for that plane), not global indices into the multi-plane aggregated array
+    % -- confirmed against roiMatchPub.m's generation code, which assigns iCell
+    % (1..cellCount within a single session) directly into the mapping.
+    base_match_idx_local = M.roiMatchData.allSessionMapping(:, 1);
+    drug_match_idx_local = M.roiMatchData.allSessionMapping(:, 2);
+    valid_matches = (base_match_idx_local >= 1 & base_match_idx_local <= numel(base_roi_idx)) & ...
+        (drug_match_idx_local >= 1 & drug_match_idx_local <= numel(drug_roi_idx));
     base_match_idx_local = base_match_idx_local(valid_matches);
     drug_match_idx_local = drug_match_idx_local(valid_matches);
     n_matched = numel(base_match_idx_local);

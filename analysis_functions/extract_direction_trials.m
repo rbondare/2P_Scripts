@@ -29,7 +29,14 @@ function [Ca_subtrials, t_com, direction_of] = extract_direction_trials(...
     t_com    = linspace(-pre_window_sec, post_window_sec, n_com);
     n_rois   = size(dff, 1);
     Ca_subtrials = nan(n_rois, n_com, n_subtrials);
-    time_vec = TimeCa(1, :);
+    % Accept either a single plane's time vector (used directly) or the
+    % full [n_planes x n_volumes] matrix (defaults to row 1, preserving
+    % existing callers that haven't been updated to pass a specific plane).
+    if isvector(TimeCa)
+        time_vec = TimeCa(:)';
+    else
+        time_vec = TimeCa(1, :);
+    end
     for k = 1:n_subtrials
         fidx = find(time_vec >= onsets(k)-pre_window_sec & time_vec <= onsets(k)+post_window_sec);
         if numel(fidx) < 2; continue; end

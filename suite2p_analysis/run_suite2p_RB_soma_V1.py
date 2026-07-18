@@ -19,8 +19,8 @@ def resolve_runtime_path(path_str):
     return path_str.replace("\\", "/")
 
 # Load ops directly from your settings file
-settings_file = resolve_runtime_path(r"Z:\group\joeschgrp\Group Members\Rima\2P_Scripts\suite2p\settings.npy")
-data_path = resolve_runtime_path(r"Z:\group\joeschgrp\Group Members\Rima\DATA_2P\AnimalRB19_260320_1609")
+settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\2P_Scripts\suite2p\settings.npy")
+data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P\AnimalRB19_260303_1546")
 
 if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
@@ -38,7 +38,7 @@ else:
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes': 4,
+    'nplanes': 3,
     'nchannels': 1,
 }
 

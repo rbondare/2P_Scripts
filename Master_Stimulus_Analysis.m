@@ -21,12 +21,12 @@ addpath(genpath(fullfile(pwd, 'violin_plot_utils')));
 %% ====================== CONFIGURATION ======================
 
 % Data files
-%baseline_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
-baseline_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
-%drug_file = "Z:\group\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
-drug_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
-%roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
-roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
+baseline_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
+%baseline_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
+drug_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
+%drug_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
+roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
+%roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
 
 % Figures from the new stimulus-specific/MI sections are saved here (the
 % pre-existing heatmap/histogram/violin/CDF/regression sections above were
@@ -40,7 +40,7 @@ fprintf('New stimulus-specific/MI figures will be saved to: %s\n', MASTER_OUTDIR
 % Analysis parameters
 ca_type = 1;                  % 1=FVDff, 2=deconvolved, 3=F
 selected_plane_idx = 1;           % Plane index (1-based)
-stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'grating', 'moving_bar', 'looming'};
+stimulus_types_to_analyze = {'spontaneous','sparse_local_global_flashes', 'checkers2', 'moving_bar', 'looming'};
 
 % Visualization
 max_neurons_display = 1000;    % For heatmap readability
@@ -143,8 +143,8 @@ fprintf('Drug selected plane %d: %d ROIs (global indices: %d to %d)\n', ...
 
 % Load ROI matching if available
 matched_rois_available = false;  % Default: no matched ROIs
-base_match_idx_global = [];      % Global ROI indices (from file)
-drug_match_idx_global = [];      % Global ROI indices (from file)
+base_match_idx_global = [];      % Raw per-plane-local ROI IDs (from file), kept for reference
+drug_match_idx_global = [];      % Raw per-plane-local ROI IDs (from file), kept for reference
 base_match_idx_local = [];       % Local row indices in base_dff
 drug_match_idx_local = [];       % Local row indices in drug_dff
 n_matched = 0;
@@ -155,22 +155,27 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
     if isfield(M.roiMatchData, 'allSessionMapping')
         base_match_idx_global = M.roiMatchData.allSessionMapping(:, 1);
         drug_match_idx_global = M.roiMatchData.allSessionMapping(:, 2);
-        fprintf('Found %d matched ROI pairs (global indices)\n', length(base_match_idx_global));
-        
-        % Convert global ROI indices to LOCAL indices within selected plane
-        % For baseline: find which row index in base_dff corresponds to each global index
-        [~, base_match_idx_local] = ismember(base_match_idx_global, selected_roi_idx);
-        [~, drug_match_idx_local] = ismember(drug_match_idx_global, drug_selected_roi_idx);
-        
+        fprintf('Found %d matched ROI pairs (per-plane-local indices)\n', length(base_match_idx_global));
+
+        % allSessionMapping stores per-plane-LOCAL suite2p ROI indices
+        % (1..cellCount for that plane), not global indices into the
+        % multi-plane aggregated array -- confirmed against
+        % roiMatchPub.m's generation code, which assigns iCell
+        % (1..cellCount within a single session) directly into the mapping.
+        % These local indices ARE the row indices into base_dff/drug_dff.
+        base_match_idx_local = base_match_idx_global;
+        drug_match_idx_local = drug_match_idx_global;
+
         % Filter to keep only matches where BOTH neurons are in the selected plane
-        valid_matches = (base_match_idx_local > 0) & (drug_match_idx_local > 0);
+        valid_matches = (base_match_idx_local >= 1 & base_match_idx_local <= numel(selected_roi_idx)) & ...
+            (drug_match_idx_local >= 1 & drug_match_idx_local <= numel(drug_selected_roi_idx));
         base_match_idx_local = base_match_idx_local(valid_matches);
         drug_match_idx_local = drug_match_idx_local(valid_matches);
         base_match_idx_global = base_match_idx_global(valid_matches);
         drug_match_idx_global = drug_match_idx_global(valid_matches);
-        
+
         n_matched = length(base_match_idx_local);
-        
+
         if n_matched > 0
             matched_rois_available = true;
             fprintf('\n--- MATCHED ROI ANALYSIS ---\n');
@@ -182,31 +187,6 @@ if ~isempty(roi_match_file) && isfile(roi_match_file)
             fprintf('Local baseline match indices: %d to %d\n', min(base_match_idx_local), max(base_match_idx_local));
             fprintf('Local drug match indices: %d to %d\n', min(drug_match_idx_local), max(drug_match_idx_local));
             fprintf('Ready for matched neuron analysis\n');
-            
-            % Verify conversion: check first matched pair
-            if n_matched > 0
-                base_global = base_match_idx_global(1);
-                base_local = base_match_idx_local(1);
-                drug_global = drug_match_idx_global(1);
-                drug_local = drug_match_idx_local(1);
-                fprintf('\nVerification (first matched pair):\n');
-                fprintf('  Baseline: global ROI %d -> local row %d in base_dff(%d, :)\n', ...
-                    base_global, base_local, size(base_dff, 1));
-                fprintf('Drug: global ROI %d -> local row %d in drug_dff(%d, :)\n', ...
-                    drug_global, drug_local, size(drug_dff, 1));
-                
-                % Check that the global index is actually in selected_roi_idx
-                if selected_roi_idx(base_local) == base_global
-                    fprintf('Baseline conversion verified\n');
-                else
-                    fprintf('ERROR: Baseline conversion mismatch!\n');
-                end
-                if drug_selected_roi_idx(drug_local) == drug_global
-                    fprintf('Drug conversion verified\n');
-                else
-                    fprintf('Drug conversion mismatch!\n');
-                end
-            end
         else
             fprintf('WARNING: No matched ROIs found in selected plane %d!\n', selected_plane_idx);
             fprintf('All %d matched pairs are either not in baseline plane or drug plane\n', ...

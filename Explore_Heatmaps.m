@@ -5,7 +5,7 @@
 % and re-run (or run section-by-section, Ctrl+Enter) -- nothing else
 % needs to change.
 %
-% view_mode:
+% view_mode: 
 %   'entire'       -> the continuous whole-block trace, real elapsed time,
 %                     NOT averaged across trials/repeats/directions, gaps
 %                     between trials INCLUDED. The "raw, as recorded" view.
@@ -37,25 +37,40 @@ clear; clc; close all;
 addpath(fullfile(fileparts(mfilename('fullpath')), 'analysis_functions'));
 
 %% ====================== CONFIGURATION ======================
-baseline_file   = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1444_preprocessed.mat";
-drug_file       = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1609_preprocessed.mat";
-roi_match_file  = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_1444_V1.mat";
-selected_plane_idx = 1; 
+% baseline_file   = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1444_preprocessed.mat";
+% drug_file       = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260320_1609_preprocessed.mat";
+% roi_match_file  = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_1444_V1.mat";
+% selected_plane_idx = 1;
 
+%guanfacine good loom,
+% baseline_file   = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1327_preprocessed.mat";
+% drug_file       = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260305_1409_preprocessed.mat";
+% roi_match_file  = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_V2.mat";
+% selected_plane_idx = 1;
+
+%yohimbine
+baseline_file = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1115_preprocessed.mat";
+drug_file      = "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260312_1243_preprocessed.mat";
+roi_match_file = "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0312_V1.mat";
+selected_plane_idx = 1;
 %%
-stimulus_type   = 'looming';    % 'looming' | 'sparse_local_global_flashes' | 'checkers2' | 'grating' | 'moving_bar' | 'spontaneous'
-view_mode       = 'trial_blocks'; % 'entire' | 'trial_blocks' | 'averaged' | 'per_trial'  (see notes above)
-cell_set        = 'matched';    % 'matched' | 'all'
-n_cells_to_plot = 500;           % how many rows to show (top-N by peak activity); set Inf to show all
-sort_by         = 'baseline';   % 'baseline' | 'drug' | 'none'
-metric          = 'zscore';        % 'raw' | 'zscore'
 
-%% ====================== LOAD DATA ======================
+% ====================== LOAD DATA ======================
 % Self-contained -- doesn't depend on Preprocess_Stimulus_Data.m's
 % current state, so changing baseline_file/drug_file/roi_match_file above
 % is the only thing you need to touch to switch recording pairs.
 pd = load_pair(baseline_file, drug_file, roi_match_file, selected_plane_idx);
+%%
 
+stimulus_type   = 'looming';    % 'looming' | 'sparse_local_global_flashes' | 'checkers2' | 'grating' | 'moving_bar' | 'spontaneous'
+view_mode       = 'per_trial';     % 'entire' | 'trial_blocks' | 'averaged' | 'per_trial'  (see notes above)
+cell_set        = 'all';    % 'matched' | 'all'
+n_cells_to_plot = inf;           % how many rows to show (top-N by peak activity); set Inf to show all
+sort_by         = 'independent'; % 'baseline' | 'drug' | 'independent' | 'none' -- 'independent' sorts each panel by its own peak (no row-i-same-cell correspondence between panels)
+metric          = 'zscore';        % 'raw' | 'zscore' | 'minmax'
+
+% cell_set is a per-run choice, so base_idx/drug_idx are derived here
+% (after cell_set is set above), not back in LOAD DATA.
 if strcmp(cell_set, 'matched') && ~pd.matched_rois_available
     error('cell_set=''matched'' requested but no matched ROIs are available for this pair.');
 end
@@ -65,7 +80,7 @@ else
     base_idx = 1:size(pd.dff_base, 1); drug_idx = 1:size(pd.dff_drug, 1);
 end
 
-%% ====================== EXTRACT ======================
+% ====================== EXTRACT ======================
 boundaries = []; block_labels = {};
 effective_view_mode = view_mode;
 if ismember(stimulus_type, {'spontaneous', 'checkers2'}) && ~strcmp(view_mode, 'entire')
@@ -73,12 +88,13 @@ if ismember(stimulus_type, {'spontaneous', 'checkers2'}) && ~strcmp(view_mode, '
     effective_view_mode = 'entire';
 end
 
+resp_base_z = []; resp_drug_z = [];
 switch effective_view_mode
     case 'entire'
         [t_axis, resp_base, resp_drug] = extract_entire(stimulus_type, pd.Stimuli_base, pd.dff_base, pd.TimeCa_base, ...
             pd.Stimuli_drug, pd.dff_drug, pd.TimeCa_drug, base_idx, drug_idx);
     case 'trial_blocks'
-        [t_axis, resp_base, resp_drug, boundaries, block_labels] = extract_trial_blocks(stimulus_type, ...
+        [t_axis, resp_base, resp_drug, boundaries, block_labels, resp_base_z, resp_drug_z] = extract_trial_blocks(stimulus_type, ...
             pd.Stimuli_base, pd.dff_base, pd.TimeCa_base, pd.Triggers_base, ...
             pd.Stimuli_drug, pd.dff_drug, pd.TimeCa_drug, pd.Triggers_drug, base_idx, drug_idx);
     case 'averaged'
@@ -94,18 +110,31 @@ end
 row_label = 'Cell';
 if strcmp(effective_view_mode, 'per_trial'); row_label = 'Trial'; end
 
-if strcmp(metric, 'zscore')
-    [resp_base, resp_drug] = quick_zscore(resp_base, resp_drug, t_axis);
-    cbar_label = 'z-score'; center_zero = true;
-else
-    cbar_label = 'dF/F'; center_zero = false;
+switch metric
+    case 'zscore'
+        if ~isempty(resp_base_z)
+            % trial_blocks: use the per-block local pre-onset baseline
+            % z-score computed inside extract_trial_blocks (its t_axis is
+            % a synthetic concatenation index with no negative values, so
+            % quick_zscore can't tell a pre-onset window exists -- see
+            % extract_trial_blocks).
+            resp_base = resp_base_z; resp_drug = resp_drug_z;
+        else
+            [resp_base, resp_drug] = quick_zscore(resp_base, resp_drug, t_axis);
+        end
+        cbar_label = 'z-score'; center_zero = true;
+    case 'minmax'
+        [resp_base, resp_drug] = quick_minmax(resp_base, resp_drug);
+        cbar_label = 'min-max'; center_zero = false;
+    otherwise
+        cbar_label = 'dF/F'; center_zero = false;
 end
 
-%% ====================== PLOT ======================
+% ====================== PLOT ======================
 fig_title = sprintf('%s_%s_%s_%s_top%s', stimulus_type, view_mode, cell_set, metric, ...
     num2str(min(n_cells_to_plot, size(resp_base,1))));
 plot_explorer_heatmap(t_axis, resp_base, resp_drug, n_cells_to_plot, sort_by, center_zero, cbar_label, fig_title, ...
-    fullfile(fileparts(mfilename('fullpath')), 'analysis_figures', '_explorer'), boundaries, block_labels);
+    fullfile(fileparts(mfilename('fullpath')), 'analysis_figures', '_explorer'), boundaries, block_labels, row_label);
 
 %% ====================== LOCAL FUNCTIONS ======================
 function pair = load_pair(baseline_file, drug_file, roi_match_file, selected_plane_idx)
@@ -127,11 +156,14 @@ function pair = load_pair(baseline_file, drug_file, roi_match_file, selected_pla
     base_match_idx_local = []; drug_match_idx_local = [];
     if ~isempty(roi_match_file) && isfile(roi_match_file)
         M = load(roi_match_file);
-        base_match_idx_global = M.roiMatchData.allSessionMapping(:, 1);
-        drug_match_idx_global = M.roiMatchData.allSessionMapping(:, 2);
-        [~, base_match_idx_local] = ismember(base_match_idx_global, selected_roi_idx);
-        [~, drug_match_idx_local] = ismember(drug_match_idx_global, drug_selected_roi_idx);
-        valid_matches = (base_match_idx_local > 0) & (drug_match_idx_local > 0);
+        % allSessionMapping stores per-plane-LOCAL suite2p ROI indices (1..cellCount
+        % for that plane), not global indices into the multi-plane aggregated array
+        % -- confirmed against roiMatchPub.m's generation code, which assigns iCell
+        % (1..cellCount within a single session) directly into the mapping.
+        base_match_idx_local = M.roiMatchData.allSessionMapping(:, 1);
+        drug_match_idx_local = M.roiMatchData.allSessionMapping(:, 2);
+        valid_matches = (base_match_idx_local >= 1 & base_match_idx_local <= numel(selected_roi_idx)) & ...
+            (drug_match_idx_local >= 1 & drug_match_idx_local <= numel(drug_selected_roi_idx));
         base_match_idx_local = base_match_idx_local(valid_matches);
         drug_match_idx_local = drug_match_idx_local(valid_matches);
         matched_rois_available = ~isempty(base_match_idx_local);
@@ -141,8 +173,14 @@ function pair = load_pair(baseline_file, drug_file, roi_match_file, selected_pla
     pair.Stimuli_drug = D.Stimuli;
     pair.dff_base = base_dff;
     pair.dff_drug = drug_dff;
-    pair.TimeCa_base = B.TimeCa;
-    pair.TimeCa_drug = D.TimeCa;
+    % TimeCa is [n_planes x n_volumes] -- row p is plane p's own per-volume
+    % timestamp (planes are scanned in sequence within a volume, so rows
+    % differ by a sub-volume-period offset). Slice to the SAME plane the
+    % ROIs above came from, not just row 1 -- analysis_functions/ accepts
+    % either a full matrix (defaults to row 1, for the production
+    % pipeline's existing call sites) or a vector (used as-is).
+    pair.TimeCa_base = B.TimeCa(selected_plane_idx, :);
+    pair.TimeCa_drug = D.TimeCa(selected_plane_idx, :);
     pair.Triggers_base = B.Triggers;
     pair.Triggers_drug = D.Triggers;
     pair.match_idx_local_base = base_match_idx_local;
@@ -182,7 +220,7 @@ function [t_axis, resp_base, resp_drug] = extract_entire(stype, base_Stimuli, ba
     resp_drug = interp1(src_drug, block_drug(drug_idx, :)', t_axis)';
 end
 
-function [t_axis, resp_base, resp_drug, boundaries, block_labels] = extract_trial_blocks(stype, ...
+function [t_axis, resp_base, resp_drug, boundaries, block_labels, resp_base_z, resp_drug_z] = extract_trial_blocks(stype, ...
         base_Stimuli, base_dff, base_TimeCa, base_Triggers, drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers, base_idx, drug_idx)
     % Concatenates each trial/event/subtrial's own aligned snippet
     % end-to-end, in natural order, skipping the gaps BETWEEN them
@@ -214,11 +252,77 @@ function [t_axis, resp_base, resp_drug, boundaries, block_labels] = extract_tria
             n_trials_base, n_trials_drug, n_trials);
     end
     n_com = numel(t_snippet);
-    resp_base = reshape(Ca_base(base_idx, :, 1:n_trials), numel(base_idx), n_com * n_trials);
-    resp_drug = reshape(Ca_drug(drug_idx, :, 1:n_trials), numel(drug_idx), n_com * n_trials);
+    Ca_base = Ca_base(:, :, 1:n_trials);
+    Ca_drug = Ca_drug(:, :, 1:n_trials);
+
+    % Per-block local baseline z-score: each block still has its own real
+    % pre-onset window in t_snippet at this point (e.g. looming's -2..0s)
+    % even though the concatenated t_axis below discards it -- z-score
+    % each block against ITS OWN pre-onset mean/std (same per-cell,
+    % per-trial convention as compute_baseline_zscore_trace.m) before that
+    % real time info is gone, so 'zscore' in this view stays consistent
+    % with what 'zscore' means everywhere else in the pipeline.
+    pre_idx = t_snippet < 0;
+    if any(pre_idx)
+        Zb3 = local_block_zscore(Ca_base, pre_idx);
+        Zd3 = local_block_zscore(Ca_drug, pre_idx);
+        resp_base_z = reshape(Zb3(base_idx, :, :), numel(base_idx), n_com * n_trials);
+        resp_drug_z = reshape(Zd3(drug_idx, :, :), numel(drug_idx), n_com * n_trials);
+    else
+        resp_base_z = []; resp_drug_z = [];
+    end
+
+    resp_base = reshape(Ca_base(base_idx, :, :), numel(base_idx), n_com * n_trials);
+    resp_drug = reshape(Ca_drug(drug_idx, :, :), numel(drug_idx), n_com * n_trials);
     t_axis = 1:(n_com * n_trials);
     boundaries = (0:n_trials-1) * n_com + 1;
     block_labels = arrayfun(@(k) sprintf('Trial %d', k), 1:n_trials, 'UniformOutput', false);
+end
+
+function Z = local_block_zscore(Ca, pre_idx)
+    % Z-scores each [cell, :, trial] slice against that SAME slice's own
+    % pre-onset window mean/std -- mirrors compute_baseline_zscore_trace.m,
+    % applied per-block instead of collapsed via median across trials.
+    n_trials = size(Ca, 3);
+    Z = nan(size(Ca));
+    for k = 1:n_trials
+        base_mean = mean(Ca(:, pre_idx, k), 2, 'omitnan');
+        base_std  = std(Ca(:, pre_idx, k), 0, 2, 'omitnan');
+        Z(:, :, k) = (Ca(:, :, k) - base_mean) ./ base_std;
+    end
+end
+
+function [t_axis, resp_base, resp_drug] = extract_per_trial_population(stype, ...
+        base_Stimuli, base_dff, base_TimeCa, base_Triggers, drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers, base_idx, drug_idx)
+    % Rows are TRIALS, not cells: average across the chosen cell subset
+    % SEPARATELY for each trial/event/subtrial, so each row is that one
+    % repeat's own population mean response -- lets you see repeat-to-repeat
+    % variability directly, before any trial-averaging collapses it away.
+    switch stype
+        case 'looming'
+            [Ca_base, t_axis] = extract_looming_trials(base_Stimuli, base_dff, base_TimeCa, base_Triggers);
+            [Ca_drug, ~] = extract_looming_trials(drug_Stimuli, drug_dff, drug_TimeCa, drug_Triggers);
+        case 'sparse_local_global_flashes'
+            pre_window_sec = 1; post_window_sec = 4; n_com = 100;
+            base_onsets = get_flash_onsets(base_Stimuli);
+            drug_onsets = get_flash_onsets(drug_Stimuli);
+            Ca_base = align_trials_to_onsets(base_onsets, base_dff, base_TimeCa, pre_window_sec, post_window_sec, n_com);
+            Ca_drug = align_trials_to_onsets(drug_onsets, drug_dff, drug_TimeCa, pre_window_sec, post_window_sec, n_com);
+            t_axis = linspace(-pre_window_sec, post_window_sec, n_com);
+        case {'grating', 'moving_bar'}
+            if strcmp(stype, 'grating'); orientation_field = 'grating_orientations'; else; orientation_field = 'bar_orientations'; end
+            [Ca_base, t_axis, ~] = extract_direction_trials(base_Stimuli, base_dff, base_TimeCa, stype, orientation_field, 1, 6, 100);
+            [Ca_drug, ~, ~] = extract_direction_trials(drug_Stimuli, drug_dff, drug_TimeCa, stype, orientation_field, 1, 6, 100);
+        otherwise
+            error('per_trial mode is not defined for ''%s'' (no discrete trial/event structure).', stype);
+    end
+    % mean over dim 1 (the chosen cell subset) leaves [1 x n_com x n_trials];
+    % squeeze -> [n_com x n_trials]; transpose -> [n_trials x n_com] (rows=trials).
+    resp_base = squeeze(mean(Ca_base(base_idx, :, :), 1, 'omitnan'))';
+    resp_drug = squeeze(mean(Ca_drug(drug_idx, :, :), 1, 'omitnan'))';
+    if size(resp_base, 1) ~= size(resp_drug, 1)
+        fprintf('  Note: baseline has %d trials/events, drug has %d\n', size(resp_base,1), size(resp_drug,1));
+    end
 end
 
 function [t_axis, resp_base, resp_drug] = extract_averaged(stype, base_Stimuli, base_dff, base_TimeCa, base_Triggers, ...
@@ -268,57 +372,108 @@ function [t_axis, resp_base, resp_drug] = extract_averaged(stype, base_Stimuli, 
 end
 
 function [Zb, Zd] = quick_zscore(resp_base, resp_drug, t_axis)
-    % Pre-onset baseline z-score if there's a meaningful pre-onset window
-    % (t_axis has negative values, i.e. 'averaged' mode for a triggered
-    % stimulus); otherwise population-relative z-score (no pre-onset
-    % period exists in 'entire'/blockwise mode).
+    % Standard per-cell z-score: each ROW is normalized against its OWN
+    % mean/std (the usual convention in calcium-imaging population
+    % heatmaps), using the pre-onset window's mean/std when one exists
+    % (t_axis has negative values -- 'averaged'/'per_trial' mode for a
+    % triggered stimulus), or the row's own full trace when there's no
+    % baseline period to anchor to ('entire'/blockwise mode).
     if any(t_axis < 0)
         pre = t_axis < 0;
         bm = mean(resp_base(:, pre), 2, 'omitnan'); bs = std(resp_base(:, pre), 0, 2, 'omitnan');
         dm = mean(resp_drug(:, pre), 2, 'omitnan'); ds = std(resp_drug(:, pre), 0, 2, 'omitnan');
-        Zb = (resp_base - bm) ./ bs;
-        Zd = (resp_drug - dm) ./ ds;
     else
-        cm_b = mean(resp_base, 2, 'omitnan'); pm_b = mean(cm_b, 'omitnan'); ps_b = std(cm_b, 'omitnan');
-        cm_d = mean(resp_drug, 2, 'omitnan'); pm_d = mean(cm_d, 'omitnan'); ps_d = std(cm_d, 'omitnan');
-        Zb = (resp_base - pm_b) / ps_b;
-        Zd = (resp_drug - pm_d) / ps_d;
+        bm = mean(resp_base, 2, 'omitnan'); bs = std(resp_base, 0, 2, 'omitnan');
+        dm = mean(resp_drug, 2, 'omitnan'); ds = std(resp_drug, 0, 2, 'omitnan');
     end
+    Zb = (resp_base - bm) ./ bs;
+    Zd = (resp_drug - dm) ./ ds;
 end
 
-function plot_explorer_heatmap(t_axis, resp_base, resp_drug, n_cells_to_plot, sort_by, center_zero, cbar_label, fig_title, outdir, boundaries, block_labels)
+function [Nb, Nd] = quick_minmax(resp_base, resp_drug)
+    % Per-cell min-max normalization to [0, 1] -- each ROW scaled by its
+    % own min/max across whatever is being displayed. Simpler alternative
+    % to z-score: no assumption about a Gaussian-ish distribution, just
+    % rescales each cell's own dynamic range, so a cell's shape is
+    % comparable across cells regardless of absolute dF/F amplitude.
+    mn_b = min(resp_base, [], 2); mx_b = max(resp_base, [], 2);
+    mn_d = min(resp_drug, [], 2); mx_d = max(resp_drug, [], 2);
+    Nb = (resp_base - mn_b) ./ (mx_b - mn_b);
+    Nd = (resp_drug - mn_d) ./ (mx_d - mn_d);
+end
+
+function plot_explorer_heatmap(t_axis, resp_base, resp_drug, n_cells_to_plot, sort_by, center_zero, cbar_label, fig_title, outdir, boundaries, block_labels, row_label)
     if ~exist(outdir, 'dir'); mkdir(outdir); end
+    if nargin < 12 || isempty(row_label); row_label = 'Cell'; end
+    % 'independent' sorts EACH panel by its own peak, separately -- row i
+    % in Baseline is generally NOT the same cell as row i in Drug anymore
+    % (unlike 'baseline'/'drug', which sort by one condition's peak but
+    % carry that SAME order to both panels, preserving row-i-is-the-same-
+    % cell correspondence). Use 'independent' to see each condition's own
+    % activity-sorted shape; use 'baseline'/'drug' to track a specific
+    % cell's identity across both panels.
+    %
+    % A shared order only makes sense when row i in resp_base and row i in
+    % resp_drug are the SAME entity (true for cell_set='matched', where
+    % base_idx/drug_idx are paired by construction). cell_set='all' (or a
+    % per_trial trial-count mismatch) gives resp_base/resp_drug unrelated,
+    % possibly differently-sized row sets -- applying one side's sort
+    % order to the other would mislabel rows at best and index out of
+    % bounds at worst, so fall back to 'independent' automatically.
+    if ~strcmp(sort_by, 'independent') && size(resp_base, 1) ~= size(resp_drug, 1)
+        fprintf(['  Note: baseline has %d rows, drug has %d -- no valid shared row order exists, ' ...
+            'falling back to sort_by=''independent'' (was ''%s'')\n'], size(resp_base,1), size(resp_drug,1), sort_by);
+        sort_by = 'independent';
+    end
     switch sort_by
         case 'baseline'
-            key = max(resp_base, [], 2); ylab_extra = 'sorted by baseline peak';
+            key = max(resp_base, [], 2); ylab_base = 'sorted by baseline peak'; ylab_drug = ylab_base;
         case 'drug'
-            key = max(resp_drug, [], 2); ylab_extra = 'sorted by drug peak';
+            key = max(resp_drug, [], 2); ylab_drug = 'sorted by drug peak'; ylab_base = ylab_drug;
+        case 'independent'
+            key = []; ylab_base = 'sorted by baseline''s own peak'; ylab_drug = 'sorted by drug''s own peak';
         otherwise
-            key = []; ylab_extra = 'unsorted';
+            key = []; ylab_base = 'unsorted'; ylab_drug = ylab_base;
     end
-    if isempty(key)
-        order = 1:size(resp_base, 1);
+    if strcmp(sort_by, 'independent')
+        key_b = max(resp_base, [], 2); key_b(isnan(key_b)) = -Inf;
+        key_d = max(resp_drug, [], 2); key_d(isnan(key_d)) = -Inf;
+        [~, order_base] = sort(key_b, 'descend');
+        [~, order_drug] = sort(key_d, 'descend');
+    elseif isempty(key)
+        order_base = 1:size(resp_base, 1); order_drug = order_base;
     else
         key(isnan(key)) = -Inf;
         [~, order] = sort(key, 'descend');
+        order_base = order; order_drug = order;
     end
-    n_show = min(n_cells_to_plot, numel(order));
-    order = order(1:n_show);
-    Zb = resp_base(order, :);
-    Zd = resp_drug(order, :);
+    % Use BOTH panels' row counts -- resp_base/resp_drug can have different
+    % row counts (cell_set='all' draws independent ROI sets per session;
+    % 'per_trial' mode can have different trial counts per session too).
+    % Using size(resp_base,1) alone would let order_drug/order_base be
+    % truncated past the shorter matrix's actual length and error out.
+    n_show = min([n_cells_to_plot, size(resp_base, 1), size(resp_drug, 1)]);
+    order_base = order_base(1:n_show);
+    order_drug = order_drug(1:n_show);
+    Zb = resp_base(order_base, :);
+    Zd = resp_drug(order_drug, :);
 
+    % Same diverging blue-white-red colormap for every metric now. raw/
+    % minmax data is non-negative, so clim is still made symmetric about
+    % ZERO (not the data's own min/max) -- that keeps white anchored at
+    % the real zero point and only ever lights up the white->red half,
+    % rather than putting white at the middle of the visible range (which
+    % would make ordinary near-zero activity read as deep blue/an extreme
+    % value -- a real mistake made and fixed once already, see memory).
     if center_zero
         clim = prctile([Zb(:); Zd(:)], [1 99]);
         clim = max(abs(clim)) * [-1 1];
-        if any(~isfinite(clim)) || clim(1) == clim(2); clim = [-1 1]; end
-        colormap_to_use = diverging_colormap_local();
-        onset_color = 'k--';
     else
-        clim = [0, prctile([Zb(:); Zd(:)], 99)];
-        if any(~isfinite(clim)) || clim(1) == clim(2); clim = [0 1]; end
-        colormap_to_use = flipud(gray);
-        onset_color = 'r--';
+        clim = prctile([Zb(:); Zd(:)], 99) * [-1 1];
     end
+    if any(~isfinite(clim)) || clim(1) == clim(2); clim = [-1 1]; end
+    colormap_to_use = diverging_colormap_local();
+    onset_color = 'k--';
 
     figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100 100 1100 650]);
     colormap(colormap_to_use);
@@ -341,7 +496,7 @@ function plot_explorer_heatmap(t_axis, resp_base, resp_drug, n_cells_to_plot, so
         xline(0, onset_color, 'LineWidth', 1);
     end
     hold off;
-    xlabel('Time / position'); ylabel(sprintf('Cell # (%s)', ylab_extra)); title('Baseline');
+    xlabel('Time / position'); ylabel(sprintf('%s # (%s)', row_label, ylab_base)); title('Baseline');
     pos1 = get(ax1, 'Position');
 
     ax2 = subplot(1, 2, 2);
@@ -355,13 +510,13 @@ function plot_explorer_heatmap(t_axis, resp_base, resp_drug, n_cells_to_plot, so
         xline(0, onset_color, 'LineWidth', 1);
     end
     hold off;
-    xlabel('Time / position'); title('Drug');
+    xlabel('Time / position'); ylabel(sprintf('%s # (%s)', row_label, ylab_drug)); title('Drug');
     pos2 = get(ax2, 'Position');
     cb = colorbar; cb.Label.String = cbar_label;
     set(ax2, 'Position', pos2);
     set(ax1, 'Position', [pos1(1) pos2(2) pos2(3) pos2(4)]);
 
-    sgtitle(sprintf('%s (showing %d cells)', fig_title, size(Zb,1)), 'FontWeight', 'bold', 'Interpreter', 'none');
+    sgtitle(sprintf('%s (showing %d %ss)', fig_title, size(Zb,1), lower(row_label)), 'FontWeight', 'bold', 'Interpreter', 'none');
 
     safe_name = regexprep(fig_title, '[^a-zA-Z0-9]+', '_');
     outfile = fullfile(outdir, [safe_name '.png']);
