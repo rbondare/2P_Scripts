@@ -4,3 +4,6 @@
 # Local scratch/test workspace (copied data, downloaded repos, test outputs -- not source)
 local_diag_cache/
 
+# Cached per-session organized structs (large, regenerable via run_organize.m)
+session_pipeline/organized_data/
+

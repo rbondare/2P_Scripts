@@ -38,14 +38,18 @@ pairs(end+1) = struct( ...
     'roi_match_files', {roi_match_files_1}, ...
     'condition', 'guanfacine', 'label', '260320');
 
-roi_match_files_2 = {
-    "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane1_0303_1546_1705_V1.mat"
-};
-pairs(end+1) = struct( ...
-    'baseline_file', "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260303_1546_preprocessed.mat", ...
-    'drug_file',     "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260303_1705_preprocessed.mat", ...
-    'roi_match_files', {roi_match_files_2}, ...
-    'condition', 'guanfacine', 'label', '260303');
+% --- 260303 DISABLED: baseline file AnimalRB19_260303_1546_preprocessed.mat is
+% incompletely aggregated (only AnimalInfo/SI_Info/TimeCa present; missing
+% CaData/Stimuli/Triggers). Re-run aggregation for this recording, then
+% uncomment. (Drug file _1705_ is fine; only the baseline is broken.)
+% roi_match_files_2 = {
+%     "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane1_0303_1546_1705_V1.mat"
+% };
+% pairs(end+1) = struct( ...
+%     'baseline_file', "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260303_1546_preprocessed.mat", ...
+%     'drug_file',     "Z:\joeschgrp\Group Members\Rima\Aggregated\AnimalRB19_260303_1705_preprocessed.mat", ...
+%     'roi_match_files', {roi_match_files_2}, ...
+%     'condition', 'guanfacine', 'label', '260303');
 
 roi_match_files_3 = {
     "C:\Users\rbondarenko\projects\2P_Scripts\roi_matching\roiMatch_plane0_0305_1327_1409_V1.mat"
@@ -184,19 +188,123 @@ outfile = fullfile(poster_outdir, 'Looming_PerTrial_BaselineVsDrug.png');
 saveas(fig, outfile);
 fprintf('\nSaved %s\n', outfile);
 
+%% ====================== HEATMAP FIGURE ======================
+% Same per-trial data as the line figure above, drawn as trial x time
+% heatmaps: baseline | drug, one row per recording pair. Rows are trials
+% ordered first (top) -> last (bottom); columns are time from onset. Each
+% pixel is the population mean (across matched cells) for that single trial,
+% so trial-to-trial evolution and any baseline-vs-drug shift read at a
+% glance. All panels share one colour scale (diverging, centred on
+% dF/F = 0) so trials, conditions and recordings are directly comparable.
+
+% Global symmetric colour limits from the 1st/99th percentile of every
+% value (robust to a few outlier pixels), centred on zero so white always
+% marks dF/F = 0 rather than the middle of the data range.
+all_vals = [];
+for iP = 1:n_pairs
+    pd = pair_data{iP};
+    if isempty(pd); continue; end
+    all_vals = [all_vals; pd.pop_base_trials(:); pd.pop_drug_trials(:)]; %#ok<AGROW>
+end
+cmax = max(abs(prctile(all_vals, [1 99])));
+if isempty(cmax) || ~(cmax > 0); cmax = max(abs(all_vals)); end  % degenerate fallback
+global_clim = [-cmax, cmax];
+
+fig_hm = figure('Name', 'Looming_PerTrial_BaselineVsDrug_Heatmap', 'NumberTitle', 'off', ...
+    'Position', [40 20 1300 300 * n_pairs]);
+hm_axes = gobjects(0);
+
+for iP = 1:n_pairs
+    p = pairs(iP);
+    pd = pair_data{iP};
+    if isempty(pd); continue; end
+
+    t_com = pd.t_com;
+    pop_base_trials = pd.pop_base_trials;
+    pop_drug_trials = pd.pop_drug_trials;
+    n_trials_base = size(pop_base_trials, 1);
+    n_trials_drug = size(pop_drug_trials, 1);
+
+    % ---- Baseline heatmap ----
+    ax_b = subplot(n_pairs, 2, 2*iP - 1);
+    imagesc(t_com, 1:n_trials_base, pop_base_trials);
+    set(ax_b, 'YDir', 'reverse');   % trial 1 on top, trial N at the bottom
+    clim(global_clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    ylabel('Trial (1 = first)');
+    if n_trials_base <= 20; yticks(1:n_trials_base); end
+    title(sprintf('%s baseline  (n=%d cells, %d trials)', p.label, pd.n_matched, n_trials_base));
+    if iP == n_pairs; xlabel('Time from onset (s)'); end
+    hm_axes(end+1) = ax_b; %#ok<AGROW>
+
+    % ---- Drug heatmap ----
+    ax_d = subplot(n_pairs, 2, 2*iP);
+    imagesc(t_com, 1:n_trials_drug, pop_drug_trials);
+    set(ax_d, 'YDir', 'reverse');
+    clim(global_clim);
+    hold on; xline(0, 'k--', 'LineWidth', 1); hold off;
+    ylabel('Trial (1 = first)');
+    if n_trials_drug <= 20; yticks(1:n_trials_drug); end
+    title(sprintf('%s drug (%s)  (n=%d cells, %d trials)', p.label, p.condition, pd.n_matched, n_trials_drug));
+    if iP == n_pairs; xlabel('Time from onset (s)'); end
+    hm_axes(end+1) = ax_d; %#ok<AGROW>
+end
+
+colormap(fig_hm, diverging_colormap());
+
+% One shared colourbar on the right margin. colorbar() shrinks its host
+% axis, so capture and restore that axis's Position to keep every panel the
+% same width (matching the pipeline's equal-panel-width convention).
+if ~isempty(hm_axes)
+    host = hm_axes(end);
+    pos_host = get(host, 'Position');
+    cb = colorbar(host);
+    set(host, 'Position', pos_host);
+    cb.Position = [0.935 0.11 0.012 0.8];
+    cb.Label.String = '\DeltaF/F (population mean)';
+end
+
+sgtitle('Looming: baseline vs drug, per-trial heatmaps (trial 1 = top)', 'FontWeight', 'bold', 'FontSize', 13);
+
+outfile_hm = fullfile(poster_outdir, 'Looming_PerTrial_BaselineVsDrug_Heatmap.png');
+saveas(fig_hm, outfile_hm);
+fprintf('\nSaved %s\n', outfile_hm);
+
 %% ====================== LOCAL FUNCTIONS ======================
 function [Ca_base_all, Ca_drug_all, t_com, n_matched] = extract_pair_matched_trials(baseline_file, drug_file, roi_match_files)
-    B = load(baseline_file);
-    base_dff_full = B.CaData(1).Ca_dFF;
-    base_centroidZ = B.CaData(1).Ca_centroid_voxel(:, 3);
-
-    D = load(drug_file);
-    drug_dff_full = D.CaData(1).Ca_dFF;
-    drug_centroidZ = D.CaData(1).Ca_centroid_voxel(:, 3);
-
     Ca_base_all = [];
     Ca_drug_all = [];
-    t_com = [];
+    t_com       = [];
+    n_matched   = 0;
+
+    B = load(baseline_file);
+    D = load(drug_file);
+
+    % Guard against incompletely-preprocessed aggregated files (e.g. a run
+    % that only saved AnimalInfo/SI_Info/TimeCa before the calcium/stimulus
+    % pipeline finished). Skip the whole pair with a clear warning rather
+    % than crashing the entire figure on the first missing field.
+    required = {'CaData', 'TimeCa', 'Stimuli', 'Triggers'};
+    missB = required(~isfield(B, required));
+    missD = required(~isfield(D, required));
+    if ~isempty(missB) || ~isempty(missD)
+        if ~isempty(missB)
+            warning('extract_pair:incompleteFile', ...
+                'Incomplete baseline file (missing: %s) -- skipping pair:\n    %s', ...
+                strjoin(missB, ', '), baseline_file);
+        end
+        if ~isempty(missD)
+            warning('extract_pair:incompleteFile', ...
+                'Incomplete drug file (missing: %s) -- skipping pair:\n    %s', ...
+                strjoin(missD, ', '), drug_file);
+        end
+        return;
+    end
+
+    base_dff_full = B.CaData(1).Ca_dFF;
+    base_centroidZ = B.CaData(1).Ca_centroid_voxel(:, 3);
+    drug_dff_full = D.CaData(1).Ca_dFF;
+    drug_centroidZ = D.CaData(1).Ca_centroid_voxel(:, 3);
 
     for iM = 1:numel(roi_match_files)
         roi_match_file = roi_match_files{iM};
@@ -270,4 +378,23 @@ function colors = trial_gradient(base_color, n)
     light_color = base_color + (1 - base_color) * 0.8;  % near-white tint
     frac = linspace(0, 1, n)';
     colors = light_color + (base_color - light_color) .* frac;
+end
+
+function cmap = diverging_colormap()
+    % Blue -> white -> red diverging colormap with white at the centre, so
+    % (with a clim symmetric about 0) white always marks dF/F = 0, negative
+    % (suppression) reads blue and positive (activation) reads red. Matches
+    % the diverging-map convention used by the pipeline's z-scored heatmaps.
+    n    = 256;
+    half = floor(n / 2);
+    blue  = [0.23 0.30 0.75];
+    red   = [0.80 0.10 0.15];
+    white = [1 1 1];
+    top = [linspace(blue(1),  white(1), half)', ...
+           linspace(blue(2),  white(2), half)', ...
+           linspace(blue(3),  white(3), half)'];
+    bot = [linspace(white(1), red(1),   n - half)', ...
+           linspace(white(2), red(2),   n - half)', ...
+           linspace(white(3), red(3),   n - half)'];
+    cmap = [top; bot];
 end
