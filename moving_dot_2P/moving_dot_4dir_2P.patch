@@ -1,0 +1,141 @@
+--- a/present_stimulus_addnew.m
++++ b/present_stimulus_addnew.m
+@@ -12,6 +12,7 @@
+ BallCamData={};
+ BehavParam=[];
+ redframe_flag=0;
++md4_expected_frames=0; %moving_dot_4dir: frames to preallocate Frameinfo for (0 = stimulus_trial_t*trials)
+ 
+ 
+ if project==1
+@@ -1378,6 +1379,40 @@
+             stimdata.grating_direction=nan(subtrials,run_trials);
+         end
+         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
++    case 'moving_dot_4dir'
++        % dot sweeping an area along the 4 cardinal directions, on a grey background or on
++        % moving checkers (specParams.checkers). One subtrial = one trajectory. Trajectories
++        % differ in length, so each one is ended by its own frame count in the frame loop.
++        options.specParams.version=1;
++        md4_sp=options.specParams;
++        md4_plan=RB_movingDot4dir_trajectories(md4_sp,texRect_size,options.full_screen_az,ifi);
++        subtrials=md4_plan.n;
++        md4_order=randperm(md4_plan.n); %trajectory order, the same in every repetition
++        options.stimulus_trial_t=max(md4_plan.nframes)*ifi+1; %only a time-out: longest trajectory plus 1 s
++        md4_expected_frames=run_trials*sum(md4_plan.nframes)+100;
++        md4_dot_col=uint8(md4_sp.dot_color.*norm_intensity);
++        md4_bg_col=uint8(md4_sp.dot_background_col.*norm_intensity);
++        if md4_sp.checkers
++            md4_ncol=md4_sp.checker_ncol;
++            md4_nrow=max(1,floor(texRect_size(2)/floor(texRect_size(1)/md4_ncol))); %rows of ~square checkers
++            md4_lo=reshape(double(md4_sp.checker_min_col.*norm_intensity),1,1,3);
++            md4_hi=reshape(double(md4_sp.checker_max_col.*norm_intensity),1,1,3);
++            md4_tex=[];
++        end
++        drawtex=false;
++        if project==0
++            md4_nf=numel(options.Frameinfo.frame_count);
++            md4_subidx=cumsum([1; diff(options.Frameinfo.subtrial_frame_count(:))<0]); %trajectory counter of each logged frame
++            stimdata.plan=md4_plan;
++            stimdata.trajectory_order=md4_order;
++            stimdata.trajectory=nan(md4_nf,1); %row of plan.traj shown in each logged frame
++            stimdata.dot_position=nan(md4_nf,2); %[x y] canvas px in each logged frame
++            if md4_sp.checkers
++                stimdata.checker_pattern=false(md4_nrow+1,md4_ncol+1,md4_nf); %true = checker_max_col
++                stimdata.checker_shift=nan(md4_nf,2); %[x y] in checkers
++            end
++        end
++        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+     otherwise
+         error('unknown stimulus')
+ 
+@@ -1409,7 +1444,7 @@
+ 
+ 
+ 
+-N_expected_frames=ceil(options.stimulus_trial_t*options.trials/ifi);
++N_expected_frames=max(ceil(options.stimulus_trial_t*options.trials/ifi),md4_expected_frames);
+ waitframes = 1;
+ frame_count=0;
+ trialframecount=0;
+@@ -2565,6 +2600,47 @@
+                             stimdata.subtrialcount{Rs,R}(subtrialframecount)=i;
+ 
+                         end
++
++                    case 'moving_dot_4dir'
++                        %which trajectory is shown and how many frames into it; in simulation (project==0) both are read back from the logged Frameinfo
++                        if project==0
++                            md4_row=frame_count+1;
++                            md4_valid=md4_row<=md4_nf; %the simulation loop makes one extra pass after the last logged frame
++                            md4_row=min(md4_row,md4_nf);
++                            md4_ti=md4_order(mod(md4_subidx(md4_row)-1,md4_plan.n)+1);
++                            md4_k=options.Frameinfo.subtrial_frame_count(md4_row)-1;
++                        else
++                            md4_ti=md4_order(Rs);
++                            md4_k=subtrialframecount-1;
++                        end
++                        %dot rests dot_start_t, then moves one step per frame, then rests dot_stop_t at the end of the sweep
++                        md4_nstep=min(max(md4_k-md4_plan.tstart_frames,0),md4_plan.nsteps(md4_ti));
++                        md4_pos=md4_plan.traj(md4_ti,1:2)+md4_nstep*md4_plan.traj(md4_ti,3:4); %[x y] canvas px
++                        %moving checkers: new random pattern every checker_nframes frames, shifted by a random fraction of a checker
++                        if md4_sp.checkers && mod(frame_count,md4_sp.checker_nframes)==0
++                            md4_bits=rand(md4_nrow+1,md4_ncol+1)<md4_sp.checker_fraction;
++                            md4_shift=randi([0 md4_sp.checker_move_ratio-1],1,2)/md4_sp.checker_move_ratio; %[x y] in checkers
++                            if project>0
++                                if ~isempty(md4_tex); Screen('Close', md4_tex); end
++                                md4_tex=Screen('MakeTexture',win,uint8(md4_lo.*(~md4_bits)+md4_hi.*md4_bits));
++                            end
++                        end
++                        if project>0
++                            if md4_sp.checkers
++                                Screen('DrawTexture', texid(2), md4_tex, [md4_shift md4_shift+[md4_ncol md4_nrow]], texRect, [], 0);
++                            else
++                                Screen('FillRect', texid(2), md4_bg_col);
++                            end
++                            Screen('gluDisk', texid(2), md4_dot_col, round(md4_pos(1)), round(md4_pos(2)), md4_plan.radius_px);
++                        elseif md4_valid
++                            stimdata.trajectory(md4_row)=md4_ti;
++                            stimdata.dot_position(md4_row,:)=md4_pos;
++                            if md4_sp.checkers
++                                stimdata.checker_pattern(:,:,md4_row)=md4_bits;
++                                stimdata.checker_shift(md4_row,:)=md4_shift;
++                            end
++                        end
++                        if md4_k+1>=md4_plan.nframes(md4_ti); t0=-inf; end %last frame of this trajectory: end the subtrial after it
+                 end
+ 
+                 if drawtex && project>0; presented_texture = Screen('MakeTexture', win, uint8(image_to_present.*norm_intensity_image));end
+@@ -2676,6 +2752,7 @@
+     if drawtex && exist('presented_texture','var'); Screen('Close', presented_texture);end
+     if exist('morphtexid','var'); Screen('Close', morphtexid);end
+     if exist('bartex','var'); Screen('Close', bartex);end
++    if exist('md4_tex','var') && ~isempty(md4_tex); Screen('Close', md4_tex);end
+ 
+ 
+     Screen(texid(2),'BlendFunction',GL_ONE, GL_ZERO);
+--- a/FS_stim_seq_duration.m
++++ b/FS_stim_seq_duration.m
+@@ -6,7 +6,12 @@
+     
+     tot_time=tot_time+options(order(x)).wait_init+options(order(x)).wait_exit; %init and exit times
+     subtrials=1; %number of subtrials (directions/locations)
+-    if isfield(options(order(x)).specParams,'dot_general_direction')
++    stim_t=options(order(x)).stimulus_trial_t; %duration of one subtrial
++    if strcmp(options(order(x)).type,'moving_dot_4dir')
++        % trajectories differ in length: one trial lasts as long as all of them together (canvas 608x342 and 60 Hz assumed)
++        dotplan=RB_movingDot4dir_trajectories(options(order(x)).specParams,[608 342],options(order(x)).full_screen_az,1/60);
++        stim_t=sum(dotplan.nframes)/60;
++    elseif isfield(options(order(x)).specParams,'dot_general_direction')
+         subtrials=numel(options(order(x)).specParams.dot_general_direction); % moving dot directions
+          if isfield(options(order(x)).specParams,'start_coord_region')
+                 subtrials=subtrials*size(options(order(x)).specParams.start_coord_region,1);
+@@ -33,7 +38,7 @@
+         subtrials=size(options(order(x)).specParams.grating_orientations,2);
+         
+         end
+-    tot_time=tot_time+ options(order(x)).stimulus_trial_t*options(order(x)).trials*subtrials;
++    tot_time=tot_time+ stim_t*options(order(x)).trials*subtrials;
+ end
+ tot_time=tot_time/60;
+ fprintf('complete sequence will take %d minutes over %d SI acquisitions\n',ceil(tot_time),numel(order))
