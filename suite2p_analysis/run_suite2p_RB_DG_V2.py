@@ -120,7 +120,7 @@ def resolve_runtime_path(path_str):
 
 # Old/alternate recording from V1 (kept for reference, not used):
 # data_path = resolve_runtime_path(r"Y:\Rotation Students\Dow\DATA_2P\AnimalDG1_260302_1422")
-data_path = resolve_runtime_path(r"Z:\joeschgrp\Rotation Students\Dow\DATA_2P\AnimalDG1_260224_1508")
+data_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P\AnimalRB24_261017_1620")
 classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\2P_Scripts\suite2p\classifier_boutons_tony.npy")
 
 # Validate bouton classifier before doing anything else
@@ -232,9 +232,9 @@ print(f"  combined (run-time): {settings['io']['combined']}  |  do_regmetrics: {
 db = {
     'data_path': [data_path],
     'save_path0': data_path,
-    'nplanes':        4,
+    'nplanes':        3,
     'nchannels':      1,
-    'ignore_flyback': [3],
+    'ignore_flyback': [2],
 }
 
 # Check for existing binary files — only check real planes, not flyback

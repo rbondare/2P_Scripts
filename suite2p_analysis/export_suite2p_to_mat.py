@@ -87,17 +87,8 @@ def load_ops_safe(plane_dir):
     return safe
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python export_suite2p_to_mat.py <plane_dir>")
-        print("  plane_dir: path to suite2p planeX folder containing .npy files")
-        sys.exit(1)
-
-    plane_dir = sys.argv[1]
-    if not os.path.isdir(plane_dir):
-        print(f"Error: directory not found: {plane_dir}")
-        sys.exit(1)
-
+def export_plane(plane_dir):
+    """Write Fall.mat into plane_dir from its stat/F/Fneu/spks/iscell .npy files."""
     def load(fname):
         path = os.path.join(plane_dir, fname)
         if not os.path.exists(path):
@@ -152,6 +143,20 @@ def main():
 
     size_mb = os.path.getsize(out_path) / 1e6
     print(f"Done — {size_mb:.1f} MB written to Fall.mat")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python export_suite2p_to_mat.py <plane_dir>")
+        print("  plane_dir: path to suite2p planeX folder containing .npy files")
+        sys.exit(1)
+
+    plane_dir = sys.argv[1]
+    if not os.path.isdir(plane_dir):
+        print(f"Error: directory not found: {plane_dir}")
+        sys.exit(1)
+
+    export_plane(plane_dir)
 
 
 if __name__ == "__main__":

@@ -30,11 +30,17 @@ Changes from V1
    issues saving the combined output reliably. V2 leaves outputs plane-separated
    (plane0/, plane1/) and does not attempt to merge them.
 
+5. Outputs go next to the raw data (<recording>/suite2p/plane0/...) on Z:, matching the previous
+   recordings. suite2p's reg_tif (the whole registered movie again) is off; instead a few chunks of the
+   registered binary are saved as TIFF stacks to plane0/reg_tif/ (REG_VIDEO_CHUNKS, REG_VIDEO_CHUNK_FRAMES).
+
 Everything else (paths, diameter, detection, classification, db) is unchanged.
+After curating iscell in the GUI, merge axon segments with merge_suite2p_rois.py.
 """
 
 import numpy as np
 import os
+import tifffile
 import torch
 from pathlib import PureWindowsPath
 from suite2p import run_s2p
@@ -56,9 +62,22 @@ else:
 print("="*70 + "\n")
 
 
+# Z: is mapped at different levels of the share depending on the session
+Z_ROOTS = ("Z:\\group\\joeschgrp\\", "Z:\\joeschgrp\\", "Z:\\")
+
+
 def resolve_runtime_path(path_str):
     """Resolve a Windows-style path on Windows or WSL/Linux."""
     if os.name == "nt":
+        if os.path.exists(path_str):
+            return path_str
+        for root in Z_ROOTS:
+            if path_str.lower().startswith(root.lower()):
+                tail = path_str[len(root):]
+                for alt in Z_ROOTS:
+                    if os.path.exists(alt + tail):
+                        return alt + tail
+                break
         return path_str
 
     windows_path = PureWindowsPath(path_str)
@@ -72,9 +91,19 @@ def resolve_runtime_path(path_str):
 
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
-settings_file = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\joeschgrp\Rotation Students\Dow\DATA_2P\AnimalDG3_260320_1311")
-classifier_path = resolve_runtime_path(r"Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
+settings_file = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
+data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261023_1538")
+# Single-plane, no-flyback recording: 512 x 1024 int16 at 30 Hz (~1 GB of data.bin per 1000 frames).
+# Everything is written next to the raw data, <data_path>\suite2p\plane0\..., like all previous recordings.
+# (Running from Z: reads and writes the ~63 GB binary over the network; set save_path0 to a local folder
+# to run faster and copy the finished suite2p folder over afterwards.)
+save_path0 = data_path
+
+# Registered video: instead of suite2p's reg_tif (the whole movie again, ~63 GB), a few evenly spaced chunks
+# of the registered binary are written as TIFF stacks to <save_path0>\suite2p\plane0\reg_tif\ after the run.
+REG_VIDEO_CHUNKS = 3              # 0 = none
+REG_VIDEO_CHUNK_FRAMES = 1800     # frames per chunk (60 s at 30 Hz, ~1.8 GB each)
+classifier_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
     ops = np.load(settings_file, allow_pickle=True).item()
@@ -146,11 +175,14 @@ print("="*70)
 # correct sub-dict. Legacy flat keys from the old ops template were dropped
 # above so the nested values below are the single source of truth.
 
-ops['save_path0'] = data_path
-ops['diameter'] = 30              # flat top-level key — sigma=diameter/10=3px for sourcery (old ops used 20 on 2048-wide frame)
+ops['save_path0'] = save_path0
+ops['diameter'] = 20              # flat top-level key — sigma=diameter/10=3px for sourcery (old ops used 20 on 2048-wide frame)
+# Single plane, no flyback: per-plane rate = full frame rate (ScanImage scanFrameRate = 30.007 Hz).
+# The base ops carry fs=10 from the 3-plane run. fs sets the detection bin size (tau*fs frames), so it must be overridden.
+ops['fs'] = 30.0
 
 ops['io'] = {
-    'combined': False,            # plane2 has no reg_outputs.npy — would crash if True
+    'combined': False,            # single plane: suite2p only builds combined/ when nplanes > 1
     'save_mat': True,             # backend save.py:save_mat() handles None values correctly
     'save_NWB': False,
     'save_ops_orig': True,
@@ -240,7 +272,7 @@ ops['registration'] = {
     'snr_thresh': 0.8,
     'subpixel': 10,
     'two_step_registration': False,
-    'reg_tif': False,
+    'reg_tif': False,              # full registered movie as TIFFs would double the ~63 GB; chunks are saved after the run instead (REG_VIDEO_*)
     'reg_tif_chan2': False,
 }
 
@@ -255,10 +287,10 @@ print(f"  combined: {ops['io']['combined']}  |  do_regmetrics: {ops['run']['do_r
 
 db = {
     'data_path': [data_path],
-    'save_path0': data_path,
-    'nplanes': 4,                     # All 3 planes for correct alignment
+    'save_path0': save_path0,
+    'nplanes': 1,                     # single plane
     'nchannels': 1,
-    'ignore_flyback': [3],         # Explicit plane index — plane2 is flyback (-1 does NOT work)
+    'ignore_flyback': [],             # no flyback frames in this recording
 }
 
 # Check for existing binary files — only check real planes, not flyback
@@ -310,6 +342,21 @@ if os.path.exists(suite2p_path):
 # RUN SUITE2P
 # ============================================================================
 
+def save_registered_video_chunks(plane_dir, Ly, Lx, n_chunks, chunk_frames):
+    """Write n_chunks evenly spaced stretches of plane_dir/data.bin (first one at the start, last one at the end)
+    as BigTIFF stacks to plane_dir/reg_tif/registered_f<first>-<last>.tif."""
+    n_frames = os.path.getsize(os.path.join(plane_dir, 'data.bin')) // (2 * Ly * Lx)
+    movie = np.memmap(os.path.join(plane_dir, 'data.bin'), dtype=np.int16, mode='r', shape=(n_frames, Ly, Lx))
+    chunk_frames = min(chunk_frames, n_frames)
+    out_dir = os.path.join(plane_dir, 'reg_tif')
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"\nSaving {n_chunks} registered video chunks of {chunk_frames} frames to {out_dir}")
+    for start in np.linspace(0, n_frames - chunk_frames, n_chunks).astype(int):
+        path = os.path.join(out_dir, f"registered_f{start:06d}-{start + chunk_frames - 1:06d}.tif")
+        tifffile.imwrite(path, np.asarray(movie[start:start + chunk_frames]), bigtiff=True)
+        print(f"  {os.path.basename(path)}")
+
+
 print("\n" + "="*70)
 print("FINAL OPS CHECK — values actually passed to run_s2p:")
 print("="*70)
@@ -322,6 +369,9 @@ print(f"  spatial_taper:        {ops['registration']['spatial_taper']}")
 print(f"  combined:             {ops['io']['combined']}")
 print(f"  do_regmetrics:        {ops['run']['do_regmetrics']}")
 print(f"  use_builtin_clf:      {ops['classification']['use_builtin_classifier']}")
+print(f"  fs:                   {ops['fs']}")
+print(f"  registered video:     {REG_VIDEO_CHUNKS} x {REG_VIDEO_CHUNK_FRAMES} frames (suite2p reg_tif: {ops['registration']['reg_tif']})")
+print(f"  save_path0:           {db['save_path0']}")
 print(f"  nplanes (db):         {db.get('nplanes', 'NOT SET')}")
 print(f"  ignore_flyback (db):  {db.get('ignore_flyback', 'NOT SET')}")
 print(f"  total keys in ops:    {len(ops)}")
@@ -331,7 +381,7 @@ try:
     run_s2p(settings=ops, db=db)
 
     # Read back what suite2p actually saved — this is ground truth for what ran
-    saved_ops_path = os.path.join(data_path, 'suite2p', 'plane0', 'ops.npy')
+    saved_ops_path = os.path.join(save_path0, 'suite2p', 'plane0', 'ops.npy')
     if os.path.exists(saved_ops_path):
         saved = np.load(saved_ops_path, allow_pickle=True).item()
         saved_ext = saved.get('extraction', {})
@@ -348,6 +398,10 @@ try:
         print(f"  spatial_taper (nested):  {saved_reg.get('spatial_taper', 'NOT SET')}")
         print(f"  spatial_taper (flat):    {saved.get('spatial_taper', 'NOT SET')}")
         print("="*70)
+
+        if REG_VIDEO_CHUNKS > 0:
+            save_registered_video_chunks(os.path.dirname(saved_ops_path), saved['Ly'], saved['Lx'],
+                                         REG_VIDEO_CHUNKS, REG_VIDEO_CHUNK_FRAMES)
 
     print("\n" + "="*70)
     print("AXON DETECTION COMPLETE!")

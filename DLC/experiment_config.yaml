@@ -1,0 +1,16 @@
+﻿pupil_jackknife_hold: 7  # no of points to keep for jackknife ellipse estimation, default: 7
+batch_size: 100000  # no of frames per split video (only applies if input is tif frames, or single video. if multi video, ignored). default=100000. to not split set to zero
+eyeball_radius: 1.5 # radius of mouse eye in mm (estimated), concerns azimuth/elevation processing, default=1.5
+pix_per_mm: 23.4  # resolution of original video (Toni setup: 23.4 with zoom obj, Toni setup 11.5 with prime 50mm, Tomas setup: 16.5)
+frames_per_second: 50  # of original recording. ignored if original is video, only for display purposes
+body_vid_width: 480 # pixel width of downsampled video for eye/limb position estimation (height is calculated by aspect ratio of input), default=480
+eye_crop_size: 150 # pixel side length of cropped eye video (should by quite closely cropped to the eye, but at least 100)
+vid_encoder: "libx264" # codec for saving downsampled/cropped videos (see ffmpeg for alternatives, but code might require some refactoring if changed, now divx ("libx264")
+vid_container: ".mp4" # movie container file extension (has to fit to codec), default=".mp4"
+vid_compression: 4 # compression for the movies (4-5 is perceptually lossless), higher compression might require reducing batch size in dlc yaml, default=4
+eye_likelihood_threshold: 0.8 # [was 0.95; lowered for the retrained eye model, whose eyeNW point is only ~0.83 confident] threshold for label position likelyhood. if below, value is linearly interpolated, default=0.95
+median_filter_window: 3 # median filter for eye parameters to reduce jitter, default=3
+bad_values_skip_fraction: 0.9 # threshold for cancelling analysis if more than this fraction of points is low-likelyhood (<eye_likelihood_threshold), default=.75
+overwrite_eye_processing: 0 # set to 1 if previous eye tracking was unsatisfactory and eye estimation should be redone with new network/parameters, default=0
+path_body_yaml: 'C:/Users/rbondarenko/DLC/Training_Data/body_2021-Toni-2021-03-18/config.yaml' # path to body dlc config.yaml
+path_eye_yaml: 'C:/Users/rbondarenko/DLC/Training_Data/eye_2021-Toni-2021-04-01/config.yaml' # path to eye dlc config.yaml
