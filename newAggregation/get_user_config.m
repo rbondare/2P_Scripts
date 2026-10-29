@@ -18,7 +18,9 @@ function config = get_user_config(animal_name, varargin)
 %           .StimBasePath      - Base path for stimulus files
 %           .DLCDir            - DeepLabCut processed data directory
 %           .IntermediateDir   - Intermediate processing files directory
-%           .CameraDir         - Camera/video data directory
+%           .CameraDir         - Folder with the DLC-processed camera sessions (<session>\success.log,
+%                                eye_results, body_results, whisker_results); import_video_behavior archives
+%                                them to the sibling folder preCamera afterwards
 %           .DATA_2P           - Two-photon calcium data directory
 %
 %   Example:
@@ -36,17 +38,29 @@ config = struct();
 config.OperatorID = 'RB';
 config.AnimalName = animal_name;
 
+% Rima's folder on the group share. Z: has been mapped both to the group root (Z:\joeschgrp\Group Members\...)
+% and to joeschgrp itself (Z:\Group Members\...); use whichever exists.
+persistent rima_root;
+if isempty(rima_root)
+    if exist('Z:\joeschgrp\Group Members\Rima', 'dir') == 7
+        rima_root = 'Z:\joeschgrp\Group Members\Rima\';
+    else
+        rima_root = 'Z:\Group Members\Rima\';
+    end
+end
+
 % Set all RB-specific paths
-config.AnimalFolder = 'Z:\joeschgrp\Group Members\Rima\Animals\';
-config.OutputDir = 'Z:\joeschgrp\Group Members\Rima\Aggregated\';
+config.AnimalFolder = [rima_root 'Animals\'];
+config.OutputDir = [rima_root 'Aggregated\'];
 config.OutputCopyDir = '';  % Backup directory (empty for now)
-%config.StimBasePath = 'Z:\Group Members\Rima\Stimulus';
-config.StimBasePath = 'Z:\joeschgrp\Group Members\Rima\Stimulus\';
-config.DLCDir = 'Z:\joeschgrp\Group Members\Rima\DLCData\';
+%config.StimBasePath = [rima_root 'Stimulus\'];          % RB19 and earlier
+config.StimBasePath = [rima_root 'Stimulus_Axons\'];     % RB22-24 (axon experiments)
+config.DLCDir = [rima_root 'DLCData\'];
 config.IntermediateDir = 'C:\Users\rbondarenko\projects\IntermediateDir\';
-config.CameraDir = 'Z:\joeschgrp\Group Members\Rima\preCamera\';
-%config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\';
-config.DATA_2P = 'Z:\joeschgrp\Group Members\Rima\DATA_2P\';
+%config.CameraDir = [rima_root 'preCamera\'];            % archive of imported sessions, not the input
+config.CameraDir = [rima_root 'Camera\'];                % DLC + whisker output (run_dlc.bat) lands here
+%config.DATA_2P = [rima_root 'DATA_2P_OTHER\AnimalRB6\'];
+config.DATA_2P = [rima_root 'DATA_2P\'];
 
 % Set all DG-specific paths
 

@@ -8,6 +8,13 @@ function import_video_behavior(varargin)
 %   Config-based version of RB_import_VideoBehav.m that uses get_user_config
 %   for paths. Includes bug fixes from the RB version.
 %
+%   Whisking (whisker_results\<recording>_whisker.csv + .json from DLC\face_model\face_motion.py,
+%   written by run_dlc.bat next to eye_results/body_results) is added to Behav when present:
+%   WhiskIndex, WhiskAmp, WhiskOn, WhiskArtifact, FacePadME (one N-by-1 column per video frame,
+%   NaN in WhiskAmp/WhiskOn on artifact frames) and VideoParams.Whisker (the .json). Recordings
+%   without whisker_results are imported as before. Must happen here: the session folder is
+%   archived right after the import.
+%
 %   Bug fixes compared to RB_import_VideoBehav.m:
 %   - Fixed datetime format 'yyyy_MM_dd HH:mm:ss: SSS' -> 'yyyy_MM_dd HH:mm:ss:SSS'
 %     (removed extra space before SSS that caused parsing failures)
@@ -382,6 +389,8 @@ end
 Behav.EyeLidArea = DLC.Eye.area;
 Behav.EyeLidCenter = DLC.Eye.position;
 
+[Behav, VideoParams] = add_whisker_data(exp_path, exp_name, Behav, VideoParams);
+
 % Save DLC files
 fprintf('      Saving DLC files\n');
 save(fullfile(DLCdir, [exp_name '_DLC_raw.mat']), 'DLCraw');
@@ -389,6 +398,41 @@ save(fullfile(DLCdir, [exp_name '_DLC_filtered.mat']), ...
     'DLCSupporting', 'Behav', 'VideoParams', 'VideoFrameTimes');
 
 success = true;
+
+end
+
+
+function [Behav, VideoParams] = add_whisker_data(exp_path, exp_name, Behav, VideoParams)
+%ADD_WHISKER_DATA Add whisking on/off, amplitude and face motion from whisker_results\
+%   Every trace is an N-by-1 column (N = video frames) in Behav, so the generic row selection by
+%   selected_frameIdx in save_preprocessed / add_dlc_to_preprocessed keeps it aligned with the eye and
+%   body traces. (A field in DLCSupporting would NOT be selected: only Probability/Pupil/Ball are.)
+
+wfile = fullfile(exp_path, 'whisker_results', [exp_name '_whisker.csv']);
+if ~exist(wfile, 'file')
+    fprintf('      No whisker_results found, skipping whisker import\n');
+    return;
+end
+
+T = readtable(wfile);
+if height(T) ~= numel(Behav.FrameNum)
+    warning('import_video_behavior:whiskerFrames', ...
+        'Whisker csv has %d frames but the DLC csv has %d; whisker data NOT imported', ...
+        height(T), numel(Behav.FrameNum));
+    return;
+end
+
+Behav.WhiskIndex    = T.whisk_index;   % 1 = whiskers at rest, same scale in every session
+Behav.WhiskAmp      = T.whisk_amp;     % index - 1; NaN on artifact frames
+Behav.WhiskOn       = T.whisk_on;      % 0/1; NaN on artifact frames
+Behav.WhiskArtifact = T.artifact;      % 1 = grooming etc.
+Behav.FacePadME     = T.me_pad;        % whisker-pad (face) motion energy
+
+jfile = fullfile(exp_path, 'whisker_results', [exp_name '_whisker.json']);
+if exist(jfile, 'file')
+    VideoParams.Whisker = jsondecode(fileread(jfile));
+end
+fprintf('      Imported whisker data (%d frames)\n', height(T));
 
 end
 
