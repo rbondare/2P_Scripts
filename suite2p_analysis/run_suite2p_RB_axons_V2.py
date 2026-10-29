@@ -31,8 +31,9 @@ Changes from V1
    (plane0/, plane1/) and does not attempt to merge them.
 
 5. Outputs go next to the raw data (<recording>/suite2p/plane0/...) on Z:, matching the previous
-   recordings. suite2p's reg_tif (the whole registered movie again) is off; instead a few chunks of the
-   registered binary are saved as TIFF stacks to plane0/reg_tif/ (REG_VIDEO_CHUNKS, REG_VIDEO_CHUNK_FRAMES).
+   recordings. suite2p's own reg_tif is off; instead, after the run, the WHOLE registered movie (data.bin) is
+   written as BigTIFF stacks of about REG_VIDEO_PIECE_GB each (equal consecutive pieces) to plane0/reg_tif/,
+   e.g. registered_part03of13_f009230-013844.tif, for opening in Fiji (File > Import > Bio-Formats).
 
 Everything else (paths, diameter, detection, classification, db) is unchanged.
 After curating iscell in the GUI, merge axon segments with merge_suite2p_rois.py.
@@ -92,17 +93,17 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261023_1538")
+data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB22_261028_1539")
 # Single-plane, no-flyback recording: 512 x 1024 int16 at 30 Hz (~1 GB of data.bin per 1000 frames).
 # Everything is written next to the raw data, <data_path>\suite2p\plane0\..., like all previous recordings.
 # (Running from Z: reads and writes the ~63 GB binary over the network; set save_path0 to a local folder
 # to run faster and copy the finished suite2p folder over afterwards.)
 save_path0 = data_path
 
-# Registered video: instead of suite2p's reg_tif (the whole movie again, ~63 GB), a few evenly spaced chunks
-# of the registered binary are written as TIFF stacks to <save_path0>\suite2p\plane0\reg_tif\ after the run.
-REG_VIDEO_CHUNKS = 3              # 0 = none
-REG_VIDEO_CHUNK_FRAMES = 1800     # frames per chunk (60 s at 30 Hz, ~1.8 GB each)
+# Registered video: after the run the whole registered movie (data.bin) is written as BigTIFF stacks of about this
+# many GB each to <save_path0>\suite2p\plane0\reg_tif\ (~63 GB in total, on top of data.bin). 0 = don't save it.
+# The movie is cut into equal consecutive pieces, so the actual size is a little under this.
+REG_VIDEO_PIECE_GB = 5
 classifier_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
@@ -272,7 +273,7 @@ ops['registration'] = {
     'snr_thresh': 0.8,
     'subpixel': 10,
     'two_step_registration': False,
-    'reg_tif': False,              # full registered movie as TIFFs would double the ~63 GB; chunks are saved after the run instead (REG_VIDEO_*)
+    'reg_tif': False,              # suite2p's own writer is off; the registered movie is saved in pieces after the run (REG_VIDEO_PIECE_GB)
     'reg_tif_chan2': False,
 }
 
@@ -342,18 +343,27 @@ if os.path.exists(suite2p_path):
 # RUN SUITE2P
 # ============================================================================
 
-def save_registered_video_chunks(plane_dir, Ly, Lx, n_chunks, chunk_frames):
-    """Write n_chunks evenly spaced stretches of plane_dir/data.bin (first one at the start, last one at the end)
-    as BigTIFF stacks to plane_dir/reg_tif/registered_f<first>-<last>.tif."""
-    n_frames = os.path.getsize(os.path.join(plane_dir, 'data.bin')) // (2 * Ly * Lx)
+def save_registered_video(plane_dir, Ly, Lx, piece_gb):
+    """Write all of plane_dir/data.bin as BigTIFF stacks of about piece_gb GB (equal consecutive pieces of whole
+    frames) to plane_dir/reg_tif/registered_part<i>of<n>_f<first>-<last>.tif. A piece is written under a .part name
+    and renamed when complete, and finished pieces are skipped, so an interrupted save can simply be run again."""
+    frame_bytes = 2 * Ly * Lx
+    n_frames = os.path.getsize(os.path.join(plane_dir, 'data.bin')) // frame_bytes
     movie = np.memmap(os.path.join(plane_dir, 'data.bin'), dtype=np.int16, mode='r', shape=(n_frames, Ly, Lx))
-    chunk_frames = min(chunk_frames, n_frames)
+    n_pieces = max(1, int(np.ceil(n_frames * frame_bytes / (piece_gb * 1e9))))
+    bounds = np.linspace(0, n_frames, n_pieces + 1).astype(int)
     out_dir = os.path.join(plane_dir, 'reg_tif')
     os.makedirs(out_dir, exist_ok=True)
-    print(f"\nSaving {n_chunks} registered video chunks of {chunk_frames} frames to {out_dir}")
-    for start in np.linspace(0, n_frames - chunk_frames, n_chunks).astype(int):
-        path = os.path.join(out_dir, f"registered_f{start:06d}-{start + chunk_frames - 1:06d}.tif")
-        tifffile.imwrite(path, np.asarray(movie[start:start + chunk_frames]), bigtiff=True)
+    print(f"\nSaving the registered video ({n_frames} frames, {n_frames * frame_bytes / 1e9:.1f} GB) as "
+          f"{n_pieces} TIFF stacks of ~{n_frames * frame_bytes / n_pieces / 1e9:.1f} GB to {out_dir}")
+    for i in range(n_pieces):
+        first, stop = bounds[i], bounds[i + 1]
+        path = os.path.join(out_dir, f"registered_part{i + 1:02d}of{n_pieces:02d}_f{first:06d}-{stop - 1:06d}.tif")
+        if os.path.exists(path):
+            print(f"  {os.path.basename(path)} already there")
+            continue
+        tifffile.imwrite(path + '.part', movie[first:stop], bigtiff=True)  # memmap slice: written in chunks, not loaded
+        os.replace(path + '.part', path)
         print(f"  {os.path.basename(path)}")
 
 
@@ -370,7 +380,7 @@ print(f"  combined:             {ops['io']['combined']}")
 print(f"  do_regmetrics:        {ops['run']['do_regmetrics']}")
 print(f"  use_builtin_clf:      {ops['classification']['use_builtin_classifier']}")
 print(f"  fs:                   {ops['fs']}")
-print(f"  registered video:     {REG_VIDEO_CHUNKS} x {REG_VIDEO_CHUNK_FRAMES} frames (suite2p reg_tif: {ops['registration']['reg_tif']})")
+print(f"  registered video:     whole movie in ~{REG_VIDEO_PIECE_GB} GB TIFF pieces (suite2p reg_tif: {ops['registration']['reg_tif']})")
 print(f"  save_path0:           {db['save_path0']}")
 print(f"  nplanes (db):         {db.get('nplanes', 'NOT SET')}")
 print(f"  ignore_flyback (db):  {db.get('ignore_flyback', 'NOT SET')}")
@@ -399,9 +409,8 @@ try:
         print(f"  spatial_taper (flat):    {saved.get('spatial_taper', 'NOT SET')}")
         print("="*70)
 
-        if REG_VIDEO_CHUNKS > 0:
-            save_registered_video_chunks(os.path.dirname(saved_ops_path), saved['Ly'], saved['Lx'],
-                                         REG_VIDEO_CHUNKS, REG_VIDEO_CHUNK_FRAMES)
+        if REG_VIDEO_PIECE_GB > 0:
+            save_registered_video(os.path.dirname(saved_ops_path), saved['Ly'], saved['Lx'], REG_VIDEO_PIECE_GB)
 
     print("\n" + "="*70)
     print("AXON DETECTION COMPLETE!")

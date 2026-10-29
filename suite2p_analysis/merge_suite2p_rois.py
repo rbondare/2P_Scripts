@@ -62,7 +62,7 @@ from export_suite2p_to_mat import export_plane
 # SETTINGS
 # ============================================================================
 
-REC_DIR = r"Z:\Group Members\Rima\DATA_2P\AnimalRB22_261023_1527"   # recording folder that contains suite2p/ (a command-line argument overrides this)
+REC_DIR = r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261021_1630"   # recording folder that contains suite2p/ (a command-line argument overrides this)
 PLANE = 0
 BINARY_PATH = None          # registered binary; None -> <suite2p>/plane<PLANE>/data.bin
 COPY_BINARY = False         # True: also copy data.bin / reg_tif into suite2p_unmerged (~63 GB each, unchanged by the merge)
