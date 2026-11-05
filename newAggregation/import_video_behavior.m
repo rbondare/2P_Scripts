@@ -8,12 +8,10 @@ function import_video_behavior(varargin)
 %   Config-based version of RB_import_VideoBehav.m that uses get_user_config
 %   for paths. Includes bug fixes from the RB version.
 %
-%   Whisking (whisker_results\<recording>_whisker.csv + .json from DLC\face_model\face_motion.py,
-%   written by run_dlc.bat next to eye_results/body_results) is added to Behav when present:
-%   WhiskIndex, WhiskAmp, WhiskOn, WhiskArtifact, FacePadME (one N-by-1 column per video frame,
-%   NaN in WhiskAmp/WhiskOn on artifact frames) and VideoParams.Whisker (the .json). Recordings
-%   without whisker_results are imported as before. Must happen here: the session folder is
-%   archived right after the import.
+%   Whisking (whisker_results\<recording>_whisker.csv + .json from DLC\face_model\face_motion.py, written by
+%   run_dlc.bat next to eye_results/body_results) is added when present; recordings without whisker_results
+%   are imported as before. The pupil mask (Behav.PupilBad) is computed here as well. Everything is read from
+%   the session folder, which is archived right after the import, so this is the only place to add it.
 %
 %   Bug fixes compared to RB_import_VideoBehav.m:
 %   - Fixed datetime format 'yyyy_MM_dd HH:mm:ss: SSS' -> 'yyyy_MM_dd HH:mm:ss:SSS'
@@ -27,17 +25,157 @@ function import_video_behavior(varargin)
 %       'animals' - Cell array of animal names to filter
 %           e.g., {'AnimalRB5', 'AnimalRB14'}
 %
+%       'sessions' - Cell array of recording names (e.g. {'AnimalRB24_261030_1744'}); all other
+%           session folders are left untouched (default: all sessions of the animals)
+%
 %       'overwrite' - Overwrite existing DLC files (default: false)
 %
 %       'delete_camera_tifs' - Delete camera TIFs after processing (default: false)
 %
 %   Parameters (can be customized):
-%       movmed_filt   - Median filter window (default: 3)
-%       pupil_min_p   - Minimum pupil probability threshold (default: 0.95)
-%       body_min_p    - Minimum body probability threshold (default: 0.8)
-%       eye_r_mm      - Eye radius in mm (default: 1.5)
-%       eye_px_per_mm - Pixels per mm for eye tracking (default: 23.4)
-%       body_vid      - Body video width (default: 480)
+%       movmed_filt      - Median filter window in frames for the body traces (default: 3)
+%       pupil_min_p      - Pupil point likelihood below which the pupil is masked (default: 0.8)
+%       lid_open_frac    - Eyelid opening below this fraction of the recording's median masks the pupil
+%                          (default: 0.75)
+%       pupil_pad_frames - Masked pupil stretches are widened by this many frames on both sides
+%                          (default: 5 = 0.1 s)
+%       body_min_p       - Minimum body probability threshold (default: 0.8)
+%       eye_r_mm         - Eye radius in mm (default: 1.5)
+%       eye_px_per_mm    - Pixels per mm for eye tracking (default: 23.4)
+%       body_vid         - Body video width (default: 480)
+%
+%   ====================================================================================================
+%   OUTPUT VARIABLES
+%   ====================================================================================================
+%   Saved to <DLCDir>\<recording>_DLC_filtered.mat as Behav, DLCSupporting, VideoParams and VideoFrameTimes
+%   (unfiltered body points and pupil points: <recording>_DLC_raw.mat as DLCraw). save_preprocessed then
+%   copies Behav, DLCSupporting and VideoParams into the aggregated file.
+%
+%   N = number of video frames (50 fps). Row k of every Behav and DLCSupporting trace is the same video
+%   frame. In the aggregated file only the frames matched to the 2P camera triggers are kept
+%   (VideoParams.selected_frameIdx), so there N = numel(Triggers.TimeCamera).
+%   Positions are image coordinates in pixels: x to the right, y downward. NaN = no valid value on that frame.
+%   Eye variables are in pixels of the eye crop (DLCSupporting.CropParams.Size, 150 px); body variables are in
+%   pixels of the body video (480 px wide = CropParams.Body_scale x the 1856 x 1020 camera frame).
+%
+%   ---- Behav : one row per video frame --------------------------------------------------------------
+%   Frame bookkeeping
+%     VideoNum         Nx1  Number of the video file the frame belongs to (0 when the session is one mp4).
+%     FrameNum         Nx1  Frame number inside that video, counting from 0.
+%
+%   Pupil and eye (eye camera)
+%     PupilAzEl        Nx2  [azimuth elevation] of the pupil in degrees; [0 0] = pupil centred on the eye
+%                           centre. Azimuth > 0: pupil displaced towards +x of the eye image; elevation > 0:
+%                           towards -y (up in the image). NaN on PupilBad frames.
+%     PupilArea        Nx1  Area of the fitted pupil ellipse in pixels^2 (divide by
+%                           VideoParams.Eye.px_per_mm^2 for mm^2). NaN on PupilBad frames.
+%     PupilBad         Nx1  logical. true = the pupil fit cannot be trusted on this frame (rule below).
+%     PupilAzElRaw     Nx2  PupilAzEl before masking (equal to PupilAzEl wherever PupilBad is false). It is
+%                           NaN only on the few frames where the eye csv itself has no value (PupilAzEl too).
+%     PupilAreaRaw     Nx1  PupilArea before masking.
+%     EyeLidOpening    Nx1  Distance between the lower and the upper eyelid point (eyeS_y - eyeN_y), pixels.
+%                           Larger = eye more open, near 0 = shut, negative = the model swapped the two points
+%                           (a bad frame). Never masked.
+%     EyeLidArea       Nx1  Area of the fitted eye-opening ellipse in pixels^2; shrinks when the eye closes.
+%     EyeLidCenter     Nx2  [x y] centre of the fitted eye (eye3D_x and eye3D_y of the eye csv), pixels.
+%
+%   PupilBad is true on a frame when
+%     (a) any of its 8 pupil points has a likelihood < pupil_min_p (DLCSupporting.Probability.Pupil), or
+%     (b) EyeLidOpening < lid_open_frac x the median EyeLidOpening of the whole recording (blink, eye nearly
+%         shut; the median is VideoParams.Pupil.lid_ref_px), or
+%     (c) a pupil likelihood or the eyelid opening is missing (NaN),
+%   and every flagged stretch is then widened by pupil_pad_frames frames on both sides. Long stretches with the
+%   eye shut are flagged as well: they are an eye state rather than tracking noise, so look at
+%   VideoParams.Pupil.frac_bad before using a session. Recompute (a) and (b) separately from the variables
+%   above to tell the causes apart.
+%
+%   Body (body camera): [x y] in body-video pixels, one Nx2 field per tracked body part. These are the first 19
+%   body parts of the body csv in csv order; the two headplate corners are not included (their medians are in
+%   VideoParams.Body.HeadplatRBC).
+%     ballRostral, ballApex, ballCaudal    rostral (head side), top and caudal (tail side) point of the ball
+%     noseTip, whiskerFollicleA1, eye      nose tip, whisker follicle A1, eye
+%     PinnaRightBase, PinnaRightTip, PinnaRightBottom                right ear
+%     shoulderApex, hipApex                shoulder and hip
+%     foreLimbRightTip, foreLimbRightWrist, foreLimbRightElbow       right forelimb
+%     hindLimbRightTip, hindLimbRightAnkle, hindLimbRightKnee        right hindlimb
+%     foreLimbLeftTip, foreLimbLeftWrist                             left forelimb
+%   NaN where the point's likelihood is < body_min_p (DLCSupporting.Probability.<same name>); all other frames
+%   are median filtered over movmed_filt frames.
+%
+%   Whisking and face motion (only if whisker_results\<recording>_whisker.csv exists; made by face_motion.py
+%   from the raw face video, the method is described at the top of that file)
+%     WhiskIndex       Nx1  Whisker motion relative to rest, unitless and on the same scale in every session:
+%                           1 = whiskers at rest, larger = faster whisker movement (it follows the speed of
+%                           the whiskers, not their angle). Always a number, but not meaningful on
+%                           WhiskArtifact frames.
+%     WhiskAmp         Nx1  WhiskIndex - 1, floored at 0: 0 = at rest, graded amount of whisking.
+%                           NaN on WhiskArtifact frames.
+%     WhiskOn          Nx1  Whisking state: 1 = whisking, 0 = not. WhiskIndex above 1.6 x rest (hysteresis
+%                           +-10%), pauses < 0.3 s inside a bout are closed, bouts < 0.3 s are dropped.
+%                           NaN on WhiskArtifact frames.
+%     WhiskArtifact    Nx1  1 = motion that is not whisking (grooming, a forepaw in front of the face):
+%                           WhiskIndex > 2 x its 95th percentile in the recording, widened by 0.5 s on
+%                           both sides. 0 otherwise.
+%     FacePadME        Nx1  Motion energy of the whisker-pad skin: mean |frame(t) - frame(t-1)| inside the
+%                           pad region, in gray levels per frame. Also moves with chewing and breathing.
+%                           Not normalized to rest.
+%
+%   ---- VideoParams : numbers that describe the whole recording ----------------------------------------
+%     Eye.Radius_mm          1.5 = eyeball radius of the 3D eye model, mm (parameter eye_r_mm)
+%     Eye.px_per_mm          23.4 = eye-crop pixels per mm (parameter eye_px_per_mm)
+%     Eye.Center             [x y] centre of the eye ellipse of the recording (header row of the eye csv), px
+%     Eye.Semiaxes           [a b] half width and half height of that ellipse, px
+%     Eye.Rotation           rotation of that ellipse, rad
+%     Eye.CornealReflection  [x y] median position of the corneal reflection, px
+%     Eye.medfilt            movmed_filt
+%     Eye.EllipseParams      NaN(1,8) placeholder, unused
+%     Pupil.p_thresh         pupil_min_p that was used for PupilBad
+%     Pupil.lid_frac         lid_open_frac that was used for PupilBad
+%     Pupil.lid_ref_px       median EyeLidOpening of the whole recording, px (= 100% of lid_frac)
+%     Pupil.pad_frames       pupil_pad_frames that was used for PupilBad
+%     Pupil.frac_bad         fraction of the N video frames with PupilBad = true (before frame selection)
+%     Body.HeadplatRBC       3x2 [x y] median headplate rostral corner, bend corner, then a NaN row
+%     Body.BallLoc_RAC       3x2 [x y] median ball rostral, apex and caudal point
+%     Body.EyeLocFull        [x y] median position of the 'eye' body point
+%     Body.p_trhesh          body_min_p (the name is misspelled, kept for compatibility)
+%     Body.medfilt           movmed_filt
+%     Whisker                contents of whisker_results\<recording>_whisker.json (absent without whisker data):
+%         session, frames, fps               recording name, number of video frames, frame rate
+%         fraction_whisking                  fraction of the non-artifact frames with WhiskOn = 1
+%         fraction_artifact                  fraction of all frames with WhiskArtifact = 1
+%         n_bouts, median_bout_s             number and median duration (s) of whisking bouts
+%         index_p5, index_median, index_p95  percentiles of WhiskIndex over the non-artifact frames
+%         rest_level                         resting motion energy of the fan_front and fan_down regions
+%                                            (= WhiskIndex 1)
+%         threshold_x_rest                   whisking threshold in multiples of rest (1.6)
+%         ctrl_me_median                     median motion energy of the background region (noise level)
+%         anchor_median_xy_px, anchor_range_px   median nose position the regions are placed on, and how far
+%                                            it moved over the recording, full-frame px
+%         boxes_rel_to_nose_px               the four regions [dx0 dy0 dx1 dy1] relative to the nose, px
+%         face_track_frames, params          frames of the face-model track used; smoothing/artifact settings
+%     selected_frameIdx      added later by save_preprocessed: the video frames kept to match the triggers
+%
+%   ---- DLCSupporting : tracking quality and the rest of the pupil fit (not masked by PupilBad) ---------
+%     Probability.EyeLid        Nx1   mean likelihood of the 8 eyelid points
+%     Probability.Pupil         Nx8   likelihood of each pupil point, order N NE E SE S SW W NW (1 = certain)
+%     Probability.EllipseRMSE   Nx1   spread of the pupil ellipse fit (mean of pupil_std_x and pupil_std_y of
+%                                     the csv), pixels. Not a probability; lower = better
+%     Probability.BallApex, .BallRostral, .BallCaudal, and one field per body part (same name as in Behav)
+%                               Nx1   likelihood of that point
+%     Pupil.EllipseSemiAxes     Nx2   [width/2 height/2] of the fitted pupil ellipse, pixels
+%     Pupil.EllipseCenter       Nx2   [x y] centre of the fitted pupil ellipse, pixels
+%     Pupil.EllipsePhi          Nx1   rotation of the pupil ellipse, rad
+%     Pupil.Eccentricity        Nx1   sqrt(1 - (width/height)^2). COMPLEX whenever width > height, which is
+%                                     most frames (96% in RB24_261023_1453): do not use it
+%     Pupil.Points              Nx3x8 [x y likelihood] of the 8 pupil points (same order), pixels
+%     Ball.Apex, .Rostral, .Caudal  Nx2   [x y] of the ball points, body-video pixels (as in Behav)
+%     CropParams                Size (eye crop, px); original_width, original_height (camera frame);
+%                               original_eye_center_x, _y (centre of the eye crop in the camera frame);
+%                               Body_vid_width (480); Body_scale (body video / camera frame)
+%
+%   ---- VideoFrameTimes -----------------------------------------------------------------------------
+%     NaN for mp4 recordings (no per-frame clock; frames are matched to the camera triggers by frame count),
+%     otherwise an Nx1 datetime with the clock time of every video frame.
 %
 %   Example:
 %       % Import all available DLC data
@@ -55,10 +193,13 @@ function import_video_behavior(varargin)
 p = inputParser;
 addParameter(p, 'config', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'animals', {}, @iscell);
+addParameter(p, 'sessions', {}, @iscell);
 addParameter(p, 'overwrite', false, @islogical);
 addParameter(p, 'delete_camera_tifs', false, @islogical);
 addParameter(p, 'movmed_filt', 3, @isnumeric);
-addParameter(p, 'pupil_min_p', 0.95, @isnumeric);
+addParameter(p, 'pupil_min_p', 0.8, @isnumeric);
+addParameter(p, 'lid_open_frac', 0.75, @isnumeric);
+addParameter(p, 'pupil_pad_frames', 5, @isnumeric);
 addParameter(p, 'body_min_p', 0.8, @isnumeric);
 addParameter(p, 'eye_r_mm', 1.5, @isnumeric);
 addParameter(p, 'eye_px_per_mm', 23.4, @isnumeric);
@@ -67,12 +208,15 @@ parse(p, varargin{:});
 
 config = p.Results.config;
 animals_filter = p.Results.animals;
+sessions_filter = p.Results.sessions;
 overwrite = p.Results.overwrite;
 delete_camera_tifs = p.Results.delete_camera_tifs;
 
 % Create params structure
 params.movmed_filt = p.Results.movmed_filt;
 params.pupil_min_p = p.Results.pupil_min_p;
+params.lid_open_frac = p.Results.lid_open_frac;
+params.pupil_pad_frames = p.Results.pupil_pad_frames;
 params.body_min_p = p.Results.body_min_p;
 params.eye_r_mm = p.Results.eye_r_mm;
 params.eye_px_per_mm = p.Results.eye_px_per_mm;
@@ -199,6 +343,10 @@ for a = 1:numel(animallist)
     for e = 1:numel(explist)
         exp_name = explist(e).name;
         exp_path = fullfile(explist(e).folder, exp_name);
+
+        if ~isempty(sessions_filter) && ~ismember(exp_name, sessions_filter)
+            continue;
+        end
 
         fprintf('    Checking: %s\n', exp_name);
 
@@ -347,7 +495,12 @@ VideoParams.Eye.Rotation = DLC.Eye.phi;
 VideoParams.Eye.medfilt = DLC.Eye.denoise.movmed_points;
 VideoParams.Eye.CornealReflection = DLC.cornealReflection;
 VideoParams.Eye.px_per_mm = DLC.eye_px_per_mm;
+[pupil_bad, lid_ref_px] = pupil_bad_frames(DLC.Pupil.p, DLC.Eye.opening, params);
 VideoParams.Pupil.p_thresh = DLC.Pupil.denoise.p_thresh;
+VideoParams.Pupil.lid_frac = params.lid_open_frac;
+VideoParams.Pupil.lid_ref_px = lid_ref_px;
+VideoParams.Pupil.pad_frames = params.pupil_pad_frames;
+VideoParams.Pupil.frac_bad = mean(pupil_bad);
 VideoParams.Body.HeadplatRBC = DLCbody.headplateRBC;
 VideoParams.Body.BallLoc_RAC = DLCbody.BallRAC;
 VideoParams.Body.EyeLocFull = DLCbody.EyeLocFull;
@@ -377,6 +530,11 @@ Behav.VideoNum = DLC.Vid(:, 1);
 Behav.FrameNum = DLC.Vid(:, 2);
 Behav.PupilAzEl = DLC.Pupil.az_el;
 Behav.PupilArea = DLC.Pupil.area;
+Behav.PupilBad = pupil_bad;
+Behav.PupilAzElRaw = Behav.PupilAzEl;
+Behav.PupilAreaRaw = Behav.PupilArea;
+Behav.PupilAzEl(pupil_bad, :) = NaN;
+Behav.PupilArea(pupil_bad) = NaN;
 
 FN = fieldnames(DLCbody);
 % Use actual field count (robust to different DLC versions)
@@ -388,6 +546,7 @@ end
 
 Behav.EyeLidArea = DLC.Eye.area;
 Behav.EyeLidCenter = DLC.Eye.position;
+Behav.EyeLidOpening = DLC.Eye.opening;
 
 [Behav, VideoParams] = add_whisker_data(exp_path, exp_name, Behav, VideoParams);
 
@@ -398,6 +557,26 @@ save(fullfile(DLCdir, [exp_name '_DLC_filtered.mat']), ...
     'DLCSupporting', 'Behav', 'VideoParams', 'VideoFrameTimes');
 
 success = true;
+
+end
+
+
+function [bad, lid_ref_px] = pupil_bad_frames(pupil_p, lid_opening, params)
+%PUPIL_BAD_FRAMES Frames on which the pupil fit cannot be trusted (rule: PupilBad in the file header)
+%   pupil_p      N-by-8 likelihoods of the pupil points
+%   lid_opening  N-by-1 lower minus upper eyelid point (y), pixels
+%   bad          N-by-1 logical
+%   lid_ref_px   median lid opening of the whole recording, pixels
+
+lid_ref_px = median(lid_opening, 'omitnan');
+bad = ~all(pupil_p >= params.pupil_min_p, 2);   % low likelihood, or NaN
+if lid_ref_px > 0
+    bad = bad | ~(lid_opening >= params.lid_open_frac * lid_ref_px);   % eye nearly shut, or NaN
+else
+    warning('import_video_behavior:lidOpening', ...
+        'Median eyelid opening is %g px; the eyelid criterion of PupilBad is not applied', lid_ref_px);
+end
+bad = movmax(double(bad), 2 * params.pupil_pad_frames + 1) > 0;
 
 end
 
@@ -555,6 +734,7 @@ DLC.Eye.phi = output_general.eye_theta;
 DLC.Eye.area = cat(1, output_frame(:).eye_area);
 DLC.Eye.position = cat(2, cat(1, output_frame(:).eye3D_x), cat(1, output_frame(:).eye3D_y));
 DLC.Eye.p = mean(cell2mat(temp(end-21:3:end, :)'), 2);
+DLC.Eye.opening = cat(1, output_frame(:).eyeS1) - cat(1, output_frame(:).eyeN1);  % lower minus upper eyelid point (y)
 DLC.cornealReflection = median(cell2mat(temp(end-26:end-25, :)'), 1);
 
 DLC.Pupil.center = cat(2, cat(1, output_frame(:).pupil3d_x), cat(1, output_frame(:).pupil3d_y));

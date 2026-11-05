@@ -1,0 +1,35 @@
+analysis,statistic,value,ci_or_p,n
+9 selection,"mean of 29 selected ROIs: waited vs at once",0.0287817874565207,"",13
+9 selection,"LocSpeed: waited vs at once",118.845965674689,"",13
+9 selection,"WhiskIndex: waited vs at once",0.120556355221627,"",13
+8 mismatch,"mean of 29 selected ROIs: response 0-2 s",0.0573682908349666,"[0.026, 0.089]",93
+8 sham,"mean of 29 selected ROIs: response 0-2 s",-0.000267554767381726,"",17
+8 mismatch - sham,"mean of 29 selected ROIs",0.0576358456023483,"p_perm = 0.180",93
+8 simulated-scheduler pseudo-events,"mean of 29 selected ROIs",-0.00310569019344965,"SD 0.017, z = 3.5, p = 0.001",93
+8 groups,"ROI 1,20,28,36,42",0.0378074114161916,"[-0.037, 0.114], sham -0.058, p_perm 0.358, null z 1.1",93
+8 groups,"ROI 2,35,41,54",0.0740008654557783,"[0.018, 0.135], sham -0.005, p_perm 0.299, null z 3.0",93
+8 groups,"ROI 3,5",0.125483032638659,"[0.008, 0.251], sham 0.111, p_perm 0.935, null z 2.3",93
+8 groups,"ROI 6,34",0.0939102888359976,"[0.004, 0.191], sham 0.065, p_perm 0.810, null z 2.2",93
+8 groups,"ROI 13,32",0.10963557006919,"[0.025, 0.198], sham 0.072, p_perm 0.702, null z 2.8",93
+8 groups,"ROI 24,37",0.0425774785536599,"[-0.036, 0.129], sham -0.015, p_perm 0.606, null z 1.0",93
+8 groups,"ROI 4",0.0198157141136749,"[-0.024, 0.063], sham -0.033, p_perm 0.365, null z 1.1",93
+8 groups,"ROI 7",0.00896709585810525,"[-0.041, 0.063], sham -0.036, p_perm 0.516, null z 0.4",93
+8 groups,"ROI 8",0.112429676419716,"[0.032, 0.199], sham 0.170, p_perm 0.582, null z 2.9",93
+8 groups,"ROI 9",0.0366258606444812,"[0.003, 0.070], sham -0.052, p_perm 0.057, null z 2.5",93
+8 groups,"ROI 10",0.0511488613134005,"[-0.036, 0.134], sham -0.154, p_perm 0.082, null z 1.4",93
+8 groups,"ROI 11",0.060624777065053,"[-0.008, 0.132], sham -0.020, p_perm 0.390, null z 2.1",93
+8 groups,"ROI 14",0.0774707190539389,"[-0.004, 0.156], sham -0.047, p_perm 0.213, null z 2.2",93
+8 groups,"ROI 15",-0.0075958999831584,"[-0.065, 0.052], sham -0.002, p_perm 0.942, null z -0.3",93
+8 groups,"ROI 26",0.0273979964418022,"[-0.031, 0.086], sham 0.027, p_perm 0.994, null z 0.7",93
+8 groups,"ROI 30",0.0249819263903834,"[-0.025, 0.074], sham -0.001, p_perm 0.709, null z 1.2",93
+8 groups,"ROI 38",-0.0144885677047029,"[-0.046, 0.018], sham -0.017, p_perm 0.956, null z -0.7",93
+8 groups,"ROI 48",0.0380490155022531,"[-0.010, 0.090], sham 0.005, p_perm 0.576, null z 1.7",93
+8 groups,"control: noise-like ROI 12,16,17,18,19,21,22,23,25,27,29,31,33,39,40,43,44,45,46,47,49,50,51,52,53,55,56",0.0241431734946139,"[0.012, 0.036], sham -0.013, p_perm 0.021, null z 3.4",93
+8 behaviour,"LocSpeed",1.70730694769626,"[-37.507, 40.135], sham 48.4, null z -0.4",93
+8 behaviour,"PupilArea",-14.2695476223109,"[-19.664, -8.255], sham 2.22, null z -5.3",93
+8 behaviour,"WhiskIndex",-0.00948858988408257,"[-0.061, 0.043], sham -0.0185, null z -0.4",93
+8 behaviour,"FacePadME",-0.0578580271538748,"[-0.138, 0.026], sham -0.00142, null z -1.3",93
+8 behaviour,"EyeLidOpening",-0.124535227937352,"[-0.219, -0.035], sham 0.277, null z -2.7",93
+8 behaviour,"RigidShift",0.0518637962578559,"[-0.020, 0.119], sham -0.114, null z 1.2",93
+9 order,"Spearman amplitude vs speed at onset",0.0857628838291904,"",93
+9 order,"Spearman amplitude vs event number",-0.23871266151413,"",93

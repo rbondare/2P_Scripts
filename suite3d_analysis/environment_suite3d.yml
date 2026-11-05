@@ -1,0 +1,18 @@
+# Suite3D environment for run_suite3d_RB_axons_V1.py
+#   mamba env create -f environment_suite3d.yml
+# Built 2026-11-04 on the RTX 5080 box (CuPy 13.6 / CUDA runtime 12.9 run the 3D registration kernels on compute
+# capability 12.0). Suite3D needs Python 3.11/3.12 and keeps cupy on the 13.x line.
+# Torch is only used by Suite3D's optional ROI labeller; pip's Windows torch crashes here (duplicate OpenMP runtime
+# next to the conda MKL stack), so the conda-forge CPU build is used.
+name: suite3d
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - cupy>=13.5,<14
+  - cuda-version>=12.8,<13
+  - pytorch=*=cpu*
+  - pip
+  - pip:
+      # pinned to the commit this script was written against (Suite3D 1.0.0)
+      - suite3d @ git+https://github.com/alihaydaroglu/suite3d.git@fb87beff3c4c32a215dd9c65c090276b8404eb9e

@@ -1,0 +1,26 @@
+analysis,statistic,value,ci_or_p,n
+9 selection,"mean of 13 selected ROIs: waited vs at once",-0.265702138931272,"",20
+9 selection,"LocSpeed: waited vs at once",35.8920037574442,"",20
+9 selection,"WhiskIndex: waited vs at once",0.105834351829335,"",20
+10 reference,"natural stop: mean of 13 selected ROIs",-0.142375499064155,"[-0.282, 0.082]",3
+8 mismatch,"mean of 13 selected ROIs: response 0-2 s",0.0799601318430418,"[-0.155, 0.306]",25
+8 sham,"mean of 13 selected ROIs: response 0-2 s",-0.0598148776847535,"",9
+8 mismatch - sham,"mean of 13 selected ROIs",0.139775009527795,"p_perm = 0.514",25
+8 simulated-scheduler pseudo-events,"mean of 13 selected ROIs",-0.0572986770967465,"SD 0.079, z = 1.7, p = 0.091",25
+8 groups,"ROI 8,9,10,13,14",0.0637551688807224,"[-0.301, 0.401], sham 0.009, p_perm 0.861, null z 1.4",25
+8 groups,"ROI 1,12",0.188694971012574,"[0.027, 0.355], sham -0.057, p_perm 0.221, null z 1.6",25
+8 groups,"ROI 2",0.121147866451116,"[-0.085, 0.327], sham -0.277, p_perm 0.076, null z 2.0",25
+8 groups,"ROI 3",0.103416276851964,"[-0.069, 0.270], sham -0.114, p_perm 0.305, null z 2.1",25
+8 groups,"ROI 4",0.0500028755078496,"[-0.243, 0.353], sham -0.213, p_perm 0.386, null z 1.1",25
+8 groups,"ROI 5",0.0434764018116244,"[-0.085, 0.156], sham 0.193, p_perm 0.228, null z 0.1",25
+8 groups,"ROI 7",0.07302129690163,"[-0.141, 0.282], sham -0.153, p_perm 0.319, null z 2.1",25
+8 groups,"ROI 11",-0.0477487899934007,"[-0.346, 0.249], sham -0.144, p_perm 0.723, null z 0.4",25
+8 groups,"control: noise-like ROI 6",-0.0664611338337497,"[-0.153, 0.021], sham -0.163, p_perm 0.239, null z -0.9",25
+8 behaviour,"LocSpeed",-33.8699351476618,"[-65.920, -5.220], sham 1.92, null z -1.2",25
+8 behaviour,"PupilArea",16.6600068202522,"[-11.201, 44.356], sham 16.4, null z 1.0",25
+8 behaviour,"WhiskIndex",0.0185233413370208,"[-0.030, 0.069], sham 0.0834, null z 0.3",25
+8 behaviour,"FacePadME",-0.0224107865770756,"[-0.106, 0.058], sham -0.134, null z 0.9",25
+8 behaviour,"EyeLidOpening",0.389505820038462,"[-0.494, 1.224], sham 0.507, null z 0.0",25
+8 behaviour,"RigidShift",0.137519537490598,"[-0.167, 0.452], sham 0.573, null z 0.1",25
+9 order,"Spearman amplitude vs speed at onset",0.208461538461538,"",25
+9 order,"Spearman amplitude vs event number",0.06,"",25

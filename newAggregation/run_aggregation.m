@@ -16,8 +16,11 @@ addpath(script_dir);
 config_source = 'stimulus';          % Where to look for experiments
 
 % --- Manual Recording Specification ---
-% Only used when config_source = 'manual'
-config_recordings = {};              % e.g., {'AnimalRB5_20231201_001', 'AnimalRB14_20231215_002'}
+% Only used when config_source = 'manual'. Processes exactly these recordings (and imports DLC for only these):
+% config_animals is ignored, and config_check_processed / config_require_* are NOT applied, so a recording that
+% already has an output is aggregated again and the old file is overwritten in place (delete it first, an
+% in-place overwrite of a v7.3 file makes it grow).
+config_recordings = {};              % e.g., {'AnimalRB24_261023_1538', 'AnimalRB24_261030_1744'}
 
 % --- Animal Filtering ---
 % Filters the chosen source to only the specified animal(s).
@@ -85,7 +88,12 @@ if config_import_dlc
 
     dlc_config = experiments(1).config;
     try
-        if ~isempty(config_animals)
+        if strcmp(config_source, 'manual')
+            % only the listed recordings, not every camera session of their animals
+            dlc_animals = unique({experiments.animal_name}, 'stable');
+            fprintf('  Importing DLC for: %s\n', strjoin({experiments.name}, ', '));
+            import_video_behavior('config', dlc_config, 'animals', dlc_animals, 'sessions', {experiments.name});
+        elseif ~isempty(config_animals)
             fprintf('  Importing DLC for: %s\n', strjoin(config_animals, ', '));
             import_video_behavior('config', dlc_config, 'animals', config_animals);
         else

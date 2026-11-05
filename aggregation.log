@@ -1,0 +1,332 @@
+=== Aggregating 4 recording(s) ===
+
+=== Importing DLC data: AnimalRB22_261023_1427 ===
+=== Starting DLC import scan ===
+Camera directory: Z:\Group Members\Rima\Camera\
+DLC output: Z:\Group Members\Rima\DLCData\
+Preprocessed: Z:\Group Members\Rima\Aggregated\
+
+Flat folder structure detected (no animal subfolders).
+Found 1 animal folder(s)
+
+--- Processing animal: AnimalRB22 ---
+  Found 13 experiment(s)
+    Checking: AnimalRB22_261023_1427
+      success.log found
+      Preprocessed file exists: 0
+      Importing DLC data
+      Filtering body data
+      Imported whisker data (50625 frames)
+      Saving DLC files
+      No preprocessed file found, skipping aggregation
+      Archived to: Z:\Group Members\Rima\preCamera\AnimalRB22\AnimalRB22_261023_1427
+
+=== Scan Complete ===
+Processed: 0
+Skipped: 1
+Exiting.
+
+=== Importing DLC data: AnimalRB23_261023_1642 ===
+=== Starting DLC import scan ===
+Camera directory: Z:\Group Members\Rima\Camera\
+DLC output: Z:\Group Members\Rima\DLCData\
+Preprocessed: Z:\Group Members\Rima\Aggregated\
+
+Flat folder structure detected (no animal subfolders).
+Found 1 animal folder(s)
+
+--- Processing animal: AnimalRB23 ---
+  Found 8 experiment(s)
+    Checking: AnimalRB23_261023_1642
+      success.log found
+      Preprocessed file exists: 0
+      Importing DLC data
+      Filtering body data
+      Imported whisker data (175746 frames)
+      Saving DLC files
+      No preprocessed file found, skipping aggregation
+      Archived to: Z:\Group Members\Rima\preCamera\AnimalRB23\AnimalRB23_261023_1642
+
+=== Scan Complete ===
+Processed: 0
+Skipped: 1
+Exiting.
+
+=== Importing DLC data: AnimalRB24_261029_1752 ===
+=== Starting DLC import scan ===
+Camera directory: Z:\Group Members\Rima\Camera\
+DLC output: Z:\Group Members\Rima\DLCData\
+Preprocessed: Z:\Group Members\Rima\Aggregated\
+
+Flat folder structure detected (no animal subfolders).
+Found 1 animal folder(s)
+
+--- Processing animal: AnimalRB24 ---
+  Found 9 experiment(s)
+    Checking: AnimalRB24_261029_1752
+      success.log found
+      Preprocessed file exists: 0
+      Importing DLC data
+      Filtering body data
+      Imported whisker data (141924 frames)
+      Saving DLC files
+      No preprocessed file found, skipping aggregation
+      Archived to: Z:\Group Members\Rima\preCamera\AnimalRB24\AnimalRB24_261029_1752
+
+=== Scan Complete ===
+Processed: 0
+Skipped: 1
+Exiting.
+
+[1/4] Aggregating: AnimalRB22_261023_1427
+=== Processing: AnimalRB22_261023_1427 ===
+Animal: AnimalRB22, Operator: RB
+Processing: Calcium=1, Stimulus=1, Behavior=1
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+Loading suite2p data from Z:\Group Members\Rima\DATA_2P\AnimalRB22_261023_1427\suite2p\
+  Planes: 1, Combined Fall.mat: 0, Projection: 0, Multicolor: 0
+Saving intermediate file
+Loaded AnimalInfo from: Z:\Group Members\Rima\Animals\AnimalRB22\AnimalRB22.mat
+Calculating dF/F
+Processing timing triggers
+Loading 1 stimulus file(s)
+Synchronizing stimulus frames for non-training paradigm
+[Warning: Projector sync frames not matching! Using PC Clock Times instead (pulse times deviate up to 34 ms from a straight line (limit 33 ms))] 
+[> In save_preprocessed>synchronize_red_frames (line 1117)
+In save_preprocessed>process_stimulus_data (line 871)
+In save_preprocessed (line 226)
+In run_aggregation_batch (line 106)] 
+  Red-frame sync per stimulus block:
+      # type                         method         pulses/red  lost  gaps anchor  PC offset
+      1 alleyCL                      PC clock      12104/12107     3   NaN      -          -
+Using calibration #17 (date: 08-Oct-2026 14:29:55)
+Loading DLC behavioral data
+=== Completed: Z:\Group Members\Rima\Aggregated\AnimalRB22_261023_1427_preprocessed.mat ===
+
+[2/4] Aggregating: AnimalRB23_261023_1642
+=== Processing: AnimalRB23_261023_1642 ===
+Animal: AnimalRB23, Operator: RB
+Processing: Calcium=1, Stimulus=1, Behavior=1
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+Loading suite2p data from Z:\Group Members\Rima\DATA_2P\AnimalRB23_261023_1642\suite2p\
+  Planes: 1, Combined Fall.mat: 0, Projection: 0, Multicolor: 0
+Saving intermediate file
+Loaded AnimalInfo from: Z:\Group Members\Rima\Animals\AnimalRB23\AnimalRB23.mat
+Calculating dF/F
+Processing timing triggers
+Loading 10 stimulus file(s)
+Synchronizing stimulus frames for non-training paradigm
+[Warning: Projector sync frames not matching! Using PC Clock Times instead (pulse intervals are not whole numbers of periods (off by up to 0.40 periods))] 
+[> In save_preprocessed>synchronize_red_frames (line 1117)
+In save_preprocessed>process_stimulus_data (line 871)
+In save_preprocessed (line 226)
+In run_aggregation_batch (line 106)] 
+  Red-frame sync per stimulus block:
+      # type                         method         pulses/red  lost  gaps anchor  PC offset
+      1 spontaneous                  pulse count    3601/3601      0   NaN      -     -14 ms
+      2 moving_bar                   pulse count    2020/2020      0   NaN      -     -15 ms
+      3 looming                      pulse count       5/5         0   NaN      -     -14 ms
+      4 looming                      pulse count       5/5         0   NaN      -      +5 ms
+      5 looming                      pulse count       5/5         0   NaN      -     +10 ms
+      6 sparse_local_global_flashes  gap-tolerant   2120/2161     41    18     +0      -2 ms
+      7 alleyCL                      PC clock      13621/13873   252   NaN      -          -
+      8 moving_bar                   gap-tolerant   1991/2021     30    12     +1     -10 ms
+      9 looming                      pulse count       5/5         0   NaN      -      -5 ms
+     10 sparse_local_global_flashes  gap-tolerant   2117/2161     44    22     +0     -14 ms
+  Red-frame sync: the 9 synchronized blocks agree on the PC-clock offset (median -10 ms, spread 25 ms)
+Using calibration #17 (date: 08-Oct-2026 14:29:55)
+Loading DLC behavioral data
+=== Completed: Z:\Group Members\Rima\Aggregated\AnimalRB23_261023_1642_preprocessed.mat ===
+
+[4/4] Aggregating: AnimalRB24_261029_1752
+=== Processing: AnimalRB24_261029_1752 ===
+Animal: AnimalRB24, Operator: RB
+Processing: Calcium=1, Stimulus=1, Behavior=1
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+[Warning: Unexpected number of images.] 
+Loading suite2p data from Z:\Group Members\Rima\DATA_2P\AnimalRB24_261029_1752\suite2p\
+  Planes: 1, Combined Fall.mat: 0, Projection: 0, Multicolor: 0
+Saving intermediate file
+Loaded AnimalInfo from: Z:\Group Members\Rima\Animals\AnimalRB24\AnimalRB24.mat
+Calculating dF/F
+Processing timing triggers
+Loading 1 stimulus file(s)
+Synchronizing stimulus frames for training paradigm
+  Red-frame sync of the 120 training trials: 116 synchronized from the projector pulses
+    pulses lost: 780 of 29292 red frames (2.7%), trials with a gap: 41; isolated late pulses dropped: 22
+    PC-clock offset (pulse - PC clock): +17 to +46 ms; line +38 ms -0.13 ms/min, largest deviation of a trial 14.2 ms (limit 20 ms)
+    PC clock times used for 4 trial(s):
+      trial 1: cannot tell which red frame the first pulse is: PC-clock offset would be [-37 -120] ms for first pulse = red frame [1 2] (allowed -20 to 63 ms)
+      trial 107: the pulses span 271 periods but there are only 270 red frames
+      trial 114: the pulses span 271 periods but there are only 270 red frames
+      trial 116: PC-clock offset of a pulse is 84 ms from the median of the block (limit 38 ms): pulse numbering is not reliable
+[Warning: Projector sync frames not matching for training! Using PC Clock Times instead for trial(s) [1 107 114 116] (see RedSyncInfo)] 
+[> In save_preprocessed>synchronize_red_frames_training (line 1755)
+In save_preprocessed>process_stimulus_data (line 891)
+In save_preprocessed (line 226)
+In run_aggregation_batch (line 106)] 
+[Warning: Ball camera time stamps: 196084 triggers for 4958 readings, 3 counter jump(s) and 3 trigger gap(s) do not fit the expected pattern, the pairing is not verified] 
+[> In save_preprocessed>training_ball_data (line 1852)
+In save_preprocessed>process_stimulus_data (line 996)
+In save_preprocessed (line 226)
+In run_aggregation_batch (line 106)] 
+  Ball camera log: 4958 readings, 196084 triggers (first triggers)
+Using calibration #17 (date: 08-Oct-2026 14:29:55)
+Loading DLC behavioral data
+=== Completed: Z:\Group Members\Rima\Aggregated\AnimalRB24_261029_1752_preprocessed.mat ===
+
+=== Summary ===
+  done     AnimalRB22_261023_1427           11.6 min
+  done     AnimalRB23_261023_1642           53.5 min
+  failed   AnimalRB23_261028_1714,AnimalRB23_261029_1704 no suite2p folder in Z:\Group Members\Rima\DATA_2P\AnimalRB23_261028_1714,AnimalRB23_261029_1704
+  done     AnimalRB24_261029_1752           11.4 min
+Done: 3, skipped: 0, failed: 1
+{Error using run_aggregation_batch (line 132)
+1 of 4 recording(s) failed, see the summary above
+} 
+ERROR: MATLAB error Exit Status: 0x00000001

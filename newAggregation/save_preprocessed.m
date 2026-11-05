@@ -42,6 +42,16 @@ function OutputFilename = save_preprocessed(recording_path, varargin)
 %   Output:
 %       OutputFilename - Path to the created preprocessed.mat file
 %
+%   Stimuli(k).TimeStimulusFrame is the time (s, session clock) of every stimulus frame of block k, taken from
+%   the projector pulses of the red sync frames; Stimuli(k).RedFrameSynchronized says whether that worked
+%   (false = stimulus PC clock, which is 0-35 ms off in RB22-24) and Stimuli(k).RedSyncInfo says how
+%   (pulses found/lost, PC-clock offset, ...; fields described in make_sync_info).
+%   A training stimulus holds many trials in one Stimuli entry: its TimeStimulusFrame is then frames x trials like
+%   Frameinfo (NaN where there is no real frame), RedFrameSynchronized is true only if every trial was
+%   synchronized, and RedFrameSynchronizedTrial, FrameValid, RedSyncInfo(trial) and RedSyncSession give the
+%   detail (synchronize_red_frames_training). Its ball camera log is time stamped by training_ball_data
+%   (see LocomotionCal.SyncInfo).
+%
 %   Example:
 %       % Full processing with auto-detection
 %       OutputFilename = save_preprocessed('D:\DATA_2P\AnimalRB5_20231201_001\');
@@ -474,8 +484,11 @@ if ~animal_info_found
     end
 end
 
-% Add imaging date
-AnimalInfo.Dates.Imaging = [AnimalInfo.Dates.Imaging; datetime(Headers(k1).epoch{1})];
+% Add imaging date (not again if this session is already listed, e.g. when it is re-aggregated)
+imaging_date = datetime(Headers(k1).epoch{1});
+if isempty(AnimalInfo.Dates.Imaging) || ~any(abs(AnimalInfo.Dates.Imaging - imaging_date) < seconds(1))
+    AnimalInfo.Dates.Imaging = [AnimalInfo.Dates.Imaging; imaging_date];
+end
 
 % Save animal info to local folder
 if ~exist(AnimalFolder, 'dir'); mkdir(AnimalFolder); end
@@ -863,20 +876,29 @@ if ~isempty(Stimulusoptions) && isfield(Stimulusoptions(1), 'type')
             Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
             Stimulusoptions(Stimnumber).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
             Stimulusoptions(Stimnumber).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+            Stimulusoptions(Stimnumber).RedSyncInfo = stim_sync.RedSyncInfo;
         end
+        % Report every block and compare the blocks with each other (falls back to PC clock
+        % times for a block whose pulses were numbered inconsistently with the others)
+        Stimulusoptions = check_red_sync_consistency(Stimulusoptions, PT, ...
+            Stimulus_acquisition_start_stop_timestamp, StimAcqNumber, SI_Info);
     else
-        % Training stimulus: use acquisition-based synchronization
+        % Training stimulus: every trial (column of Frameinfo) is synchronized on its own and finds its
+        % acquisition by overlap in time (match_stim_to_acq maps by end time, which fails for the trials
+        % that share an acquisition with a break or neighbour a stub acquisition)
         fprintf('Synchronizing stimulus frames for training paradigm\n');
-        StimAcqNumber = match_stim_to_acq(Stimulusoptions, Stimulus_acquisition_start_stop_timestamp, SI_Info);
         for Stimnumber = 1:numel(Stimulusoptions)
             stim_sync = synchronize_red_frames_training(...
-                Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, ...
-                StimAcqNumber, Stimnumber, SI_Info);
-            
+                Stimulusoptions(Stimnumber), PT, Stimulus_acquisition_start_stop_timestamp, SI_Info);
+
             % Copy synchronized fields back to stimulus struct
             Stimulusoptions(Stimnumber).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
             Stimulusoptions(Stimnumber).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
             Stimulusoptions(Stimnumber).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+            Stimulusoptions(Stimnumber).RedFrameSynchronizedTrial = stim_sync.RedFrameSynchronizedTrial;
+            Stimulusoptions(Stimnumber).FrameValid = stim_sync.FrameValid;
+            Stimulusoptions(Stimnumber).RedSyncInfo = stim_sync.RedSyncInfo;
+            Stimulusoptions(Stimnumber).RedSyncSession = stim_sync.RedSyncSession;
         end
     end
 end
@@ -907,6 +929,14 @@ else
         N = min(numel(BT), numel(BallCamData_temp));
         StimAcqNumber = [];
     end
+end
+
+% A training stimulus file holds ONE ball camera log for the whole session (all its trials) while
+% Triggers.TimeBall has one cell per acquisition: training_ball_data time stamps it with all of them
+train_ball = isfield(Stimulusoptions(1), 'type') && strcmp(Stimulusoptions(1).type, 'training') && ...
+    numel(BallCamData_temp) == 1 && numel(BT) > 1;
+if train_ball
+    N = 0;
 end
 
 BallCamData = struct;
@@ -962,6 +992,15 @@ for n = 1:N
     end
 end
 
+if train_ball
+    % a session that was stopped early (cockpit_aborted_training*.mat) keeps the ball readings it had not yet
+    % written into the stim file in <stim folder>\*_BallCamTail.mat (RB24_261104_1651: 30,403 readings in the stim
+    % file + 26,936 in the tail = 57,339 for 57,340 ball triggers); without it the second half has no locomotion
+    tail_readings = load_ball_tail(StimFiles(1), numel(BallCamData_temp{1}), sum(cellfun(@numel, BT)));
+    BallCamData = training_ball_data([reshape(BallCamData_temp{1}, [], 1); tail_readings], BT);
+    BallCamData.SyncInfo.n_tail_readings = numel(tail_readings);
+end
+
 % Calibrate locomotion — pre-load model to avoid uigetfile in batch mode
 cal_paths = {
    % 'A:\Florian\BallCalibration\CalibrationModel.mat'
@@ -1005,14 +1044,30 @@ end
 end
 
 
-function Stimopts = synchronize_red_frames(Stimopts, PT, timestamps, Stimnumber, SI_Info)
+function Stimopts = synchronize_red_frames(Stimopts, PT, timestamps, Stimnumber, SI_Info, pc_clock_reason, lag_center_s)
 %SYNCHRONIZE_RED_FRAMES Synchronize projected frames using red sync frames
 %   Aligns stimulus frame times from stimulus PC with camera acquisition times
 %   using projector trigger times as reference
+%
+%   Every red frame should give one projector pulse. When the pulse count matches the number of
+%   red frames they are paired in order. When pulses are missing (periodic red frames only),
+%   match_red_pulses pairs them by time instead, and its result is used only if all of its
+%   consistency checks pass. Otherwise the stimulus PC clock is used (RedFrameSynchronized = false).
+%   pc_clock_reason (optional text) forces the PC clock, lag_center_s (optional, s) centres the window that
+%   anchors the first pulse on a known PC-clock offset instead of the default one; both are used by
+%   check_red_sync_consistency.
+%   Stimopts.RedSyncInfo records what was done (see make_sync_info for the fields).
+
+if nargin < 6; pc_clock_reason = ''; end
+if nargin < 7; lag_center_s = NaN; end
 
 Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(Stimnumber,1) & PT <= timestamps(Stimnumber,2)+1);
-num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count));
+PT_window = Timestamp_Projected_Sync_Frames;
+valid_frame = ~isnan(Stimopts.Frameinfo.frame_count);
+num_frames = sum(valid_frame);
 is_flag_based = Stimopts.red_sync_nth_frame == 0;
+% stimulus PC clock time of every (valid) frame on the session clock
+pc_time = reshape(seconds(Stimopts.Frameinfo.frametime(valid_frame) - SI_Info.Clockstart), 1, []);
 if ~is_flag_based
     Red_frame_number = find(mod(0:num_frames-1, Stimopts.red_sync_nth_frame) == 0);
 else
@@ -1022,6 +1077,7 @@ else
     sfc = Stimopts.Frameinfo.subtrial_frame_count(~isnan(Stimopts.Frameinfo.frame_count));
     Red_frame_number = find(sfc == 1);
 end
+n_red_expected = numel(Red_frame_number);
 
 % Handle edge cases where red frame count doesn't match projector sync count
 if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
@@ -1040,15 +1096,41 @@ if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
     end
 end
 
+% Pulses are missing and the simple recoveries above did not fix it: pair pulses and red frames by time
+sync_info = make_sync_info('pulse count', true, '');
+sync_info.n_pulses = numel(PT_window);
+sync_info.n_expected = n_red_expected;
+sync_info.n_lost = n_red_expected - numel(PT_window);
+if isempty(pc_clock_reason) && ~is_flag_based && ...
+        numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    [rf, pt, match] = match_red_pulses(PT_window, num_frames, Stimopts.red_sync_nth_frame, ...
+        Stimopts.ifi, pc_time, lag_center_s);
+    if match.ok
+        Red_frame_number = rf;
+        Timestamp_Projected_Sync_Frames = pt;
+        sync_info = match;
+    else
+        sync_info.reason = match.reason;
+    end
+end
+
 % If still mismatched or insufficient points, fall back to using PC clock times
-if numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
-    warning('Projector sync frames not matching! Using PC Clock Times instead');
+if ~isempty(pc_clock_reason) || numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
+    why = pc_clock_reason;
+    if isempty(why); why = sync_info.reason; end
+    if isempty(why); why = sprintf('%d pulses for %d red frames', numel(PT_window), n_red_expected); end
+    warning('Projector sync frames not matching! Using PC Clock Times instead (%s)', why);
     Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
     Stimopts.RedFrameSynchronized = false;
+    sync_info = make_sync_info('PC clock', false, why);
+    sync_info.n_pulses = numel(PT_window);
+    sync_info.n_expected = n_red_expected;
+    sync_info.n_lost = n_red_expected - numel(PT_window);
 elseif num_frames < 1
     warning('Stimulus has no valid frames! Setting TimeStimulusFrame to NaN');
     Stimopts.TimeStimulusFrame = nan(1, numel(Stimopts.Frameinfo.frametime));
     Stimopts.RedFrameSynchronized = false;
+    sync_info = make_sync_info('none', false, 'no valid frames');
 elseif is_flag_based
     % Trial-anchored red frames are sparse and separated by an inter-trial
     % WaitSecs() that advances real time but not frame_count, so interpolating
@@ -1074,7 +1156,23 @@ else
     Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
         1:num_frames, 'linear', 'extrap');
     Stimopts.RedFrameSynchronized = true;
+    if ~isempty(sync_info.InStall) && any(sync_info.InStall)
+        % across a stall of the stimulus PC the pulses are further apart than a straight line through them
+        % suggests; the PC clock saw the stall, so keep its steps and interpolate only the offset
+        off_red = reshape(Timestamp_Projected_Sync_Frames, 1, []) - pc_time(Red_frame_number);
+        off_all = interp1(Red_frame_number, off_red, 1:num_frames, 'linear', 'extrap');
+        Stimopts.TimeStimulusFrame(sync_info.InStall) = pc_time(sync_info.InStall) + off_all(sync_info.InStall);
+    end
 end
+
+if Stimopts.RedFrameSynchronized && ~strcmp(sync_info.method, 'gap-tolerant')
+    % how far the pulses are from the PC clock times of the red frames they were paired with
+    off = reshape(Timestamp_Projected_Sync_Frames, 1, []) - pc_time(Red_frame_number);
+    sync_info.offset_median_ms = 1e3 * median(off);
+    sync_info.offset_p05_ms = 1e3 * pctl(off, 5);
+    sync_info.offset_p95_ms = 1e3 * pctl(off, 95);
+end
+Stimopts.RedSyncInfo = sync_info;
 
 % Compute VBL-relative timing (time relative to first stimulus frame)
 Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
@@ -1084,53 +1182,705 @@ Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.Ti
 end
 
 
-function Stimopts = synchronize_red_frames_training(Stimopts, PT, timestamps, StimAcqNumber, Stimnumber, SI_Info)
-%SYNCHRONIZE_RED_FRAMES_TRAINING Synchronize red frames for training paradigm
-%   Similar to synchronize_red_frames but accounts for training stimulus structure
-%   where multiple stimuli may be spread across acquisition blocks
+function [Red_frame_number, Sync_times, info] = match_red_pulses(pulses, num_frames, nth, ifi, pc_time, lag_center_s, opts)
+%MATCH_RED_PULSES Pair projector pulses with red-frame numbers when some pulses are missing
+%   For periodic red frames (every nth stimulus frame). Pulses can be lost in bursts (seen in
+%   RB24: about 2% of them, in bursts every ~73 s), so pulses and red frames cannot be paired by
+%   position. Instead each pulse is numbered by counting the pulse periods since the previous pulse
+%   (a lost pulse leaves a hole in the numbering instead of shifting everything after it), and the
+%   first pulse is anchored with the stimulus PC clock. The pairs then go to the usual interpolation.
+%
+%   Accepted only if every check passes, otherwise info.ok is false and info.reason says which one
+%   failed (the caller then uses the PC clock):
+%     - at least min_pulses pulses, and a measured pulse period within period_tol of nth*ifi
+%     - every interval between neighbouring pulses within max_int_dev periods of a whole number
+%       of periods (otherwise the count is ambiguous); no two pulses less than one period apart
+%     - at most max_edge red frames before the first or after the last pulse
+%     - anchoring: with n red frames before/after the pulse train the first pulse can be red frame
+%       1..n+1; the PC-clock offset (pulse time - PC clock time) must fall in a window exactly one
+%       period wide, [lag_lo_s, lag_lo_s + period), which only one candidate can satisfy (lag_center_s,
+%       if given, centres the window on a known offset instead). With no red frame left over (n = 0)
+%       the anchoring is unambiguous and the window is not needed
+%     - pulse time vs red-frame number is a straight line to within max_fit_s
+%     - no frame ends up more than max_pc_s away from its PC clock time (catches pulses of another
+%       block, which are tens of seconds off; real clock offsets are tens of ms)
+%   info.InGap marks frames whose time is interpolated across lost pulses or extrapolated before
+%   the first / after the last pulse (the others lie between two neighbouring pulses).
+%
+%   opts (optional struct, used for training trials) changes limits that are fixed above by default:
+%     max_int_dev       replaces the limit of the interval check (up to < 0.5, where the rounding of an
+%                       interval to a whole number of periods is still unambiguous)
+%     outlier_s         > 0: a pulse further than this from the median PC-clock offset of its 11
+%                       neighbouring pulses is dropped as an outlier (an isolated late pulse; the frames
+%                       around it are then interpolated from its neighbours). Level steps that last, like
+%                       the one-frame steps of RB24, are not outliers
+%     max_outlier_frac  more than this share of outliers rejects the block
+%     max_off_dev_s     every remaining pulse must be within this of the block's median PC-clock offset;
+%                       a pulse numbered one period wrong would be 83 ms off
+%     stall_fix         true (default without opts) corrects the period count where the stimulus PC stalled, see
+%                       the comment at the rounding of the intervals; info.n_stall_fixes counts the places
+%   info.n_outliers counts the dropped pulses.
 
-acq_num = StimAcqNumber(Stimnumber);
-Timestamp_Projected_Sync_Frames = PT(PT >= timestamps(acq_num,1) & PT <= timestamps(acq_num,2)+1);
-Red_frame_number = find(mod(0:sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber)))-1, Stimopts.red_sync_nth_frame) == 0);
-
-% Handle edge cases where red frame count doesn't match projector sync count
-if numel(Red_frame_number) == numel(Timestamp_Projected_Sync_Frames) + 1
-    Red_frame_number(end) = [];
+% --- limits of the checks (named so a rig that needs different ones can change them here)
+min_pulses = 20;
+period_tol = 0.02;
+max_int_dev = 0.35;
+max_edge = 8;
+lag_lo_s = -0.020;
+max_fit_s = 2 * ifi;
+max_pc_s = 1;
+outlier_s = 0;
+max_outlier_frac = 0.02;
+max_off_dev_s = inf;
+stall_fix = nargin < 7 || isempty(opts);    % off for training trials (opts given) unless opts.stall_fix says otherwise
+jump_tol_s = 0.2 * nth * ifi;               % how far an offset jump may be from a whole number of periods (one frame)
+if nargin >= 7 && ~isempty(opts)
+    if isfield(opts, 'stall_fix'); stall_fix = opts.stall_fix; end
+    if isfield(opts, 'max_int_dev'); max_int_dev = opts.max_int_dev; end
+    if isfield(opts, 'outlier_s'); outlier_s = opts.outlier_s; end
+    if isfield(opts, 'max_outlier_frac'); max_outlier_frac = opts.max_outlier_frac; end
+    if isfield(opts, 'max_off_dev_s'); max_off_dev_s = opts.max_off_dev_s; end
 end
 
-if numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
-    % Try filtering projector times by larger gaps (likely sync point)
-    dt = diff([-inf Timestamp_Projected_Sync_Frames]);
-    tc = Timestamp_Projected_Sync_Frames(dt > .04);
-    if numel(Red_frame_number) == numel(tc) + 1
-        Red_frame_number(end) = [];
-    end
-    if numel(Red_frame_number) == numel(tc)
-        Timestamp_Projected_Sync_Frames = tc;
-    end
-end
-
-% If still mismatched or insufficient points, fall back to using PC clock times
-num_frames = sum(~isnan(Stimopts.Frameinfo.frame_count(:,Stimnumber)));
-if numel(Red_frame_number) < 2 || numel(Timestamp_Projected_Sync_Frames) < 2 || numel(Red_frame_number) ~= numel(Timestamp_Projected_Sync_Frames)
-    warning('Projector sync frames not matching for training! Using PC Clock Times instead');
-    Stimopts.TimeStimulusFrame = seconds(Stimopts.Frameinfo.frametime - SI_Info.Clockstart);
-    Stimopts.RedFrameSynchronized = false;
-elseif num_frames < 1
-    warning('Training stimulus %d has no valid frames! Setting TimeStimulusFrame to NaN', Stimnumber);
-    Stimopts.TimeStimulusFrame = nan(1, numel(Stimopts.Frameinfo.frametime));
-    Stimopts.RedFrameSynchronized = false;
+if nargin < 6 || ~isfinite(lag_center_s)
+    lag_lo = lag_lo_s;
 else
-    % Interpolate to map stimulus frame numbers to camera-synchronized times
-    Stimopts.TimeStimulusFrame = interp1(Red_frame_number, Timestamp_Projected_Sync_Frames, ...
-        1:num_frames, 'linear', 'extrap');
-    Stimopts.RedFrameSynchronized = true;
+    lag_lo = lag_center_s - nth * ifi / 2;
+end
+Red_frame_number = [];
+Sync_times = [];
+info = make_sync_info('gap-tolerant', false, '');
+red_nums = find(mod(0:num_frames-1, nth) == 0);
+M = numel(red_nums);
+w = reshape(pulses, 1, []);
+info.n_pulses = numel(w);
+info.n_expected = M;
+info.n_lost = M - numel(w);
+
+if isempty(ifi) || ~isfinite(ifi) || ifi <= 0
+    info.reason = 'stimulus frame interval (ifi) not available';
+    return;
+end
+period_nom = nth * ifi;
+if numel(w) < min_pulses
+    info.reason = sprintf('only %d pulses, need %d to number them reliably', numel(w), min_pulses);
+    return;
 end
 
-% Compute VBL-relative timing (time relative to first stimulus frame)
-Stimopts.TimeStimulusFrameVBL = seconds(Stimopts.Frameinfo.frametime - Stimopts.Frameinfo.frametime(1)) + ...
-    Stimopts.TimeStimulusFrame(1);
-Stimopts.TimeStimulusFrameVBL = Stimopts.TimeStimulusFrameVBL(~isnan(Stimopts.TimeStimulusFrameVBL))';
+d = diff(w);
+P = median(d);
+if abs(P / period_nom - 1) > period_tol
+    info.reason = sprintf('pulse period %.1f ms, expected %.1f ms', 1e3 * P, 1e3 * period_nom);
+    return;
+end
+q = d / P;
+step = round(q);
+if any(step < 1)
+    info.reason = 'two pulses less than one period apart';
+    return;
+end
+idx0 = 1 + [0 cumsum(step)];            % red-frame number of every pulse if the first pulse is red frame 1
+
+% A stall of the stimulus PC (frames in its own log that take several frame intervals) does not move the
+% projector's rhythm, but the interval between the two pulses around it is no whole number of periods and the
+% rounding above can count one period too many or few (RB24_261023_1538 moving_bar: 183 ms across a 107 ms stall
+% counted as 2 periods instead of 1). From there on the pulse - PC clock offset sits a whole number of periods off.
+% Such a jump of the offset between neighbouring pulses is undone, so the offset stays continuous.
+fixed = false(size(d));
+if stall_fix
+    pc_at = @(rows) interp1(1:num_frames, pc_time, rows, 'linear', 'extrap');
+    doff = diff(w - pc_at(1 + nth * (idx0 - 1)));
+    m = round(doff / period_nom);
+    fixed = m ~= 0 & abs(doff - m * period_nom) < jump_tol_s & step + m >= 1;
+    if any(fixed)
+        step(fixed) = step(fixed) + m(fixed);
+        idx0 = 1 + [0 cumsum(step)];
+        info.n_stall_fixes = nnz(fixed);
+    end
+end
+info.interval_dev = max(abs(q(~fixed) - step(~fixed)));
+if isempty(info.interval_dev); info.interval_dev = 0; end
+if info.interval_dev > max_int_dev
+    info.reason = sprintf('pulse intervals are not whole numbers of periods (off by up to %.2f periods)', info.interval_dev);
+    return;
+end
+
+n_edge = M - idx0(end);                 % red frames left over before the first / after the last pulse
+if n_edge < 0
+    info.reason = sprintf('the pulses span %d periods but there are only %d red frames', idx0(end), M);
+    return;
+elseif n_edge > max_edge
+    info.reason = sprintf('%d red frames before the first or after the last pulse (limit %d)', n_edge, max_edge);
+    return;
+end
+
+if n_edge == 0
+    shift = 0;
+else
+    cand = 0:n_edge;
+    med = arrayfun(@(c) median(w - pc_time(red_nums(idx0 + c))), cand);
+    in_window = med >= lag_lo & med < lag_lo + period_nom;
+    if nnz(in_window) ~= 1
+        info.reason = sprintf(['cannot tell which red frame the first pulse is: PC-clock offset would be ' ...
+            '%s ms for first pulse = red frame %s (allowed %.0f to %.0f ms)'], ...
+            mat2str(round(1e3 * med)), mat2str(1 + cand), 1e3 * lag_lo, 1e3 * (lag_lo + period_nom));
+        return;
+    end
+    shift = cand(in_window);
+    info.anchor_borderline = med(in_window) < lag_lo + 0.010 || med(in_window) >= lag_lo + period_nom - 0.010;
+end
+
+rf = red_nums(idx0 + shift);
+in_stall = false(1, num_frames);        % frames between two pulses around a stall of the stimulus PC
+for g = find(fixed)
+    in_stall(rf(g)+1:rf(g+1)-1) = true;
+end
+if outlier_s > 0
+    off0 = w - pc_time(rf);
+    out = abs(off0 - movmedian(off0, 11)) > outlier_s;
+    if nnz(out) > max_outlier_frac * numel(w)
+        info.reason = sprintf('%d of %d pulses disagree with the PC-clock offset of their neighbours by more than %.0f ms (limit %.0f%%)', ...
+            nnz(out), numel(w), 1e3 * outlier_s, 100 * max_outlier_frac);
+        return;
+    end
+    info.n_outliers = nnz(out);
+    w = w(~out);
+    rf = rf(~out);
+end
+if isfinite(max_off_dev_s)
+    off0 = w - pc_time(rf);
+    if max(abs(off0 - median(off0))) > max_off_dev_s
+        info.reason = sprintf('PC-clock offset of a pulse is %.0f ms from the median of the block (limit %.0f ms): pulse numbering is not reliable', ...
+            1e3 * max(abs(off0 - median(off0))), 1e3 * max_off_dev_s);
+        return;
+    end
+end
+if info.n_stall_fixes > 0
+    % the stall is a real step of the pulse train, so the straight line is fitted to the offset to the PC clock
+    off1 = w - pc_time(rf);
+    c = polyfit(rf, off1, 1);
+    res = off1 - polyval(c, rf);
+else
+    c = polyfit(rf, w, 1);
+    res = w - polyval(c, rf);
+end
+info.fit_res_max_ms = 1e3 * max(abs(res));
+if max(abs(res)) > max_fit_s
+    info.reason = sprintf('pulse times deviate up to %.0f ms from a straight line (limit %.0f ms)', ...
+        1e3 * max(abs(res)), 1e3 * max_fit_s);
+    return;
+end
+mapped = interp1(rf, w, 1:num_frames, 'linear', 'extrap');
+dev = max(abs(mapped - pc_time));
+if dev > max_pc_s
+    info.reason = sprintf('mapped frame times are up to %.0f ms from the PC clock (limit %.0f ms): pulses of another block?', 1e3 * dev, 1e3 * max_pc_s);
+    return;
+end
+
+d = diff(w);                 % intervals between the pulses that are used
+gap = diff(rf) > nth;        % at least one red frame without a pulse in between
+in_gap = false(1, num_frames);
+in_gap(1:rf(1)-1) = true;
+in_gap(rf(end)+1:end) = true;
+for g = find(gap)
+    in_gap(rf(g)+1:rf(g+1)-1) = true;
+end
+off = w - pc_time(rf);
+Red_frame_number = rf;
+Sync_times = w;
+info.ok = true;
+if info.n_stall_fixes > 0
+    info.note = sprintf('period count corrected at %d place(s) where the stimulus PC log shows a stall', info.n_stall_fixes);
+end
+info.InStall = in_stall;
+info.shift = shift;
+info.n_gaps = nnz(gap);
+info.longest_gap_s = max([0 d(gap)]);
+info.offset_median_ms = 1e3 * median(off);
+info.offset_p05_ms = 1e3 * pctl(off, 5);
+info.offset_p95_ms = 1e3 * pctl(off, 95);
+info.InGap = in_gap;
+
+end
+
+
+function v = pctl(x, p)
+%PCTL Percentile p (0-100) of the vector x without the Statistics Toolbox
+x = sort(x(~isnan(x)));
+v = x(min(numel(x), max(1, round(p / 100 * numel(x)))));
+end
+
+
+function info = make_sync_info(method, ok, reason)
+%MAKE_SYNC_INFO Stimulus.RedSyncInfo: how the stimulus frames of one block were synchronized
+%   method            'pulse count' (pulses and red frames paired in order), 'gap-tolerant' (some
+%                     pulses missing, paired by time with match_red_pulses), 'PC clock' (fallback,
+%                     times are the stimulus PC clock, not the projector) or 'none'
+%   ok                true if the frame times come from the projector pulses
+%   reason            why the PC clock was used (empty when ok)
+%   note              anything worth knowing about an accepted result (e.g. the first pulse was
+%                     re-anchored with the PC-clock offset of the other blocks)
+%   n_pulses          projector pulses found in the block's acquisition window
+%   n_expected        red frames shown in the block
+%   n_lost            n_expected - n_pulses
+%   n_outliers        pulses dropped as isolated outliers (training trials only, see match_red_pulses)
+%   n_stall_fixes     places where the period count was corrected for a stall of the stimulus PC
+%   n_gaps           number of places where pulses are missing in the middle of the block
+%   longest_gap_s     longest stretch without a pulse (s)
+%   shift             'gap-tolerant' only: the first pulse is red frame 1 + shift
+%   offset_median_ms  median of (pulse time - stimulus PC clock time of the same red frame), ms; the
+%   offset_p05_ms     blocks of a session should agree on it within a few ms; two levels one stimulus
+%   offset_p95_ms     frame apart are normal
+%   fit_res_max_ms    'gap-tolerant' only: largest distance of a pulse from the straight line, ms
+%   interval_dev      'gap-tolerant' only: largest distance of a pulse interval from a whole number
+%                     of periods (0 = perfect, 0.5 = ambiguous)
+%   anchor_borderline 'gap-tolerant' only: the PC-clock offset is within 10 ms of the edge of the
+%                     window used to anchor the first pulse
+%   InGap             'gap-tolerant' only: 1 x frames logical, true where the frame time is
+%                     interpolated across lost pulses or extrapolated before/after the pulse train
+%   InStall           'gap-tolerant' only: 1 x frames logical, true for the frames between the two pulses
+%                     around a stall of the stimulus PC (n_stall_fixes); their time is the PC clock plus
+%                     the pulse - PC clock offset interpolated between those pulses, not a straight line
+info = struct('method', method, 'ok', ok, 'reason', reason, 'note', '', 'n_pulses', NaN, 'n_expected', NaN, ...
+    'n_lost', NaN, 'n_outliers', 0, 'n_stall_fixes', 0, 'n_gaps', NaN, 'longest_gap_s', NaN, 'shift', NaN, 'offset_median_ms', NaN, ...
+    'offset_p05_ms', NaN, 'offset_p95_ms', NaN, 'fit_res_max_ms', NaN, 'interval_dev', NaN, ...
+    'anchor_borderline', false, 'InGap', [], 'InStall', []);
+end
+
+
+function Stimulusoptions = check_red_sync_consistency(Stimulusoptions, PT, timestamps, StimAcqNumber, SI_Info)
+%CHECK_RED_SYNC_CONSISTENCY Report the red-frame sync of every block and compare the blocks
+%   The offset between the stimulus PC clock and the projector pulses changes by only a few ms
+%   over a session, so every synchronized block should show about the same median
+%   (pulse time - PC clock time). A block that differs by more than tol_ms was most likely
+%   numbered one red frame (83 ms) off. A block synchronized by match_red_pulses that disagrees
+%   with the median of the blocks (needs >= 3 synchronized blocks to tell which one is off) is
+%   matched again with its first pulse anchored on that median offset; if that does not give an
+%   agreeing result either it goes back to PC clock times. Any other disagreement is only reported.
+
+tol_ms = 33;     % 0.4 of a red-frame period (every 5th frame at 60 Hz); real blocks differ by < 15 ms
+n = numel(Stimulusoptions);
+if ~all(arrayfun(@(s) isfield(s, 'RedSyncInfo') && ~isempty(s.RedSyncInfo), Stimulusoptions))
+    return;
+end
+info = [Stimulusoptions.RedSyncInfo];
+fprintf('  Red-frame sync per stimulus block:\n');
+fprintf('    %3s %-28s %-13s %11s %5s %5s %6s %10s\n', '#', 'type', 'method', 'pulses/red', 'lost', 'gaps', 'anchor', 'PC offset');
+for k = 1:n
+    anchor = '-';
+    if strcmp(info(k).method, 'gap-tolerant'); anchor = sprintf('+%d', info(k).shift); end
+    offs = '-';
+    if isfinite(info(k).offset_median_ms); offs = sprintf('%+.0f ms', info(k).offset_median_ms); end
+    fprintf('    %3d %-28s %-13s %5d/%-5d %5d %5s %6s %10s\n', k, char(string(Stimulusoptions(k).type)), ...
+        info(k).method, info(k).n_pulses, info(k).n_expected, info(k).n_lost, num2str(info(k).n_gaps), anchor, offs);
+end
+
+off = [info.offset_median_ms];
+synced = [Stimulusoptions.RedFrameSynchronized] & isfinite(off);
+if nnz(synced) < 2
+    return;
+end
+ref = median(off(synced));
+far = synced & abs(off - ref) > tol_ms;
+if ~any(far)
+    fprintf('  Red-frame sync: the %d synchronized blocks agree on the PC-clock offset (median %+.0f ms, spread %.0f ms)\n', ...
+        nnz(synced), ref, max(off(synced)) - min(off(synced)));
+    return;
+end
+for k = find(far)
+    if nnz(synced) >= 3 && strcmp(info(k).method, 'gap-tolerant')
+        % anchor the first pulse on the median offset of the blocks that agree with each other
+        ref_k = median(off(synced & ~far));
+        stim_sync = synchronize_red_frames(Stimulusoptions(k), PT, timestamps, StimAcqNumber(k), SI_Info, '', ref_k / 1e3);
+        new_off = stim_sync.RedSyncInfo.offset_median_ms;
+        if stim_sync.RedFrameSynchronized && abs(new_off - ref_k) <= tol_ms
+            stim_sync.RedSyncInfo.note = sprintf('first pulse re-anchored: PC-clock offset %+.0f ms (was %+.0f ms) like the other blocks (%+.0f ms)', new_off, off(k), ref_k);
+            fprintf('  Stimulus %d: %s\n', k, stim_sync.RedSyncInfo.note);
+        else
+            why = sprintf('PC-clock offset %+.0f ms but %+.0f ms in the other blocks, and anchoring it like them did not work either', off(k), ref_k);
+            stim_sync = synchronize_red_frames(Stimulusoptions(k), PT, timestamps, StimAcqNumber(k), SI_Info, why);
+        end
+        Stimulusoptions(k).TimeStimulusFrame = stim_sync.TimeStimulusFrame;
+        Stimulusoptions(k).RedFrameSynchronized = stim_sync.RedFrameSynchronized;
+        Stimulusoptions(k).TimeStimulusFrameVBL = stim_sync.TimeStimulusFrameVBL;
+        Stimulusoptions(k).RedSyncInfo = stim_sync.RedSyncInfo;
+    else
+        warning('check_red_sync_consistency:offset', ...
+            ['Stimulus %d: PC-clock offset %+.0f ms differs from the median of the blocks (%+.0f ms) by more than %d ms; ' ...
+            'check its red-frame sync'], k, off(k), ref, tol_ms);
+    end
+end
+
+end
+
+
+function Stimopts = synchronize_red_frames_training(Stimopts, PT, acq_timestamps, SI_Info)
+%SYNCHRONIZE_RED_FRAMES_TRAINING Synchronize every trial of a training stimulus with the projector pulses
+%   A training stimulus file holds all the trials of a session. Frameinfo.* are frames x trials matrices
+%   (padded to the longest trial, and in some trials with placeholder rows), every trial is imaged in its
+%   own acquisition, and the red frame (every red_sync_nth_frame-th frame, counted over the whole trial)
+%   gives one projector pulse. Each trial is synchronized on its own:
+%     1. its real frames are picked out: rows with a frame number >= 1 and a time inside the trial
+%        (padding and placeholder rows are ignored and stay NaN in the output). The frame numbers must be
+%        1..n in order and the times must increase, otherwise the trial keeps PC clock times
+%     2. at least min_cover of the trial must lie inside imaged acquisitions
+%     3. the projector pulses from the trial's first frame to its last red frame are paired with its red
+%        frames by match_red_pulses, which tolerates lost pulses (see there for its consistency checks)
+%     4. the PC-clock offset (pulse time - PC clock time) of the trials must follow one smooth line over the
+%        session (the two clocks drift slowly apart). A trial off that line, or one that could not be
+%        matched, is matched again with its first pulse anchored on the line; if that does not agree
+%        either, it keeps PC clock times
+%     5. the frame times are interpolated between the pulses and must increase
+%   A trial that cannot be synchronized safely keeps PC clock times and says why in its RedSyncInfo.
+%
+%   Output, added to Stimopts (frames x trials like Frameinfo, NaN where there is no real frame):
+%     TimeStimulusFrame          time (s, session clock = TimeCa) of every real frame
+%     TimeStimulusFrameVBL       time of the trial's first frame + stimulus PC clock intervals
+%     FrameValid                 logical, true for the real frames (Frameinfo rows to use)
+%     RedFrameSynchronizedTrial  1 x trials logical, true if the trial's times come from the pulses
+%     RedFrameSynchronized       true only if every trial was synchronized
+%     RedSyncInfo(trial)         how the trial was done: make_sync_info fields + trial, acquisition (the
+%                                acquisition it overlaps most), acq_cover (share of the trial inside imaged
+%                                acquisitions), n_frames (real frames), n_dropped_rows (rows with a time that
+%                                are not real frames, e.g. placeholders)
+%     RedSyncSession             session summary: n_trials, n_synced, trials_pc_clock, offset_min_ms,
+%                                offset_max_ms, drift_ms_per_min and offset_start_ms (the line fitted to
+%                                the trials' PC-clock offsets), max_dev_ms (largest distance of a trial from it)
+
+% --- limits of the checks (named so a rig that needs different ones can change them here)
+lag_tol_s = 0.020;      % a trial's PC-clock offset may differ this much from the session's drift line
+min_trials_fit = 5;     % synchronized trials needed to fit that line
+min_cover = 0.9;        % share of a trial that must lie inside imaged acquisitions
+win_margin_s = 0.005;   % pulse window of a trial: see match_training_trial
+% limits of match_red_pulses for training trials: the projector chain shows isolated pulses 2 frames (33 ms) late and
+% level steps of 1-2 frames in RB24 (see the opts of match_red_pulses), so intervals may be off by up to 0.45 period
+opts = struct('max_int_dev', 0.45, 'outlier_s', 0.025, 'max_outlier_frac', 0.02, 'max_off_dev_s', 0.0375);
+
+FI = Stimopts.Frameinfo;
+nth = Stimopts.red_sync_nth_frame;
+periodic = isscalar(nth) && nth >= 1;
+[nrow, ntr] = size(FI.frametime);
+PT = reshape(PT, 1, []);
+pc_all = seconds(FI.frametime - SI_Info.Clockstart);        % stimulus PC clock on the session clock
+
+% --- 1. real frames of every trial
+t_lo = -inf(1, ntr);
+t_hi = inf(1, ntr);
+if isfield(Stimopts, 'timestart') && isfield(Stimopts, 'timeend') && isdatetime(Stimopts.timestart) && ...
+        isdatetime(Stimopts.timeend) && numel(Stimopts.timestart) == ntr && numel(Stimopts.timeend) == ntr
+    t_lo = reshape(seconds(Stimopts.timestart - SI_Info.Clockstart), 1, []) - 1;
+    t_hi = reshape(seconds(Stimopts.timeend - SI_Info.Clockstart), 1, []) + 1;
+end
+valid = false(nrow, ntr);
+pc = cell(1, ntr);
+why = repmat({''}, 1, ntr);
+n_drop = zeros(1, ntr);
+for q = 1:ntr
+    fc = FI.frame_count(:, q);
+    t = pc_all(:, q);
+    v = ~isnan(fc) & fc >= 1 & ~isnan(t) & t >= t_lo(q) & t <= t_hi(q);
+    valid(:, q) = v;
+    pc{q} = reshape(t(v), 1, []);
+    n_drop(q) = nnz(~isnan(t)) - nnz(v);
+    if ~any(v)
+        why{q} = 'no real frames';
+    elseif ~isequal(reshape(fc(v), 1, []), 1:nnz(v))
+        why{q} = 'frame numbers are not 1..n in order';
+    elseif any(diff(pc{q}) <= 0)
+        why{q} = 'frame times do not increase';
+    end
+end
+if isfield(Stimopts, 'ifi') && ~isempty(Stimopts.ifi) && Stimopts.ifi(1) > 0
+    ifi = Stimopts.ifi(1);
+else
+    dts = cellfun(@diff, pc(cellfun(@isempty, why)), 'UniformOutput', false);
+    ifi = median([dts{:}]);       % frame interval of the stimulus PC (NaN if there are no frames)
+end
+
+% --- 2./3. every trial on its own
+acq = nan(1, ntr);
+cover = nan(1, ntr);
+rf = cell(1, ntr);
+pt = cell(1, ntr);
+info = cell(1, ntr);
+tried = false(1, ntr);
+for q = 1:ntr
+    if ~isempty(pc{q})
+        ov = max(0, min(acq_timestamps(:, 2), pc{q}(end)) - max(acq_timestamps(:, 1), pc{q}(1)));
+        [~, acq(q)] = max(ov);
+        cover(q) = sum(ov) / max(pc{q}(end) - pc{q}(1), eps);
+    end
+    if ~periodic
+        fail = 'no periodic red frames (red_sync_nth_frame < 1)';
+    elseif ~isempty(why{q})
+        fail = why{q};
+    elseif cover(q) < min_cover
+        fail = sprintf('only %.0f%% of the trial lies inside imaged acquisitions', 100 * cover(q));
+    else
+        fail = '';
+    end
+    if isempty(fail)
+        tried(q) = true;
+        [rf{q}, pt{q}, info{q}] = match_training_trial(PT, pc{q}, nth, ifi, NaN, win_margin_s, opts);
+        if ~info{q}.ok
+            info{q} = pc_clock_info(info{q}.reason, info{q});
+        end
+    else
+        info{q} = make_sync_info('PC clock', false, fail);
+    end
+end
+
+% --- 4. the PC-clock offsets of the trials follow one smooth line over the session
+ok = cellfun(@(s) s.ok, info);
+off = cellfun(@(s) s.offset_median_ms, info);
+tmid = nan(1, ntr);
+for q = 1:ntr
+    if ~isempty(pc{q}); tmid(q) = mean(pc{q}([1 end])); end
+end
+sel = ok & isfinite(off) & isfinite(tmid);
+p = [];
+mu = mean(tmid(sel));
+if nnz(sel) >= min_trials_fit
+    keep = sel;
+    for it = 1:4
+        p = polyfit(tmid(keep) - mu, off(keep), 1);
+        newkeep = sel & abs(off - polyval(p, tmid - mu)) <= 1e3 * lag_tol_s;
+        if nnz(newkeep) < min_trials_fit; p = []; break; end
+        if isequal(newkeep, keep); break; end
+        keep = newkeep;
+    end
+end
+pred = nan(1, ntr);
+if ~isempty(p)
+    pred = polyval(p, tmid - mu);
+    redo = find(tried & (~ok | (sel & abs(off - pred) > 1e3 * lag_tol_s)));
+    for q = redo
+        [rf2, pt2, m2] = match_training_trial(PT, pc{q}, nth, ifi, pred(q) / 1e3, win_margin_s, opts);
+        if m2.ok && abs(m2.offset_median_ms - pred(q)) <= 1e3 * lag_tol_s
+            m2.note = sprintf('first pulse anchored on the session drift line: PC-clock offset %+.0f ms (line %+.0f ms)', ...
+                m2.offset_median_ms, pred(q));
+            rf{q} = rf2;
+            pt{q} = pt2;
+            info{q} = m2;
+            ok(q) = true;
+        elseif ok(q)
+            info{q} = pc_clock_info(sprintf(['PC-clock offset %+.0f ms but the session line gives %+.0f ms, ' ...
+                'and anchoring on the line did not work either'], off(q), pred(q)), info{q});
+            ok(q) = false;
+        end
+    end
+end
+
+% --- 5. frame times of every trial, frames x trials like Frameinfo
+TSF = nan(nrow, ntr);
+VBL = nan(nrow, ntr);
+for q = 1:ntr
+    v = valid(:, q);
+    n = nnz(v);
+    if n == 0; continue; end
+    if ok(q)
+        % between the pulses interpolate; before the first / after the last one continue with the slope of the
+        % whole trial (the last two pulses alone would pass their timing jitter or a level step on)
+        k = 1:n;
+        t = interp1(rf{q}, pt{q}, k, 'linear');
+        slope = polyfit(rf{q}, pt{q}, 1);
+        t(k < rf{q}(1)) = pt{q}(1) + slope(1) * (k(k < rf{q}(1)) - rf{q}(1));
+        t(k > rf{q}(end)) = pt{q}(end) + slope(1) * (k(k > rf{q}(end)) - rf{q}(end));
+        if any(diff(t) <= 0)
+            info{q} = pc_clock_info('frame times from the pulses do not increase', info{q});
+            ok(q) = false;
+            t = pc{q};
+        end
+    else
+        t = pc{q};
+    end
+    TSF(v, q) = t(:);
+    ft = FI.frametime(v, q);
+    VBL(v, q) = t(1) + seconds(ft - ft(1));
+end
+for q = 1:ntr
+    info{q}.trial = q;
+    info{q}.acquisition = acq(q);
+    info{q}.acq_cover = cover(q);
+    info{q}.n_frames = numel(pc{q});
+    info{q}.n_dropped_rows = n_drop(q);
+end
+info = [info{:}];
+
+sess = struct('n_trials', ntr, 'n_synced', nnz(ok), 'trials_pc_clock', find(~ok), 'offset_min_ms', NaN, ...
+    'offset_max_ms', NaN, 'drift_ms_per_min', NaN, 'offset_start_ms', NaN, 'max_dev_ms', NaN, ...
+    'tolerance_ms', 1e3 * lag_tol_s);
+offF = [info.offset_median_ms];
+if any(ok)
+    sess.offset_min_ms = min(offF(ok));
+    sess.offset_max_ms = max(offF(ok));
+end
+if ~isempty(p)
+    sess.drift_ms_per_min = 60 * p(1);
+    sess.offset_start_ms = polyval(p, -mu);
+    sess.max_dev_ms = max(abs(offF(ok) - pred(ok)));
+end
+
+Stimopts.TimeStimulusFrame = TSF;
+Stimopts.TimeStimulusFrameVBL = VBL;
+Stimopts.FrameValid = valid;
+Stimopts.RedFrameSynchronizedTrial = ok;
+Stimopts.RedFrameSynchronized = all(ok);
+Stimopts.RedSyncInfo = info;
+Stimopts.RedSyncSession = sess;
+
+% --- report
+fprintf('  Red-frame sync of the %d training trials: %d synchronized from the projector pulses\n', ntr, nnz(ok));
+if any(ok)
+    n_exp = sum([info(ok).n_expected]);
+    n_lost = sum([info(ok).n_lost]);
+    fprintf('    pulses lost: %d of %d red frames (%.1f%%), trials with a gap: %d; isolated late pulses dropped: %d\n', n_lost, n_exp, ...
+        100 * n_lost / n_exp, nnz([info(ok).n_gaps] > 0), sum([info(ok).n_outliers]));
+    fprintf('    PC-clock offset (pulse - PC clock): %+.0f to %+.0f ms', sess.offset_min_ms, sess.offset_max_ms);
+    if ~isempty(p)
+        fprintf('; line %+.0f ms %+.2f ms/min, largest deviation of a trial %.1f ms (limit %.0f ms)', ...
+            sess.offset_start_ms, sess.drift_ms_per_min, sess.max_dev_ms, sess.tolerance_ms);
+    end
+    fprintf('\n');
+    re = find(ok & ~cellfun(@isempty, {info.note}));
+    if ~isempty(re)
+        fprintf('    first pulse anchored on the drift line for trial(s) %s\n', mat2str(re));
+    end
+    bl = find(ok & [info.anchor_borderline]);
+    if ~isempty(bl)
+        fprintf('    first pulse anchoring is within 10 ms of the edge of its window for trial(s) %s\n', mat2str(bl));
+    end
+end
+bad = find(~ok);
+if ~isempty(bad)
+    fprintf('    PC clock times used for %d trial(s):\n', numel(bad));
+    for q = bad(1:min(numel(bad), 10))
+        fprintf('      trial %d: %s\n', q, info(q).reason);
+    end
+    warning('Projector sync frames not matching for training! Using PC Clock Times instead for trial(s) %s (see RedSyncInfo)', ...
+        mat2str(bad));
+end
+
+end
+
+
+function [rf, pt, info] = match_training_trial(PT, pc, nth, ifi, lag_center_s, win_margin_s, opts)
+%MATCH_TRAINING_TRIAL Pair the projector pulses of one training trial with its red frames
+%   pc are the PC-clock times of the trial's frames. The pulse of a red frame comes lag_center_s after its
+%   PC-clock time (default: the middle of the anchoring window of match_red_pulses), and pulses are taken
+%   from half a period (+ win_margin_s) before that for the first frame to the same after it for the last
+%   red frame. That keeps out the pulses of the neighbouring trials, and also the pulse of a red frame that
+%   was projected right after the last logged frame, which comes one period after the last one.
+%   See match_red_pulses.
+
+n = numel(pc);
+last_red = pc(1 + nth * floor((n - 1) / nth));
+lag_in = lag_center_s;
+if ~isfinite(lag_center_s)
+    lag_center_s = -0.020 + nth * ifi / 2;          % centre of the default anchoring window
+end
+half = nth * ifi / 2 + win_margin_s;
+w = PT(PT >= pc(1) + lag_center_s - half & PT <= last_red + lag_center_s + half);
+[rf, pt, info] = match_red_pulses(w, n, nth, ifi, pc, lag_in, opts);
+
+end
+
+
+function info = pc_clock_info(why, prev)
+%PC_CLOCK_INFO RedSyncInfo of a trial that keeps PC clock times, with the pulse counts of its failed match
+
+info = make_sync_info('PC clock', false, why);
+info.n_pulses = prev.n_pulses;
+info.n_expected = prev.n_expected;
+info.n_lost = prev.n_lost;
+
+end
+
+
+function tail = load_ball_tail(StimFile, n_main, n_trig)
+%LOAD_BALL_TAIL Ball camera readings saved next to the stim file of a session that was stopped early
+%   Returns the readings of every non-empty *_BallCamTail.mat in the stim file's folder (cell, one 1x5 row per
+%   reading, as in the stim file), or {} when there is none or when appending it would NOT bring the number of
+%   readings closer to the number of ball triggers (then it is reported and ignored).
+tail = {};
+tf = dir(fullfile(StimFile.folder, '*_BallCamTail.mat'));
+tf = tf([tf.bytes] > 0);
+for k = 1:numel(tf)
+    S = load(fullfile(tf(k).folder, tf(k).name));
+    if ~isfield(S, 'BallCamData') || isempty(S.BallCamData); continue; end
+    t = reshape(cellfun(@(r) double(r(:))', S.BallCamData, 'UniformOutput', false), [], 1);
+    if abs(n_main + numel(tail) + numel(t) - n_trig) < abs(n_main + numel(tail) - n_trig)
+        tail = [tail; t]; %#ok<AGROW>
+        fprintf('  Ball camera tail %s: %d readings appended (%d in the stim file, %d ball triggers)\n', tf(k).name, numel(t), n_main, n_trig);
+    else
+        warning('Ball camera tail %s (%d readings) does not fit %d triggers for %d readings: ignored', tf(k).name, numel(t), n_trig, n_main + numel(tail));
+    end
+end
+end
+
+
+function Ball = training_ball_data(readings, BT)
+%TRAINING_BALL_DATA Ball camera readings of a training session, each with a time stamp
+%   A training stimulus file holds ONE ball camera log for the whole session while Triggers.TimeBall has one
+%   cell per acquisition (BT), so the time stamps of the log are all the triggers in acquisition order -
+%   except for triggers that have no reading. The camera counter (column 5 of a reading, 1..L and then
+%   wrapping) shows where readings are missing, and in RB24 it jumps exactly where the trigger list has
+%   a gap (ScanImage starting a new acquisition), and the trigger list has one trigger more than the log
+%   at the start of the session and after each gap. With those triggers removed, readings and
+%   triggers pair one to one. This is accepted only if
+%     - the counter jumps and the trigger gaps (interval > 5 x the median) are equally many,
+%     - the trigger index minus the reading index at the h-th jump / gap is h, and
+%     - there are 1 + (number of gaps) triggers more than readings,
+%   (or if there are exactly as many triggers as readings and no gap / jump); otherwise Triggers_sec is
+%   the first numel(readings) triggers and SyncInfo.ok is false: the pairing is then not verified.
+%   Readings that are not 5 numbers are NaN.
+%   Ball.SyncInfo: ok, method, reason, n_readings, n_triggers, n_dropped_triggers, counter_jumps (reading index
+%   before each jump), readings_missing (per jump), trigger_gaps (trigger index before each gap), gap_s.
+
+nr = numel(readings);
+good = reshape(cellfun(@numel, readings) == 5, [], 1);
+Values = nan(nr, 5);
+Values(good, :) = cell2mat(reshape(readings(good), [], 1));
+if any(~good)
+    warning('Ball camera data contains %d bad readings (set to NaN)', nnz(~good));
+end
+tb = cell2mat(cellfun(@(x) reshape(x, [], 1), reshape(BT, [], 1), 'UniformOutput', false));
+
+% holes in the camera counter
+L = max(Values(:, 5));
+idx = find(good & ~isnan(Values(:, 5)));
+miss = mod(diff(Values(idx, 5)) - diff(idx), L);          % 0 where no reading is missing
+hole_after = reshape(idx(miss ~= 0), [], 1);              % reading before each jump
+hole_missing = reshape(miss(miss ~= 0), [], 1);           % readings missing at each jump
+% gaps in the trigger list
+iv = diff(tb);
+gap_after = reshape(find(iv > 5 * median(iv)), [], 1);
+nh = numel(hole_after);
+
+info = struct('ok', false, 'method', '', 'reason', '', 'n_readings', nr, 'n_triggers', numel(tb), ...
+    'n_dropped_triggers', 0, 'counter_jumps', hole_after, 'readings_missing', hole_missing, ...
+    'trigger_gaps', gap_after, 'gap_s', iv(gap_after));
+if numel(tb) == nr && nh == 0 && isempty(gap_after)
+    info.ok = true;
+    info.method = 'one to one';
+elseif L >= 10 && nh == numel(gap_after) && all(gap_after - hole_after == (1:nh)') && ...
+        numel(tb) - nr == 1 + nh
+    drop = [1; gap_after + 1];
+    tb(drop) = [];
+    info.ok = true;
+    info.method = 'trigger at the session start and after each gap removed';
+    info.n_dropped_triggers = numel(drop);
+else
+    info.reason = sprintf(['%d triggers for %d readings, %d counter jump(s) and %d trigger gap(s) do not fit ' ...
+        'the expected pattern, the pairing is not verified'], numel(tb), nr, nh, numel(gap_after));
+    info.method = 'first triggers';
+    tb = tb(1:min(numel(tb), nr));
+    tb = [tb; nan(nr - numel(tb), 1)];
+    warning('Ball camera time stamps: %s', info.reason);
+end
+fprintf('  Ball camera log: %d readings, %d triggers (%s)\n', nr, info.n_triggers, info.method);
+
+Ball = struct('Values', Values, 'Triggers_sec', tb, 'SyncInfo', info);
 
 end
 

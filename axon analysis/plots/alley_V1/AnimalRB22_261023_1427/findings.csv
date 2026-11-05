@@ -1,0 +1,23 @@
+analysis,statistic,value,ci_or_p,n
+9 selection,"mean of 6 selected ROIs: waited vs at once",0.0574053967463947,"",31
+9 selection,"LocSpeed: waited vs at once",158.283453723481,"",31
+9 selection,"WhiskIndex: waited vs at once",0.478194092337165,"",31
+10 reference,"natural stop: mean of 6 selected ROIs",-0.0466124530841073,"[-0.241, 0.170]",5
+8 mismatch,"mean of 6 selected ROIs: response 0-2 s",0.0135220622761504,"[-0.040, 0.068]",74
+8 sham,"mean of 6 selected ROIs: response 0-2 s",0.0337384244864424,"",14
+8 mismatch - sham,"mean of 6 selected ROIs",-0.020216362210292,"p_perm = 0.772",74
+8 simulated-scheduler pseudo-events,"mean of 6 selected ROIs",-0.00240690498209121,"SD 0.024, z = 0.6, p = 0.536",74
+8 groups,"ROI 1,5",0.0303178626317586,"[-0.054, 0.113], sham -0.099, p_perm 0.211, null z 1.5",74
+8 groups,"ROI 2",-0.0023874488056108,"[-0.080, 0.079], sham 0.168, p_perm 0.113, null z -0.9",74
+8 groups,"ROI 3",0.070169634407647,"[0.002, 0.142], sham 0.049, p_perm 0.799, null z 1.9",74
+8 groups,"ROI 4",0.0117500052285653,"[-0.064, 0.090], sham 0.051, p_perm 0.674, null z 0.6",74
+8 groups,"ROI 14",-0.0590355424372166,"[-0.131, 0.013], sham 0.132, p_perm 0.050, null z -1.7",74
+8 groups,"control: noise-like ROI 6,7,8,9,10,11,12,13,15,16,17,18",-0.0209704751359835,"[-0.052, 0.010], sham 0.001, p_perm 0.571, null z 0.5",74
+8 behaviour,"LocSpeed",109.970918400162,"[56.061, 165.494], sham 101, null z 1.1",74
+8 behaviour,"PupilArea",-1.40168687129605,"[-6.023, 3.210], sham 9.32, null z -2.8",74
+8 behaviour,"WhiskIndex",0.218520050834578,"[0.074, 0.371], sham 0.217, null z -0.0",74
+8 behaviour,"FacePadME",-0.0882295148846704,"[-0.205, 0.042], sham -0.0806, null z -2.0",74
+8 behaviour,"EyeLidOpening",0.83693650328086,"[0.437, 1.237], sham 0.954, null z 0.4",74
+8 behaviour,"RigidShift",-0.278393943392386,"[-0.432, -0.127], sham -0.217, null z -0.8",74
+9 order,"Spearman amplitude vs speed at onset",-0.179977786005183,"",74
+9 order,"Spearman amplitude vs event number",-0.117719363198815,"",74

@@ -1,0 +1,432 @@
+analysis,statistic,value,ci_or_p,n
+"8 licking","lick data",none (no spout / no lick log),"",39
+"9 onset response, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","mean dF/F change 0-3 s (pseudo-onset null mean +0.072, sd 0.119)",-0.11,"[-0.30, 0.07], perm p=0.498, signrank p=0.41",39
+"9 onset response, ROI 5,7","mean dF/F change 0-3 s (pseudo-onset null mean -0.031, sd 0.102)",0.075,"[-0.05, 0.21], perm p=0.502, signrank p=0.402",39
+"9 onset response, ROI 6,100","mean dF/F change 0-3 s (pseudo-onset null mean +0.058, sd 0.102)",-0.0727,"[-0.23, 0.09], perm p=0.597, signrank p=0.635",39
+"9 onset response, ROI 41,88","mean dF/F change 0-3 s (pseudo-onset null mean +0.075, sd 0.102)",-0.0115,"[-0.17, 0.15], perm p=0.935, signrank p=0.933",39
+"9 onset response, ROI 64,94","mean dF/F change 0-3 s (pseudo-onset null mean -0.017, sd 0.120)",-0.0278,"[-0.23, 0.16], perm p=0.821, signrank p=0.967",39
+"9 onset response, ROI 74,98","mean dF/F change 0-3 s (pseudo-onset null mean +0.046, sd 0.105)",-0.0026,"[-0.16, 0.15], perm p=0.970, signrank p=0.978",39
+"9 onset response, ROI 9","mean dF/F change 0-3 s (pseudo-onset null mean +0.027, sd 0.093)",-0.04,"[-0.19, 0.10], perm p=0.761, signrank p=0.686",39
+"9 onset response, ROI 10","mean dF/F change 0-3 s (pseudo-onset null mean +0.094, sd 0.108)",-0.0876,"[-0.30, 0.12], perm p=0.597, signrank p=0.655",39
+"9 onset response, ROI 11","mean dF/F change 0-3 s (pseudo-onset null mean +0.032, sd 0.152)",-0.157,"[-0.37, 0.08], perm p=0.294, signrank p=0.118",39
+"9 onset response, ROI 14","mean dF/F change 0-3 s (pseudo-onset null mean -0.029, sd 0.099)",0.00981,"[-0.12, 0.15], perm p=0.930, signrank p=0.967",39
+"9 onset response, ROI 17","mean dF/F change 0-3 s (pseudo-onset null mean +0.084, sd 0.095)",-0.136,"[-0.34, 0.07], perm p=0.338, signrank p=0.18",39
+"9 onset response, ROI 20","mean dF/F change 0-3 s (pseudo-onset null mean +0.111, sd 0.102)",-0.0847,"[-0.21, 0.04], perm p=0.701, signrank p=0.194",39
+"9 onset response, ROI 21","mean dF/F change 0-3 s (pseudo-onset null mean -0.046, sd 0.096)",-0.0249,"[-0.15, 0.12], perm p=0.806, signrank p=0.521",39
+"9 onset response, ROI 25","mean dF/F change 0-3 s (pseudo-onset null mean -0.053, sd 0.095)",-0.103,"[-0.24, 0.03], perm p=0.343, signrank p=0.147",39
+"9 onset response, ROI 34","mean dF/F change 0-3 s (pseudo-onset null mean +0.039, sd 0.127)",-0.0518,"[-0.20, 0.09], perm p=0.746, signrank p=0.402",39
+"9 onset response, ROI 48","mean dF/F change 0-3 s (pseudo-onset null mean -0.005, sd 0.136)",-0.0445,"[-0.24, 0.18], perm p=0.751, signrank p=0.364",39
+"9 onset response, ROI 66","mean dF/F change 0-3 s (pseudo-onset null mean +0.100, sd 0.120)",-0.0701,"[-0.26, 0.12], perm p=0.657, signrank p=0.276",39
+"9 onset response, ROI 67","mean dF/F change 0-3 s (pseudo-onset null mean +0.060, sd 0.102)",-0.0832,"[-0.23, 0.08], perm p=0.527, signrank p=0.19",39
+"9 onset response, ROI 70","mean dF/F change 0-3 s (pseudo-onset null mean +0.047, sd 0.107)",-0.0393,"[-0.18, 0.11], perm p=0.811, signrank p=0.539",39
+"9 onset response, ROI 73","mean dF/F change 0-3 s (pseudo-onset null mean +0.103, sd 0.106)",0.00243,"[-0.15, 0.16], perm p=0.985, signrank p=0.922",39
+"9 onset response, ROI 81","mean dF/F change 0-3 s (pseudo-onset null mean +0.004, sd 0.093)",0.0415,"[-0.09, 0.18], perm p=0.711, signrank p=0.686",39
+"9 onset response, ROI 83","mean dF/F change 0-3 s (pseudo-onset null mean +0.063, sd 0.103)",-0.0544,"[-0.21, 0.11], perm p=0.652, signrank p=0.395",39
+"9 onset response, ROI 84","mean dF/F change 0-3 s (pseudo-onset null mean +0.057, sd 0.102)",-0.115,"[-0.30, 0.07], perm p=0.343, signrank p=0.372",39
+"9 onset response, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","mean dF/F change 0-3 s (pseudo-onset null mean -0.012, sd 0.027)",-0.0153,"[-0.05, 0.01], perm p=0.612, signrank p=0.558",39
+"9 behaviour at the onset","pupil area, change in resp_win (session SD)",-0.0746,"[-0.17, 0.02]",39
+"9 behaviour at the onset","whisking, change in resp_win (session SD)",0.0355,"[-0.08, 0.16]",39
+"9 behaviour at the onset","face motion, change in resp_win (session SD)",-0.0157,"[-0.13, 0.10]",39
+"9 behaviour at the onset","eyelid opening, change in resp_win (session SD)",-0.0616,"[-0.14, 0.02]",39
+"9 behaviour at the onset","locomotion, change in resp_win (session SD)",0.0436,"[-0.14, 0.23]",39
+"9 behaviour at the onset","rigid shift, change in resp_win (session SD)",0.0363,"[-0.07, 0.14]",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of pre pupil (other predictors held)",0.00356,"[-0.72, 0.60], bootstrap p=0.954; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of pre locomotion (other predictors held)",-0.0132,"[-0.38, 0.59], bootstrap p=0.958; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of pre whisking (other predictors held)",0.0595,"[-0.73, 0.85], bootstrap p=0.906; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of evoked locomotion (other predictors held)",-0.0208,"[-0.26, 0.20], bootstrap p=0.884; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of evoked whisking (other predictors held)",0.0604,"[-0.19, 0.33], bootstrap p=0.708; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of evoked pupil (other predictors held)",0.312,"[0.01, 0.63], bootstrap p=0.040; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of evoked rigid shift (other predictors held)",-0.101,"[-0.36, 0.14], bootstrap p=0.422; model R2 0.31",39
+"11 trial regression, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","dF/F change per SD of trial number (other predictors held)",-0.0389,"[-0.38, 0.29], bootstrap p=0.752; model R2 0.31",39
+"11 trial regression, ROI 5,7","dF/F change per SD of pre pupil (other predictors held)",-0.133,"[-0.61, 0.35], bootstrap p=0.558; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of pre locomotion (other predictors held)",0.0339,"[-0.28, 0.44], bootstrap p=0.920; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of pre whisking (other predictors held)",0.0971,"[-0.44, 0.61], bootstrap p=0.684; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of evoked locomotion (other predictors held)",0.0128,"[-0.20, 0.16], bootstrap p=0.960; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of evoked whisking (other predictors held)",0.162,"[-0.02, 0.38], bootstrap p=0.086; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of evoked pupil (other predictors held)",-0.0438,"[-0.27, 0.23], bootstrap p=0.776; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of evoked rigid shift (other predictors held)",0.071,"[-0.11, 0.23], bootstrap p=0.372; model R2 0.23",39
+"11 trial regression, ROI 5,7","dF/F change per SD of trial number (other predictors held)",-0.0433,"[-0.27, 0.17], bootstrap p=0.556; model R2 0.23",39
+"11 trial regression, ROI 6,100","dF/F change per SD of pre pupil (other predictors held)",-0.0045,"[-0.61, 0.62], bootstrap p=0.974; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of pre locomotion (other predictors held)",0.208,"[-0.11, 0.67], bootstrap p=0.164; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of pre whisking (other predictors held)",-0.142,"[-0.93, 0.58], bootstrap p=0.620; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of evoked locomotion (other predictors held)",0.0239,"[-0.21, 0.34], bootstrap p=0.720; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of evoked whisking (other predictors held)",-0.118,"[-0.38, 0.11], bootstrap p=0.234; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of evoked pupil (other predictors held)",0.358,"[0.08, 0.66], bootstrap p=0.016; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of evoked rigid shift (other predictors held)",-0.107,"[-0.32, 0.10], bootstrap p=0.298; model R2 0.40",39
+"11 trial regression, ROI 6,100","dF/F change per SD of trial number (other predictors held)",0.0753,"[-0.21, 0.36], bootstrap p=0.644; model R2 0.40",39
+"11 trial regression, ROI 41,88","dF/F change per SD of pre pupil (other predictors held)",0.117,"[-0.50, 0.75], bootstrap p=0.626; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of pre locomotion (other predictors held)",0.0428,"[-0.24, 0.66], bootstrap p=0.724; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of pre whisking (other predictors held)",-0.0569,"[-0.85, 0.64], bootstrap p=0.710; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of evoked locomotion (other predictors held)",0.0913,"[-0.13, 0.39], bootstrap p=0.308; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of evoked whisking (other predictors held)",0.154,"[-0.12, 0.37], bootstrap p=0.262; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of evoked pupil (other predictors held)",0.182,"[-0.12, 0.51], bootstrap p=0.206; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0633,"[-0.29, 0.15], bootstrap p=0.558; model R2 0.33",39
+"11 trial regression, ROI 41,88","dF/F change per SD of trial number (other predictors held)",0.0273,"[-0.19, 0.30], bootstrap p=0.798; model R2 0.33",39
+"11 trial regression, ROI 64,94","dF/F change per SD of pre pupil (other predictors held)",-0.0974,"[-0.85, 0.61], bootstrap p=0.856; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of pre locomotion (other predictors held)",0.0265,"[-0.44, 0.68], bootstrap p=0.922; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of pre whisking (other predictors held)",0.186,"[-0.75, 1.07], bootstrap p=0.770; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of evoked locomotion (other predictors held)",0.146,"[-0.26, 0.50], bootstrap p=0.282; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of evoked whisking (other predictors held)",0.042,"[-0.31, 0.33], bootstrap p=0.934; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of evoked pupil (other predictors held)",0.21,"[-0.13, 0.59], bootstrap p=0.180; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0617,"[-0.34, 0.31], bootstrap p=0.672; model R2 0.30",39
+"11 trial regression, ROI 64,94","dF/F change per SD of trial number (other predictors held)",-0.0391,"[-0.38, 0.33], bootstrap p=0.808; model R2 0.30",39
+"11 trial regression, ROI 74,98","dF/F change per SD of pre pupil (other predictors held)",0.208,"[-0.29, 0.74], bootstrap p=0.370; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of pre locomotion (other predictors held)",0.144,"[-0.14, 0.58], bootstrap p=0.244; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of pre whisking (other predictors held)",-0.268,"[-0.99, 0.37], bootstrap p=0.292; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of evoked locomotion (other predictors held)",0.119,"[-0.08, 0.34], bootstrap p=0.168; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of evoked whisking (other predictors held)",0.109,"[-0.13, 0.34], bootstrap p=0.470; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of evoked pupil (other predictors held)",0.249,"[0.01, 0.58], bootstrap p=0.042; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0234,"[-0.27, 0.21], bootstrap p=0.910; model R2 0.44",39
+"11 trial regression, ROI 74,98","dF/F change per SD of trial number (other predictors held)",0.0186,"[-0.24, 0.29], bootstrap p=0.862; model R2 0.44",39
+"11 trial regression, ROI 9","dF/F change per SD of pre pupil (other predictors held)",-0.0397,"[-0.55, 0.53], bootstrap p=0.866; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of pre locomotion (other predictors held)",0.0734,"[-0.18, 0.68], bootstrap p=0.556; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of pre whisking (other predictors held)",0.0205,"[-0.74, 0.55], bootstrap p=0.932; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of evoked locomotion (other predictors held)",0.118,"[-0.07, 0.43], bootstrap p=0.174; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of evoked whisking (other predictors held)",0.111,"[-0.12, 0.31], bootstrap p=0.450; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of evoked pupil (other predictors held)",0.161,"[-0.08, 0.44], bootstrap p=0.166; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0375,"[-0.28, 0.15], bootstrap p=0.756; model R2 0.38",39
+"11 trial regression, ROI 9","dF/F change per SD of trial number (other predictors held)",0.0396,"[-0.18, 0.29], bootstrap p=0.784; model R2 0.38",39
+"11 trial regression, ROI 10","dF/F change per SD of pre pupil (other predictors held)",0.0235,"[-0.68, 0.77], bootstrap p=0.956; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of pre locomotion (other predictors held)",0.144,"[-0.68, 0.60], bootstrap p=0.766; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of pre whisking (other predictors held)",0.0116,"[-0.72, 0.87], bootstrap p=0.820; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of evoked locomotion (other predictors held)",0.0102,"[-0.48, 0.32], bootstrap p=0.920; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of evoked whisking (other predictors held)",0.1,"[-0.15, 0.39], bootstrap p=0.482; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of evoked pupil (other predictors held)",0.295,"[-0.07, 0.72], bootstrap p=0.122; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0118,"[-0.27, 0.26], bootstrap p=0.966; model R2 0.32",39
+"11 trial regression, ROI 10","dF/F change per SD of trial number (other predictors held)",0.0779,"[-0.23, 0.38], bootstrap p=0.618; model R2 0.32",39
+"11 trial regression, ROI 11","dF/F change per SD of pre pupil (other predictors held)",-0.657,"[-1.43, 0.10], bootstrap p=0.098; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of pre locomotion (other predictors held)",-0.221,"[-0.79, 0.60], bootstrap p=0.426; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of pre whisking (other predictors held)",0.807,"[-0.12, 1.69], bootstrap p=0.108; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of evoked locomotion (other predictors held)",-0.0192,"[-0.41, 0.31], bootstrap p=0.962; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of evoked whisking (other predictors held)",-0.139,"[-0.46, 0.24], bootstrap p=0.344; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of evoked pupil (other predictors held)",0.136,"[-0.28, 0.54], bootstrap p=0.430; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of evoked rigid shift (other predictors held)",0.166,"[-0.24, 0.49], bootstrap p=0.332; model R2 0.41",39
+"11 trial regression, ROI 11","dF/F change per SD of trial number (other predictors held)",-0.0109,"[-0.40, 0.30], bootstrap p=0.908; model R2 0.41",39
+"11 trial regression, ROI 14","dF/F change per SD of pre pupil (other predictors held)",-0.307,"[-1.00, 0.15], bootstrap p=0.172; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of pre locomotion (other predictors held)",0.0112,"[-0.37, 0.54], bootstrap p=0.982; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of pre whisking (other predictors held)",0.206,"[-0.39, 0.97], bootstrap p=0.492; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of evoked locomotion (other predictors held)",-0.0673,"[-0.46, 0.11], bootstrap p=0.406; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of evoked whisking (other predictors held)",0.0486,"[-0.14, 0.30], bootstrap p=0.672; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of evoked pupil (other predictors held)",-0.0759,"[-0.42, 0.16], bootstrap p=0.488; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of evoked rigid shift (other predictors held)",0.0617,"[-0.13, 0.27], bootstrap p=0.534; model R2 0.16",39
+"11 trial regression, ROI 14","dF/F change per SD of trial number (other predictors held)",0.0107,"[-0.27, 0.24], bootstrap p=0.906; model R2 0.16",39
+"11 trial regression, ROI 17","dF/F change per SD of pre pupil (other predictors held)",-0.0373,"[-0.84, 0.63], bootstrap p=0.920; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of pre locomotion (other predictors held)",0.141,"[-0.59, 0.61], bootstrap p=0.810; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of pre whisking (other predictors held)",0.0032,"[-0.74, 1.09], bootstrap p=0.930; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of evoked locomotion (other predictors held)",-0.235,"[-0.74, 0.02], bootstrap p=0.074; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of evoked whisking (other predictors held)",0.102,"[-0.14, 0.39], bootstrap p=0.350; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of evoked pupil (other predictors held)",0.327,"[-0.04, 0.69], bootstrap p=0.086; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of evoked rigid shift (other predictors held)",-0.107,"[-0.35, 0.12], bootstrap p=0.408; model R2 0.38",39
+"11 trial regression, ROI 17","dF/F change per SD of trial number (other predictors held)",-0.0093,"[-0.31, 0.28], bootstrap p=0.962; model R2 0.38",39
+"11 trial regression, ROI 20","dF/F change per SD of pre pupil (other predictors held)",-0.108,"[-0.65, 0.47], bootstrap p=0.654; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of pre locomotion (other predictors held)",-0.0025,"[-0.25, 0.46], bootstrap p=0.978; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of pre whisking (other predictors held)",0.105,"[-0.62, 0.75], bootstrap p=0.782; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of evoked locomotion (other predictors held)",0.0478,"[-0.17, 0.29], bootstrap p=0.594; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of evoked whisking (other predictors held)",0.0884,"[-0.15, 0.30], bootstrap p=0.528; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of evoked pupil (other predictors held)",0.0416,"[-0.22, 0.34], bootstrap p=0.628; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of evoked rigid shift (other predictors held)",0.0387,"[-0.16, 0.24], bootstrap p=0.600; model R2 0.22",39
+"11 trial regression, ROI 20","dF/F change per SD of trial number (other predictors held)",-0.0781,"[-0.30, 0.20], bootstrap p=0.490; model R2 0.22",39
+"11 trial regression, ROI 21","dF/F change per SD of pre pupil (other predictors held)",-0.32,"[-0.87, 0.10], bootstrap p=0.126; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of pre locomotion (other predictors held)",0.0645,"[-0.26, 0.60], bootstrap p=0.726; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of pre whisking (other predictors held)",0.224,"[-0.31, 0.83], bootstrap p=0.326; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of evoked locomotion (other predictors held)",-0.0534,"[-0.55, 0.15], bootstrap p=0.644; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of evoked whisking (other predictors held)",0.144,"[-0.06, 0.44], bootstrap p=0.200; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of evoked pupil (other predictors held)",-0.0908,"[-0.37, 0.17], bootstrap p=0.442; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of evoked rigid shift (other predictors held)",0.0782,"[-0.08, 0.29], bootstrap p=0.272; model R2 0.21",39
+"11 trial regression, ROI 21","dF/F change per SD of trial number (other predictors held)",0.00622,"[-0.25, 0.18], bootstrap p=0.874; model R2 0.21",39
+"11 trial regression, ROI 25","dF/F change per SD of pre pupil (other predictors held)",-0.139,"[-0.69, 0.32], bootstrap p=0.510; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of pre locomotion (other predictors held)",-0.0514,"[-0.44, 0.40], bootstrap p=0.610; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of pre whisking (other predictors held)",0.245,"[-0.37, 0.92], bootstrap p=0.356; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of evoked locomotion (other predictors held)",-0.138,"[-0.51, 0.11], bootstrap p=0.230; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of evoked whisking (other predictors held)",0.0183,"[-0.23, 0.26], bootstrap p=0.838; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of evoked pupil (other predictors held)",-0.0574,"[-0.33, 0.30], bootstrap p=0.682; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of evoked rigid shift (other predictors held)",0.0791,"[-0.10, 0.31], bootstrap p=0.360; model R2 0.22",39
+"11 trial regression, ROI 25","dF/F change per SD of trial number (other predictors held)",0.105,"[-0.14, 0.29], bootstrap p=0.382; model R2 0.22",39
+"11 trial regression, ROI 34","dF/F change per SD of pre pupil (other predictors held)",0.0342,"[-0.60, 0.72], bootstrap p=0.872; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of pre locomotion (other predictors held)",0.00741,"[-0.49, 0.47], bootstrap p=0.932; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of pre whisking (other predictors held)",-0.11,"[-1.02, 0.68], bootstrap p=0.720; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of evoked locomotion (other predictors held)",0.0679,"[-0.22, 0.31], bootstrap p=0.524; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of evoked whisking (other predictors held)",0.111,"[-0.16, 0.37], bootstrap p=0.532; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of evoked pupil (other predictors held)",0.0725,"[-0.24, 0.50], bootstrap p=0.458; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of evoked rigid shift (other predictors held)",0.00914,"[-0.28, 0.27], bootstrap p=0.850; model R2 0.23",39
+"11 trial regression, ROI 34","dF/F change per SD of trial number (other predictors held)",-0.0822,"[-0.34, 0.23], bootstrap p=0.544; model R2 0.23",39
+"11 trial regression, ROI 48","dF/F change per SD of pre pupil (other predictors held)",-0.257,"[-1.00, 0.45], bootstrap p=0.574; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of pre locomotion (other predictors held)",0.0309,"[-0.51, 0.61], bootstrap p=0.852; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of pre whisking (other predictors held)",0.229,"[-0.69, 1.03], bootstrap p=0.690; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of evoked locomotion (other predictors held)",0.258,"[0.01, 0.61], bootstrap p=0.046; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of evoked whisking (other predictors held)",0.181,"[-0.18, 0.44], bootstrap p=0.338; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of evoked pupil (other predictors held)",-0.00651,"[-0.37, 0.40], bootstrap p=0.868; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0307,"[-0.34, 0.28], bootstrap p=0.858; model R2 0.35",39
+"11 trial regression, ROI 48","dF/F change per SD of trial number (other predictors held)",-0.101,"[-0.43, 0.25], bootstrap p=0.546; model R2 0.35",39
+"11 trial regression, ROI 66","dF/F change per SD of pre pupil (other predictors held)",0.336,"[-0.49, 0.93], bootstrap p=0.452; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of pre locomotion (other predictors held)",0.0922,"[-0.36, 0.85], bootstrap p=0.662; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of pre whisking (other predictors held)",-0.358,"[-1.14, 0.50], bootstrap p=0.416; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of evoked locomotion (other predictors held)",-0.0626,"[-0.45, 0.17], bootstrap p=0.554; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of evoked whisking (other predictors held)",0.0461,"[-0.23, 0.39], bootstrap p=0.798; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of evoked pupil (other predictors held)",0.285,"[-0.11, 0.74], bootstrap p=0.156; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of evoked rigid shift (other predictors held)",0.0379,"[-0.34, 0.34], bootstrap p=0.776; model R2 0.17",39
+"11 trial regression, ROI 66","dF/F change per SD of trial number (other predictors held)",0.0929,"[-0.25, 0.40], bootstrap p=0.724; model R2 0.17",39
+"11 trial regression, ROI 67","dF/F change per SD of pre pupil (other predictors held)",0.0892,"[-0.43, 0.61], bootstrap p=0.664; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of pre locomotion (other predictors held)",0.0372,"[-0.30, 0.55], bootstrap p=0.822; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of pre whisking (other predictors held)",-0.0237,"[-0.80, 0.59], bootstrap p=0.844; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of evoked locomotion (other predictors held)",0.24,"[0.04, 0.49], bootstrap p=0.024; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of evoked whisking (other predictors held)",0.0992,"[-0.20, 0.32], bootstrap p=0.630; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of evoked pupil (other predictors held)",0.105,"[-0.14, 0.41], bootstrap p=0.310; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0207,"[-0.21, 0.15], bootstrap p=0.862; model R2 0.45",39
+"11 trial regression, ROI 67","dF/F change per SD of trial number (other predictors held)",0.0213,"[-0.19, 0.30], bootstrap p=0.856; model R2 0.45",39
+"11 trial regression, ROI 70","dF/F change per SD of pre pupil (other predictors held)",0.198,"[-0.33, 0.69], bootstrap p=0.424; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of pre locomotion (other predictors held)",0.0499,"[-0.25, 0.43], bootstrap p=0.670; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of pre whisking (other predictors held)",-0.183,"[-0.84, 0.40], bootstrap p=0.456; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of evoked locomotion (other predictors held)",0.0788,"[-0.06, 0.40], bootstrap p=0.212; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of evoked whisking (other predictors held)",0.0352,"[-0.25, 0.24], bootstrap p=0.958; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of evoked pupil (other predictors held)",0.254,"[-0.01, 0.53], bootstrap p=0.058; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0506,"[-0.28, 0.16], bootstrap p=0.642; model R2 0.42",39
+"11 trial regression, ROI 70","dF/F change per SD of trial number (other predictors held)",-0.121,"[-0.32, 0.10], bootstrap p=0.234; model R2 0.42",39
+"11 trial regression, ROI 73","dF/F change per SD of pre pupil (other predictors held)",0.0931,"[-0.62, 0.66], bootstrap p=0.818; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of pre locomotion (other predictors held)",0.0525,"[-0.30, 0.73], bootstrap p=0.696; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of pre whisking (other predictors held)",-0.153,"[-0.96, 0.61], bootstrap p=0.626; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of evoked locomotion (other predictors held)",-0.0463,"[-0.28, 0.18], bootstrap p=0.734; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of evoked whisking (other predictors held)",0.0614,"[-0.17, 0.32], bootstrap p=0.702; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of evoked pupil (other predictors held)",0.251,"[-0.08, 0.57], bootstrap p=0.146; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0422,"[-0.28, 0.20], bootstrap p=0.828; model R2 0.24",39
+"11 trial regression, ROI 73","dF/F change per SD of trial number (other predictors held)",-0.0108,"[-0.26, 0.24], bootstrap p=0.816; model R2 0.24",39
+"11 trial regression, ROI 81","dF/F change per SD of pre pupil (other predictors held)",-0.22,"[-0.82, 0.28], bootstrap p=0.350; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of pre locomotion (other predictors held)",0.0376,"[-0.21, 0.63], bootstrap p=0.764; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of pre whisking (other predictors held)",0.126,"[-0.54, 0.78], bootstrap p=0.704; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of evoked locomotion (other predictors held)",-0.0939,"[-0.46, 0.12], bootstrap p=0.410; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of evoked whisking (other predictors held)",0.128,"[-0.11, 0.39], bootstrap p=0.276; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of evoked pupil (other predictors held)",-0.00696,"[-0.28, 0.26], bootstrap p=0.974; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of evoked rigid shift (other predictors held)",0.015,"[-0.17, 0.21], bootstrap p=0.800; model R2 0.15",39
+"11 trial regression, ROI 81","dF/F change per SD of trial number (other predictors held)",-0.0869,"[-0.35, 0.14], bootstrap p=0.396; model R2 0.15",39
+"11 trial regression, ROI 83","dF/F change per SD of pre pupil (other predictors held)",-0.0878,"[-0.80, 0.62], bootstrap p=0.806; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of pre locomotion (other predictors held)",0.252,"[-0.11, 0.94], bootstrap p=0.156; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of pre whisking (other predictors held)",-0.106,"[-1.06, 0.66], bootstrap p=0.710; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of evoked locomotion (other predictors held)",0.0689,"[-0.15, 0.30], bootstrap p=0.368; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of evoked whisking (other predictors held)",0.139,"[-0.12, 0.39], bootstrap p=0.380; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of evoked pupil (other predictors held)",0.108,"[-0.21, 0.44], bootstrap p=0.458; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0829,"[-0.36, 0.19], bootstrap p=0.530; model R2 0.25",39
+"11 trial regression, ROI 83","dF/F change per SD of trial number (other predictors held)",-0.0315,"[-0.30, 0.26], bootstrap p=0.794; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of pre pupil (other predictors held)",-0.102,"[-1.12, 0.52], bootstrap p=0.638; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of pre locomotion (other predictors held)",-0.143,"[-0.62, 0.51], bootstrap p=0.706; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of pre whisking (other predictors held)",0.22,"[-0.60, 1.27], bootstrap p=0.588; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of evoked locomotion (other predictors held)",-0.152,"[-0.52, 0.10], bootstrap p=0.202; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of evoked whisking (other predictors held)",0.0187,"[-0.29, 0.37], bootstrap p=0.960; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of evoked pupil (other predictors held)",0.283,"[-0.17, 0.64], bootstrap p=0.210; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of evoked rigid shift (other predictors held)",-0.0737,"[-0.38, 0.28], bootstrap p=0.786; model R2 0.25",39
+"11 trial regression, ROI 84","dF/F change per SD of trial number (other predictors held)",-0.029,"[-0.38, 0.30], bootstrap p=0.656; model R2 0.25",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of pre pupil (other predictors held)",-0.0186,"[-0.18, 0.10], bootstrap p=0.660; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of pre locomotion (other predictors held)",0.00917,"[-0.08, 0.11], bootstrap p=0.916; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of pre whisking (other predictors held)",0.0194,"[-0.12, 0.19], bootstrap p=0.694; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of evoked locomotion (other predictors held)",-0.0258,"[-0.08, 0.03], bootstrap p=0.258; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of evoked whisking (other predictors held)",0.0266,"[-0.02, 0.08], bootstrap p=0.296; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of evoked pupil (other predictors held)",0.0214,"[-0.05, 0.08], bootstrap p=0.558; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of evoked rigid shift (other predictors held)",0.00302,"[-0.04, 0.05], bootstrap p=0.750; model R2 0.18",39
+"11 trial regression, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","dF/F change per SD of trial number (other predictors held)",0.00152,"[-0.06, 0.06], bootstrap p=0.914; model R2 0.18",39
+"11 change over the session, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","Spearman: onset response vs trial number",-0.0144,"p=0.931; subsession means [-0.124 -0.094]",39
+"11 change over the session, ROI 5,7","Spearman: onset response vs trial number",-0.17,"p=0.3; subsession means [0.111 0.037]",39
+"11 change over the session, ROI 6,100","Spearman: onset response vs trial number",0.146,"p=0.375; subsession means [-0.186 0.047]",39
+"11 change over the session, ROI 41,88","Spearman: onset response vs trial number",-0.0757,"p=0.646; subsession means [0.019 -0.043]",39
+"11 change over the session, ROI 64,94","Spearman: onset response vs trial number",-0.146,"p=0.375; subsession means [0.01 -0.067]",39
+"11 change over the session, ROI 74,98","Spearman: onset response vs trial number",-0.16,"p=0.329; subsession means [0.073 -0.083]",39
+"11 change over the session, ROI 9","Spearman: onset response vs trial number",-0.0304,"p=0.854; subsession means [-0.065 -0.013]",39
+"11 change over the session, ROI 10","Spearman: onset response vs trial number",0.0168,"p=0.919; subsession means [-0.098 -0.076]",39
+"11 change over the session, ROI 11","Spearman: onset response vs trial number",0.208,"p=0.202; subsession means [-0.322 0.017]",39
+"11 change over the session, ROI 14","Spearman: onset response vs trial number",0.202,"p=0.218; subsession means [-0.099 0.124]",39
+"11 change over the session, ROI 17","Spearman: onset response vs trial number",0.136,"p=0.408; subsession means [-0.24 -0.025]",39
+"11 change over the session, ROI 20","Spearman: onset response vs trial number",-0.197,"p=0.229; subsession means [-0.038 -0.134]",39
+"11 change over the session, ROI 21","Spearman: onset response vs trial number",0.186,"p=0.255; subsession means [-0.09 0.044]",39
+"11 change over the session, ROI 25","Spearman: onset response vs trial number",0.287,"p=0.0771; subsession means [-0.221 0.021]",39
+"11 change over the session, ROI 34","Spearman: onset response vs trial number",-0.147,"p=0.372; subsession means [0.025 -0.133]",39
+"11 change over the session, ROI 48","Spearman: onset response vs trial number",-0.138,"p=0.402; subsession means [0.028 -0.12]",39
+"11 change over the session, ROI 66","Spearman: onset response vs trial number",0.0287,"p=0.862; subsession means [-0.043 -0.099]",39
+"11 change over the session, ROI 67","Spearman: onset response vs trial number",-0.106,"p=0.517; subsession means [-0.013 -0.158]",39
+"11 change over the session, ROI 70","Spearman: onset response vs trial number",-0.357,"p=0.0263; subsession means [0.128 -0.216]",39
+"11 change over the session, ROI 73","Spearman: onset response vs trial number",-0.0215,"p=0.897; subsession means [-0.018 0.024]",39
+"11 change over the session, ROI 81","Spearman: onset response vs trial number",-0.0727,"p=0.659; subsession means [0.016 0.068]",39
+"11 change over the session, ROI 83","Spearman: onset response vs trial number",-0.109,"p=0.506; subsession means [-0.066 -0.042]",39
+"11 change over the session, ROI 84","Spearman: onset response vs trial number",0.11,"p=0.506; subsession means [-0.193 -0.033]",39
+"11 change over the session, control: noise-like ROI 8,12,13,15,16,18,19,22,23,24,26,27,28,29,30,31,32,35,39,40,44,45,47,49,50,52,53,54,55,56,57,58,59,60,61,62,65,72,76,77,78,79,80,85,89,90,91,93,95,99,101,102,103","Spearman: onset response vs trial number",0.0747,"p=0.65; subsession means [-0.022 -0.009]",39
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","held-out R2 of the full model",0.0148,"",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: square + pump",-0.00346,"shuffle null -0.008+-0.013, p=0.46",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: whisking",0.0182,"",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: pupil",0.0761,"",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: face motion",0.0513,"",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: locomotion",-0.0868,"",3484
+"14 encoding model, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","unique held-out R2: rigid shift",-0.0169,"",3484
+"14 encoding model, ROI 5,7","held-out R2 of the full model",0.111,"",3484
+"14 encoding model, ROI 5,7","unique held-out R2: square + pump",-0.0276,"shuffle null -0.008+-0.008, p=1.00",3484
+"14 encoding model, ROI 5,7","unique held-out R2: whisking",0.0163,"",3484
+"14 encoding model, ROI 5,7","unique held-out R2: pupil",0.0924,"",3484
+"14 encoding model, ROI 5,7","unique held-out R2: face motion",-0.0111,"",3484
+"14 encoding model, ROI 5,7","unique held-out R2: locomotion",-0.0496,"",3484
+"14 encoding model, ROI 5,7","unique held-out R2: rigid shift",-0.0265,"",3484
+"14 encoding model, ROI 6,100","held-out R2 of the full model",-0.0227,"",3484
+"14 encoding model, ROI 6,100","unique held-out R2: square + pump",0.0042,"shuffle null -0.007+-0.010, p=0.12",3484
+"14 encoding model, ROI 6,100","unique held-out R2: whisking",0.000469,"",3484
+"14 encoding model, ROI 6,100","unique held-out R2: pupil",-0.00706,"",3484
+"14 encoding model, ROI 6,100","unique held-out R2: face motion",0.0525,"",3484
+"14 encoding model, ROI 6,100","unique held-out R2: locomotion",-0.0715,"",3484
+"14 encoding model, ROI 6,100","unique held-out R2: rigid shift",-0.0111,"",3484
+"14 encoding model, ROI 41,88","held-out R2 of the full model",0.0934,"",3484
+"14 encoding model, ROI 41,88","unique held-out R2: square + pump",-0.0141,"shuffle null -0.011+-0.012, p=0.71",3484
+"14 encoding model, ROI 41,88","unique held-out R2: whisking",0.0184,"",3484
+"14 encoding model, ROI 41,88","unique held-out R2: pupil",0.077,"",3484
+"14 encoding model, ROI 41,88","unique held-out R2: face motion",-0.00112,"",3484
+"14 encoding model, ROI 41,88","unique held-out R2: locomotion",-0.0336,"",3484
+"14 encoding model, ROI 41,88","unique held-out R2: rigid shift",-0.0241,"",3484
+"14 encoding model, ROI 64,94","held-out R2 of the full model",-0.0162,"",3484
+"14 encoding model, ROI 64,94","unique held-out R2: square + pump",-0.00468,"shuffle null -0.013+-0.013, p=0.29",3484
+"14 encoding model, ROI 64,94","unique held-out R2: whisking",0.0187,"",3484
+"14 encoding model, ROI 64,94","unique held-out R2: pupil",0.0442,"",3484
+"14 encoding model, ROI 64,94","unique held-out R2: face motion",0.0325,"",3484
+"14 encoding model, ROI 64,94","unique held-out R2: locomotion",-0.0533,"",3484
+"14 encoding model, ROI 64,94","unique held-out R2: rigid shift",-0.0157,"",3484
+"14 encoding model, ROI 74,98","held-out R2 of the full model",0.101,"",3484
+"14 encoding model, ROI 74,98","unique held-out R2: square + pump",-0.00305,"shuffle null -0.010+-0.013, p=0.27",3484
+"14 encoding model, ROI 74,98","unique held-out R2: whisking",0.0102,"",3484
+"14 encoding model, ROI 74,98","unique held-out R2: pupil",0.0915,"",3484
+"14 encoding model, ROI 74,98","unique held-out R2: face motion",0.00294,"",3484
+"14 encoding model, ROI 74,98","unique held-out R2: locomotion",-0.0481,"",3484
+"14 encoding model, ROI 74,98","unique held-out R2: rigid shift",-0.0168,"",3484
+"14 encoding model, ROI 9","held-out R2 of the full model",0.0252,"",3484
+"14 encoding model, ROI 9","unique held-out R2: square + pump",-0.0104,"shuffle null -0.011+-0.008, p=0.54",3484
+"14 encoding model, ROI 9","unique held-out R2: whisking",0.013,"",3484
+"14 encoding model, ROI 9","unique held-out R2: pupil",0.0276,"",3484
+"14 encoding model, ROI 9","unique held-out R2: face motion",0.0108,"",3484
+"14 encoding model, ROI 9","unique held-out R2: locomotion",-0.0455,"",3484
+"14 encoding model, ROI 9","unique held-out R2: rigid shift",-0.0229,"",3484
+"14 encoding model, ROI 10","held-out R2 of the full model",-0.0021,"",3484
+"14 encoding model, ROI 10","unique held-out R2: square + pump",0.0131,"shuffle null -0.005+-0.023, p=0.27",3484
+"14 encoding model, ROI 10","unique held-out R2: whisking",0.0163,"",3484
+"14 encoding model, ROI 10","unique held-out R2: pupil",0.0957,"",3484
+"14 encoding model, ROI 10","unique held-out R2: face motion",0.033,"",3484
+"14 encoding model, ROI 10","unique held-out R2: locomotion",-0.14,"",3484
+"14 encoding model, ROI 10","unique held-out R2: rigid shift",0.0181,"",3484
+"14 encoding model, ROI 11","held-out R2 of the full model",-0.0524,"",3484
+"14 encoding model, ROI 11","unique held-out R2: square + pump",-0.0513,"shuffle null -0.036+-0.027, p=0.76",3484
+"14 encoding model, ROI 11","unique held-out R2: whisking",-0.012,"",3484
+"14 encoding model, ROI 11","unique held-out R2: pupil",0.0347,"",3484
+"14 encoding model, ROI 11","unique held-out R2: face motion",0.0371,"",3484
+"14 encoding model, ROI 11","unique held-out R2: locomotion",-0.076,"",3484
+"14 encoding model, ROI 11","unique held-out R2: rigid shift",-0.00804,"",3484
+"14 encoding model, ROI 14","held-out R2 of the full model",-0.00352,"",3484
+"14 encoding model, ROI 14","unique held-out R2: square + pump",-0.0138,"shuffle null -0.016+-0.013, p=0.49",3484
+"14 encoding model, ROI 14","unique held-out R2: whisking",0.0132,"",3484
+"14 encoding model, ROI 14","unique held-out R2: pupil",0.0425,"",3484
+"14 encoding model, ROI 14","unique held-out R2: face motion",0.00563,"",3484
+"14 encoding model, ROI 14","unique held-out R2: locomotion",-0.0606,"",3484
+"14 encoding model, ROI 14","unique held-out R2: rigid shift",-0.0112,"",3484
+"14 encoding model, ROI 17","held-out R2 of the full model",-0.0806,"",3484
+"14 encoding model, ROI 17","unique held-out R2: square + pump",-0.00296,"shuffle null -0.002+-0.014, p=0.66",3484
+"14 encoding model, ROI 17","unique held-out R2: whisking",0.0135,"",3484
+"14 encoding model, ROI 17","unique held-out R2: pupil",0.0554,"",3484
+"14 encoding model, ROI 17","unique held-out R2: face motion",0.0543,"",3484
+"14 encoding model, ROI 17","unique held-out R2: locomotion",-0.159,"",3484
+"14 encoding model, ROI 17","unique held-out R2: rigid shift",0.0066,"",3484
+"14 encoding model, ROI 20","held-out R2 of the full model",0.0613,"",3484
+"14 encoding model, ROI 20","unique held-out R2: square + pump",-0.0263,"shuffle null -0.017+-0.011, p=0.80",3484
+"14 encoding model, ROI 20","unique held-out R2: whisking",0.00672,"",3484
+"14 encoding model, ROI 20","unique held-out R2: pupil",0.0675,"",3484
+"14 encoding model, ROI 20","unique held-out R2: face motion",0.00234,"",3484
+"14 encoding model, ROI 20","unique held-out R2: locomotion",-0.0224,"",3484
+"14 encoding model, ROI 20","unique held-out R2: rigid shift",-0.0183,"",3484
+"14 encoding model, ROI 21","held-out R2 of the full model",0.0539,"",3484
+"14 encoding model, ROI 21","unique held-out R2: square + pump",-0.0112,"shuffle null -0.010+-0.009, p=0.66",3484
+"14 encoding model, ROI 21","unique held-out R2: whisking",-0.00616,"",3484
+"14 encoding model, ROI 21","unique held-out R2: pupil",0.0514,"",3484
+"14 encoding model, ROI 21","unique held-out R2: face motion",0.0137,"",3484
+"14 encoding model, ROI 21","unique held-out R2: locomotion",-0.0302,"",3484
+"14 encoding model, ROI 21","unique held-out R2: rigid shift",-0.0113,"",3484
+"14 encoding model, ROI 25","held-out R2 of the full model",-0.0193,"",3484
+"14 encoding model, ROI 25","unique held-out R2: square + pump",-0.0124,"shuffle null -0.002+-0.013, p=0.83",3484
+"14 encoding model, ROI 25","unique held-out R2: whisking",-0.0219,"",3484
+"14 encoding model, ROI 25","unique held-out R2: pupil",-0.00129,"",3484
+"14 encoding model, ROI 25","unique held-out R2: face motion",0.0607,"",3484
+"14 encoding model, ROI 25","unique held-out R2: locomotion",-0.075,"",3484
+"14 encoding model, ROI 25","unique held-out R2: rigid shift",-0.02,"",3484
+"14 encoding model, ROI 34","held-out R2 of the full model",0.225,"",3484
+"14 encoding model, ROI 34","unique held-out R2: square + pump",-0.013,"shuffle null -0.007+-0.005, p=0.93",3484
+"14 encoding model, ROI 34","unique held-out R2: whisking",-0.00345,"",3484
+"14 encoding model, ROI 34","unique held-out R2: pupil",0.102,"",3484
+"14 encoding model, ROI 34","unique held-out R2: face motion",0.00929,"",3484
+"14 encoding model, ROI 34","unique held-out R2: locomotion",-0.00993,"",3484
+"14 encoding model, ROI 34","unique held-out R2: rigid shift",-0.00588,"",3484
+"14 encoding model, ROI 48","held-out R2 of the full model",0.133,"",3484
+"14 encoding model, ROI 48","unique held-out R2: square + pump",-0.00803,"shuffle null -0.008+-0.008, p=0.54",3484
+"14 encoding model, ROI 48","unique held-out R2: whisking",0.00349,"",3484
+"14 encoding model, ROI 48","unique held-out R2: pupil",0.0443,"",3484
+"14 encoding model, ROI 48","unique held-out R2: face motion",-0.01,"",3484
+"14 encoding model, ROI 48","unique held-out R2: locomotion",-0.00269,"",3484
+"14 encoding model, ROI 48","unique held-out R2: rigid shift",-0.0109,"",3484
+"14 encoding model, ROI 66","held-out R2 of the full model",0.0384,"",3484
+"14 encoding model, ROI 66","unique held-out R2: square + pump",0.00412,"shuffle null -0.005+-0.011, p=0.17",3484
+"14 encoding model, ROI 66","unique held-out R2: whisking",0.0104,"",3484
+"14 encoding model, ROI 66","unique held-out R2: pupil",0.0296,"",3484
+"14 encoding model, ROI 66","unique held-out R2: face motion",0.0216,"",3484
+"14 encoding model, ROI 66","unique held-out R2: locomotion",-0.0548,"",3484
+"14 encoding model, ROI 66","unique held-out R2: rigid shift",-0.0344,"",3484
+"14 encoding model, ROI 67","held-out R2 of the full model",0.0642,"",3484
+"14 encoding model, ROI 67","unique held-out R2: square + pump",-0.027,"shuffle null -0.008+-0.008, p=0.98",3484
+"14 encoding model, ROI 67","unique held-out R2: whisking",0.018,"",3484
+"14 encoding model, ROI 67","unique held-out R2: pupil",0.04,"",3484
+"14 encoding model, ROI 67","unique held-out R2: face motion",-0.00807,"",3484
+"14 encoding model, ROI 67","unique held-out R2: locomotion",-0.0175,"",3484
+"14 encoding model, ROI 67","unique held-out R2: rigid shift",-0.0278,"",3484
+"14 encoding model, ROI 70","held-out R2 of the full model",0.0708,"",3484
+"14 encoding model, ROI 70","unique held-out R2: square + pump",-0.0426,"shuffle null -0.009+-0.005, p=1.00",3484
+"14 encoding model, ROI 70","unique held-out R2: whisking",0.00606,"",3484
+"14 encoding model, ROI 70","unique held-out R2: pupil",0.0193,"",3484
+"14 encoding model, ROI 70","unique held-out R2: face motion",0.00363,"",3484
+"14 encoding model, ROI 70","unique held-out R2: locomotion",-0.00503,"",3484
+"14 encoding model, ROI 70","unique held-out R2: rigid shift",-0.0257,"",3484
+"14 encoding model, ROI 73","held-out R2 of the full model",0.106,"",3484
+"14 encoding model, ROI 73","unique held-out R2: square + pump",-0.00138,"shuffle null -0.009+-0.008, p=0.17",3484
+"14 encoding model, ROI 73","unique held-out R2: whisking",0.0158,"",3484
+"14 encoding model, ROI 73","unique held-out R2: pupil",0.0473,"",3484
+"14 encoding model, ROI 73","unique held-out R2: face motion",0.0174,"",3484
+"14 encoding model, ROI 73","unique held-out R2: locomotion",-0.0422,"",3484
+"14 encoding model, ROI 73","unique held-out R2: rigid shift",-0.00781,"",3484
+"14 encoding model, ROI 81","held-out R2 of the full model",0.00175,"",3484
+"14 encoding model, ROI 81","unique held-out R2: square + pump",-0.0223,"shuffle null -0.012+-0.010, p=0.88",3484
+"14 encoding model, ROI 81","unique held-out R2: whisking",0.00896,"",3484
+"14 encoding model, ROI 81","unique held-out R2: pupil",0.0725,"",3484
+"14 encoding model, ROI 81","unique held-out R2: face motion",0.0122,"",3484
+"14 encoding model, ROI 81","unique held-out R2: locomotion",-0.0428,"",3484
+"14 encoding model, ROI 81","unique held-out R2: rigid shift",-0.0224,"",3484
+"14 encoding model, ROI 83","held-out R2 of the full model",0.0778,"",3484
+"14 encoding model, ROI 83","unique held-out R2: square + pump",0.00518,"shuffle null -0.006+-0.012, p=0.20",3484
+"14 encoding model, ROI 83","unique held-out R2: whisking",-0.00468,"",3484
+"14 encoding model, ROI 83","unique held-out R2: pupil",0.0553,"",3484
+"14 encoding model, ROI 83","unique held-out R2: face motion",0.0364,"",3484
+"14 encoding model, ROI 83","unique held-out R2: locomotion",-0.036,"",3484
+"14 encoding model, ROI 83","unique held-out R2: rigid shift",-0.0244,"",3484
+"14 encoding model, ROI 84","held-out R2 of the full model",0.00855,"",3484
+"14 encoding model, ROI 84","unique held-out R2: square + pump",-0.000244,"shuffle null -0.012+-0.012, p=0.20",3484
+"14 encoding model, ROI 84","unique held-out R2: whisking",0.0191,"",3484
+"14 encoding model, ROI 84","unique held-out R2: pupil",0.0228,"",3484
+"14 encoding model, ROI 84","unique held-out R2: face motion",0.068,"",3484
+"14 encoding model, ROI 84","unique held-out R2: locomotion",-0.0437,"",3484
+"14 encoding model, ROI 84","unique held-out R2: rigid shift",-0.00767,"",3484
+"14 kernels, ROI 1,2,3,4,33,36,37,38,42,43,46,51,63,68,69,71,75,82,86,87,92,96,97","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0681,"",39
+"14 kernels, ROI 5,7","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.0277,"",39
+"14 kernels, ROI 6,100","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0312,"",39
+"14 kernels, ROI 41,88","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.00656,"",39
+"14 kernels, ROI 64,94","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0596,"",39
+"14 kernels, ROI 74,98","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.0282,"",39
+"14 kernels, ROI 9","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0299,"",39
+"14 kernels, ROI 10","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.0805,"",39
+"14 kernels, ROI 11","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.127,"",39
+"14 kernels, ROI 14","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0249,"",39
+"14 kernels, ROI 17","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.0336,"",39
+"14 kernels, ROI 20","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.1,"",39
+"14 kernels, ROI 21","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0509,"",39
+"14 kernels, ROI 25","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0107,"",39
+"14 kernels, ROI 34","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0807,"",39
+"14 kernels, ROI 48","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.094,"",39
+"14 kernels, ROI 66","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.027,"",39
+"14 kernels, ROI 67","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0726,"",39
+"14 kernels, ROI 70","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0673,"",39
+"14 kernels, ROI 73","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.0388,"",39
+"14 kernels, ROI 81","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.00137,"",39
+"14 kernels, ROI 83","square + pump kernel, mean 0-3 s (dF/F, in-sample)",0.0117,"",39
+"14 kernels, ROI 84","square + pump kernel, mean 0-3 s (dF/F, in-sample)",-0.163,"",39
