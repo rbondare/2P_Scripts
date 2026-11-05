@@ -48,6 +48,10 @@
 %              disc with the one after the last (does the looming change spontaneous activity?); section 9c compares the responses to the
 %              expanding and the receding disc (looming-specific, or any disc?); the grey windows are the spontaneous epoch of sections 10 and 13.
 %              Everything in the classic path is unchanged.
+%   A declared grey screen is only used if the imaging really covers it (check 'looming: grey recorded'; the stimulus log of RB24_261104_1640 declares
+%   120 s before and after every block, but the acquisitions hold only the 15 s waits). A block whose grey is not covered is analysed as it is:
+%   its grey is set to 0 s, so it is not padded and has no grey windows (9b / 9c are skipped); a receding disc still gives the bracketed split into
+%   expanding / receding trials.
 %
 % dF/F note: save_preprocessed computes  dFF = (Fc - p8) ./ movmedian(Fc - p8, +-15 s) - 1  with
 % Fc = F - 0.5*Fneu and p8 = 8th percentile in a +-15 s window. That is NOT (F-F0)/F0: it is scaled by the typical
@@ -71,7 +75,8 @@ show_block = 1;       % repeat of each stimulus type drawn as the continuous exa
 
 drop_dead_blocks = true;  % true: interrupted blocks without usable frame times (all NaN, or < dead_block_s of valid frames) are removed before the analysis, so a session that
 dead_block_s     = 20;    % was stopped early still runs (RB24_261023_1527: only the 300 s spontaneous block is real). false = keep every block as in the file
-loom_design     = 'auto'; % 'auto' | 'classic' | 'bracketed': see the header. 'auto' = bracketed if a looming block has pre_grey_t / post_grey_t or a receding disc
+loom_design     = 'auto'; % 'auto' | 'classic' | 'bracketed': see the header. 'auto' = bracketed if a looming block has a RECORDED pre_grey_t / post_grey_t (declared and covered by the imaging) or a receding disc
+grey_cov_tol_s  = 2;      % s of slack when testing that the imaging covers a declared grey screen (the recorded grey ends together with the acquisition)
 grey_win_s      = 100;    % bracketed: length (s) of the pre- and post-looming grey windows that are compared (the recorded grey is 120 s each)
 grey_gap_pre_s  = 1;      % bracketed: the pre window ends this long before the first disc
 grey_gap_post_s = 2;      % bracketed: the post window starts this long after the last stimulus frame (the last disc is gone ~6 s before that)
@@ -262,6 +267,51 @@ for k = 1:nB
     end
 end
 is_loom = strcmp(b_type, 'looming');
+% The grey screens count only if they were really shown and recorded: the stimulus log can declare pre_grey_t / post_grey_t that never happened (RB24_261104_1640
+% declares 120 s around every block, but the blocks start 30 s apart and the log ends each block at its last frame). A declared grey has to pass three tests,
+% each with grey_cov_tol_s of slack:
+%   (1) the imaging runs through it: one stretch of continuous imaging (no gap > 1.5 volumes) covers [block start - pre, block end + post]
+%       (a recorded grey ends together with the acquisition),
+%   (2) it does not lie on top of another block's stimulus (grey and stimulus cannot be on the screen at once),
+%   (3) the stimulus log agrees: block end (timeend) - last stimulus frame = post_grey_t (about 120 s in RB24_261023_1538, 0 s in 1640).
+% A block that fails is analysed as it is: its grey is set to 0 s, so it is not padded and has no grey windows (check 'looming: grey recorded').
+grey_decl = is_loom & (b_pre > 0 | b_post > 0);
+grey_pre0 = b_pre;  grey_post0 = b_post;                                               % as declared
+dt_im_    = median(diff(tCa));
+seg_i_    = [1, find(diff(tCa) > 1.5 * dt_im_) + 1];
+seg_a_    = tCa(seg_i_);  seg_b_ = tCa([seg_i_(2:end) - 1, numel(tCa)]) + dt_im_;      % continuous imaging stretches [first volume, end of the last volume]
+grey_rec  = false(nB, 1);  grey_slack = nan(nB, 2);  grey_str = nan(nB, 2);            % slack (s) of the stretch beyond the declared grey [before, after]; the stretch itself
+grey_log  = nan(nB, 1);  grey_why = repmat({''}, nB, 1);                               % post grey as logged (timeend - last frame); why a block failed
+for k = find(grey_decl)'
+    why_ = {};
+    j_ = find(seg_a_ <= b_t0(k) & seg_b_ >= b_t1(k), 1);
+    if isempty(j_)
+        why_{end+1} = 'block not inside continuous imaging';                           %#ok<AGROW>
+    else
+        grey_str(k, :)   = [seg_a_(j_), seg_b_(j_)];
+        grey_slack(k, :) = [(b_t0(k) - b_pre(k)) - seg_a_(j_), seg_b_(j_) - (b_t1(k) + b_post(k))];
+        if any(grey_slack(k, :) < -grey_cov_tol_s); why_{end+1} = 'imaging does not cover it'; end %#ok<AGROW>
+    end
+    ov_ = [];
+    for q_ = setdiff(1:nB, k)
+        for w_ = {[b_t0(k) - b_pre(k), b_t0(k)], [b_t1(k), b_t1(k) + b_post(k)]}
+            if min(b_t1(q_), w_{1}(2)) - max(b_t0(q_), w_{1}(1)) > grey_cov_tol_s; ov_(end+1) = q_; end %#ok<AGROW>
+        end
+    end
+    if ~isempty(ov_); why_{end+1} = sprintf('lies on the stimulus of block %s', strjoin(arrayfun(@num2str, unique(ov_), 'UniformOutput', false), ', ')); end %#ok<AGROW>
+    try
+        ft_ = S(k).Frameinfo.frametime(~isnan(S(k).Frameinfo.frame_count));
+        grey_log(k) = seconds(S(k).timeend - ft_(end));
+        if b_post(k) > 0 && abs(grey_log(k) - b_post(k)) > grey_cov_tol_s
+            why_{end+1} = sprintf('log ends the block %.1f s after its last frame, not %g s', grey_log(k), b_post(k)); %#ok<AGROW>
+        end
+    catch
+    end
+    grey_why{k} = strjoin(why_, '; ');
+    grey_rec(k) = isempty(why_);
+end
+grey_lost = find(grey_decl & ~grey_rec)';
+b_pre(grey_lost) = 0;  b_post(grey_lost) = 0;
 switch lower(loom_design)
     case 'auto';       bracketed = any(is_loom & (b_pre > 0 | b_post > 0 | strcmp(b_dir, 'recede')));
     case 'bracketed';  bracketed = true;
@@ -287,7 +337,10 @@ blocks = table((1:nB)', b_type, b_note, b_t0, b_t1, b_t1 - b_t0, b_ntr, b_trt, b
     'VariableNames', {'blk','type','note','t0','t1','dur_s','trials','trial_t','frames','late','waits','synced','sync_method','pulses_lost','offset_ms','cam_cover'});
 if bracketed; blocks.pre_s = b_pre;  blocks.post_s = b_post;  blocks.disc = b_dir; end
 disp(blocks);
-if bracketed
+if bracketed && isempty(lk)
+    fprintf('Looming design: bracketed split without recorded grey (%d expanding, %d receding block(s); no grey windows: the looms are analysed as they are)\n\n', ...
+        sum(strcmp(b_dir, 'expand')), sum(strcmp(b_dir, 'recede')));
+elseif bracketed
     fprintf('Looming design: bracketed (%d expanding, %d receding block(s); grey windows of %g s: pre ends %g s before the first disc, post starts %g s after the last frame)\n\n', ...
         sum(strcmp(b_dir, 'expand')), sum(strcmp(b_dir, 'recede')), grey_win_s, grey_gap_pre_s, grey_gap_post_s);
 else
@@ -297,6 +350,16 @@ sp_blk = find(strcmp(b_type, 'spontaneous'), 1);
 
 chk = addchk(chk, 'stimulus: blocks ordered', grade(all(b_a0(2:end) > b_a1(1:end-1)), 2), sprintf('%d blocks, %d types', nB, numel(unique(b_type))));
 chk = addchk(chk, 'stimulus: inside imaging', grade(b_a0(1) >= tCa(1) && b_a1(end) <= tCa(end), 2), sprintf('blocks %.1f-%.1f s, imaging %.1f-%.1f s', b_a0(1), b_a1(end), tCa(1), tCa(end)));
+if any(grey_decl)
+    if isempty(grey_lost)
+        chk = addchk(chk, 'looming: grey recorded', grade(true, 1), sprintf('%d looming block(s) declare grey screens (pre_grey_t / post_grey_t) and continuous imaging covers them (slack before %s s, after %s s)', ...
+            nnz(grey_decl), lst(round(grey_slack(grey_decl, 1)', 1)), lst(round(grey_slack(grey_decl, 2)', 1))));
+    else
+        chk = addchk(chk, 'looming: grey recorded', grade(false, 1), sprintf(['looming block(s) %s declare grey screens (pre_grey_t %s s, post_grey_t %s s) that were not shown / recorded - %s. ' ...
+            'Analysed as they are: grey set to 0 s, no padding and no grey windows (sections 9b / 9c skipped); was the grey shown?'], lst(grey_lost), lst(grey_pre0(grey_lost)'), lst(grey_post0(grey_lost)'), ...
+            strjoin(arrayfun(@(k) sprintf('block %d: %s', k, grey_why{k}), grey_lost, 'UniformOutput', false), ' | ')));
+    end
+end
 chk = addchk(chk, 'stimulus: frame times valid', grade(all(b_nan == 0) && all(b_nonmono == 0), 2), sprintf('%d NaN stamps, %d non-increasing steps inside trials', sum(b_nan), sum(b_nonmono)));
 chk = addchk(chk, 'stimulus: no late frames', grade(sum(b_late) == 0, 1), sprintf('%d frames later than 1.5 ifi inside trials (ifi %.2f ms), in blocks %s', sum(b_late), 1e3 * S(1).ifi(1), lst(find(b_late > 0)')));
 chk = addchk(chk, 'stimulus: not interrupted', grade(~any([S.interrupted]), 1), sprintf('%d interrupted blocks', sum([S.interrupted])));

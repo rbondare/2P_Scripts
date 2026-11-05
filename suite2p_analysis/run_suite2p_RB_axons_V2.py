@@ -93,7 +93,7 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261104_1540")
+data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261105_1423")
 # Single-plane, no-flyback recording: 512 x 1024 int16 at 30 Hz (~1 GB of data.bin per 1000 frames).
 # Everything is written next to the raw data, <data_path>\suite2p\plane0\..., like all previous recordings.
 # (Running from Z: reads and writes the ~63 GB binary over the network; set save_path0 to a local folder
