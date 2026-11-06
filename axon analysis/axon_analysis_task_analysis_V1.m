@@ -132,7 +132,8 @@ assert(is_task, 'axon_analysis_task_analysis_V1 needs a training Stimuli struct 
 % lick log: an empty lickData means the session was recorded without a spout (or without lick logging); everything that needs licks is then skipped
 lick_sz  = size(S.lickData);
 has_lick = lick_sz(1) > 0 && lick_sz(2) > 0 && any(isfinite(str2double(S.lickData(:))));
-assert(~has_lick || lick_sz(2) == S.trials * S.subsessions, 'lickData has %d trial columns, expected %d', lick_sz(2), S.trials * S.subsessions);
+% a session that was stopped early has fewer trials than planned (RB23_261029_1704: 75 of 4 x 20), as in the TimeStimulusFrame check below
+assert(~has_lick || (lick_sz(2) <= S.trials * S.subsessions && lick_sz(2) > (S.subsessions - 1) * S.trials), 'lickData has %d trial columns for %d x %d planned trials', lick_sz(2), S.subsessions, S.trials);
 if has_lick
     chk = addchk(chk, 'licks: lick data present', grade(true, 1), sprintf('lickData %d rows x %d trials', lick_sz(1), lick_sz(2)));
 else
@@ -242,7 +243,7 @@ no_rew    = rmode == 0;                                                        %
 rew_t = on_t + rdel;
 lw = [S.lickWindowMin S.lickWindowMax];
 chk = addchk(chk, 'reward: delivery rule', grade(rew_known || no_rew, 1), sprintf('level %g, RewardMode %g, RewardDelay %g s, pump weight %g: %s', lvl, rmode, rdel, S.weight, ...
-    iff(rew_known, 'pump TTL sent before the first square frame of every trial, whatever the mouse does (timed_Training.m); reward time = square onset + RewardDelay', ...
+    iff(rew_known,'pump TTL sent before the first square frame of every trial, whatever the mouse does (timed_Training.m); reward time = square onset + RewardDelay',...
     iff(no_rew, 'RewardMode 0: no pump TTL (timed_Training.m), the square is shown WITHOUT reward and licks are not read, so the onset response is a pure visual response', 'delivery rule NOT implemented for this level; reward time is set to the square onset, check timed_Training.m'))));
 chk = addchk(chk, 'trials: stimulus frames valid', grade(all(n_stfr == n_st), 2), sprintf('%d trials, %d-%d valid square frames (expected %d)', nTr, min(n_stfr), max(n_stfr), n_st));
 chk = addchk(chk, 'trials: onsets ordered', grade(all(diff(on_t) > 0) && all(tr_t0(2:end) >= tr_t1(1:end-1) - 0.5), 2), sprintf('%d trials, %d subsessions of %g; trial starts %.1f-%.1f s', nTr, S.subsessions, S.trials, tr_t0(1), tr_t0(end)));
@@ -282,6 +283,8 @@ if has_lick
     rf1 = str2double(S.redFrames(1, :))' / 1000;
     rf2 = nan(nTr, 1);
     if size(S.redFrames, 1) > 1; for t = 1:nTr; if ~isempty(S.redFrames{2, t}); rf2(t) = str2double(S.redFrames{2, t}) / 1000; end; end; end
+    no_rf = ~any(rf1 > 1);       % redFrames holds only the placeholder 0 (stimulus code of 2026-10-29, RB23_261029_1704): no per-trial anchor in the log
+    if ~no_rf
     rf_use = rf1;  ok_rf = isfinite(rf1);
     for it = 1:8
         tol = 0.2;  if it > 3; tol = 0.03; end
@@ -294,6 +297,14 @@ if has_lick
     rf_dev_ms = 1e3 * (rf_use - polyval(pf, tr_t0));
     bad_rf = find(abs(rf_dev_ms) > 20 | sw2);
     chk = addchk(chk, 'licks: Arduino vs 2P clock', grade(isempty(bad_rf) || (numel(bad_rf) <= 0.1 * nTr), 1), sprintf('one line fits %d/%d trials within %.0f ms (Arduino runs %.3f%% slow); deviant red-frame entries in trials %s (delayed log or row 2 used), licks use the line, not the per-trial anchor', sum(abs(rf_dev_ms) <= 20), nTr, max(abs(rf_dev_ms(abs(rf_dev_ms) <= 20))), 100 * (1 - ard_slope), lst(bad_rf')));
+    else
+        % no red-frame anchors: the clock offset is unknown (80 s in RB23_261029_1704) -> find it from the data. Jaw / face movement of licking is seen by
+        % the camera (FacePadME), so the mean face motion at the lick times peaks at the right offset; a line (offset + drift) is fitted around that peak.
+        assert(has_beh && isfield(data.Behav, 'FacePadME'), 'lick log without red-frame anchors needs Behav.FacePadME to find the Arduino clock');
+        [ard_icpt, ard_slope, anc] = lick_clock_from_face_motion(S.lickData, tcam, double(data.Behav.FacePadME(:)'), tCa(end));
+        rf_dev_ms = zeros(nTr, 1);  bad_rf = zeros(0, 1);
+        chk = addchk(chk, 'licks: Arduino vs 2P clock', grade(anc.z > 6 && anc.runner_up < 0.5 * anc.stat0, 1), sprintf('NO red-frame anchors in this log (redFrames = placeholder 0): clock estimated from the lick-triggered face motion, offset %.2f s, Arduino runs %.3f%% slow; coarse peak z = %.1f (next peak outside +-5 s: %.0f%% of it); precision ~0.2 s, not 20 ms, so lick-aligned latencies below ~0.3 s are not meaningful', ard_icpt, 100 * (1 - ard_slope), anc.z, 100 * anc.runner_up / anc.stat0));
+    end
     lick_t = zeros(0, 1);  lick_tr = zeros(0, 1);  n_cap = zeros(nTr, 1);
     for t = 1:nTr
         ld = str2double(S.lickData(:, t));  ld = ld(isfinite(ld));
@@ -376,6 +387,9 @@ if has_loc
     L  = data.LocomotionCal;
     loc_n = [size(data.LocomotionNonCal.Values, 1), numel(L.Triggers_sec)];
     syn_ok = ~isfield(L, 'SyncInfo') || ~isfield(L.SyncInfo, 'ok') || L.SyncInfo.ok;
+    % unverified pairing ('first triggers') cuts Triggers_sec to the number of readings, which hides a truncated log (RB23_261029_1704: 3,740 readings, 123,361
+    % triggers; only the first ~57 s of the session have true readings): count the triggers that really exist
+    if ~syn_ok && isfield(L, 'SyncInfo') && isfield(L.SyncInfo, 'n_triggers'); loc_n(2) = L.SyncInfo.n_triggers; end
     % SyncInfo.ok is false when the counts differ and the counter pattern does not identify the phantom trigger; a difference of 1 pairs by 'first triggers'
     % with a timing error of at most 1 trigger interval (15 ms), which the analyses here (>= 0.2 s volumes) do not resolve; checked end to end in verify_aggregation_timing
     loc_ok = abs(loc_n(1) - loc_n(2)) <= 2 && loc_n(1) > 1 && (syn_ok || abs(loc_n(1) - loc_n(2)) <= 1);
@@ -1394,6 +1408,35 @@ if save_figs; writetable(findings, fullfile(fig_dir, 'findings.csv')); end
 
 
 %% local functions
+function [icpt, slope, info] = lick_clock_from_face_motion(lickData, tcam, fpme, tmax)
+% Arduino lick log -> 2P clock when the log has no per-trial anchors (redFrames only a placeholder). t_Arduino = icpt + slope * t_2P.
+% Statistic: mean z-scored face-pad motion energy (jaw / face movement of licking, 50 Hz camera, high-passed at 1 s, smoothed 40 ms) at the lick
+% times shifted by the offset, times sqrt(n licks). Coarse scan -200..300 s without drift, then offset +-2 s and drift -0.1..+0.01% around the peak.
+% info: stat0 (coarse peak), z (peak vs the scan), runner_up (best coarse value more than 5 s from the peak), stat (refined).
+ld = str2double(lickData(:));  ld = sort(ld(isfinite(ld)) / 1000);
+tg = (0:0.02:tmax)';
+f = interp1(tcam(isfinite(fpme)), fpme(isfinite(fpme)), tg, 'linear', 'extrap');
+f = f - smoothdata(f, 'gaussian', 250);  f = smoothdata(f, 'gaussian', 10);  f = (f - mean(f)) / std(f);
+st = @(c, b) lick_fm_stat(ld, tg, f, c, b);
+cs = -200:0.1:300;  s = arrayfun(@(c) st(c, 0), cs);
+[stat0, k] = max(s);
+far = abs(cs - cs(k)) > 5;
+info = struct('stat0', stat0, 'z', (stat0 - mean(s)) / std(s), 'runner_up', max(s(far)), 'stat', stat0);
+best = -inf;  icpt = cs(k);  slope = 1;
+for b = -0.0010:0.00005:0.0001
+    for c = cs(k) - 2:0.05:cs(k) + 2
+        v = st(c, b);
+        if v > best; best = v;  icpt = c;  slope = 1 + b; end
+    end
+end
+info.stat = best;
+end
+
+function v = lick_fm_stat(ld, tg, f, c, b)
+t = (ld - c) / (1 + b);  ok = t > 0 & t < tg(end);
+v = mean(interp1(tg, f, t(ok))) * sqrt(nnz(ok));
+end
+
 function v = iff(c, a, b)
 % inline conditional for message strings
 if c; v = a; else; v = b; end
@@ -1522,6 +1565,9 @@ end
 function [b, ci, p] = ols_boot(y, X, n_boot)
 % least squares y = X b with a case-resampling bootstrap: b [p x 1], ci [p x 2] (2.5 / 97.5 %), p [p x 1] two-sided bootstrap p (floor 1/n_boot)
 ok = all(isfinite([y(:), X]), 2);  y = y(ok);  X = X(ok, :);  n = numel(y);
+if n < size(X, 2) + 2                         % too few complete rows (e.g. an all-NaN covariate): no estimate
+    b = nan(size(X, 2), 1);  ci = nan(size(X, 2), 2);  p = nan(size(X, 2), 1);  return
+end
 ws = warning('off', 'all');
 b = X \ y(:);
 bs = zeros(n_boot, size(X, 2));

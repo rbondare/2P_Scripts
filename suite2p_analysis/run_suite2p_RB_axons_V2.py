@@ -93,7 +93,7 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261105_1423")
+data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261105_1520")
 # Single-plane, no-flyback recording: 512 x 1024 int16 at 30 Hz (~1 GB of data.bin per 1000 frames).
 # Everything is written next to the raw data, <data_path>\suite2p\plane0\..., like all previous recordings.
 # (Running from Z: reads and writes the ~63 GB binary over the network; set save_path0 to a local folder
@@ -103,7 +103,7 @@ save_path0 = data_path
 # Registered video: after the run the whole registered movie (data.bin) is written as BigTIFF stacks of about this
 # many GB each to <save_path0>\suite2p\plane0\reg_tif\ (~63 GB in total, on top of data.bin). 0 = don't save it.
 # The movie is cut into equal consecutive pieces, so the actual size is a little under this.
-REG_VIDEO_PIECE_GB = 5
+REG_VIDEO_PIECE_GB = 0
 classifier_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\plane0\NAaxons.npy")
 
 if os.path.exists(settings_file):
