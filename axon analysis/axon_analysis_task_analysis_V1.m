@@ -3,17 +3,19 @@
 % (one Stimuli struct, 90 trials in 3 subsessions, single plane, 30 Hz). Same layout as axon_analysis_V3: checks first (PASS / WARN / FAIL),
 % then the results for the selected ROIs. Run the sections in order; nothing is hard-coded to a frame rate, ROI count or trial number.
 %
-% Task (read from timed_Training.m and the stimulus log): wait 8-13 s (licking during the wait gives a time-out and a new wait), 2 s cyan square
-% (lickWindowMax), 8.5 s grey (Tend). At level 1/2 with RewardDelay = 0 the pump TTL is sent by the stimulus PC right before the first square
-% frame of EVERY trial, whether the mouse licks or not (timed_Training.m, 'send a TTL pulse to pump reward'). So square and reward start together:
-% their onset responses cannot be told apart by timing. What the data do allow (and what this script tests):
-%   - the onset response (square + reward delivery) against pseudo-onsets and against the arousal state,
-%   - the CONSUMPTION of the reward: licking starts at a different latency on every trial (0.1 s to several s), so a response locked to the
-%     first lick moves with that latency, a response locked to square/pump does not; the first lick bout after the reward is compared with
-%     unrewarded spontaneous lick bouts in the wait period (same motor act, no reward),
-%   - hit (lick inside the response window) against miss trials, and the change over the session,
+% Task (read from timed_Training.m and the stimulus log): wait 8-13 s (licking during the wait gives a time-out and a new wait), square for lickWindowMax s, grey for Tend s.
+% The reward rule is built PER TRIAL from the training log (section 2 and the local function reward_times): levelHistory (GUI level 2.5 = adaptive mode, every trial runs level 2 or 3),
+% RewardDelay, RewardMode and the licks. Level 1/2 with RewardDelay 0: the pump TTL is sent right before the first square frame of EVERY trial, whether the mouse licks or not (square and
+% pump start together). Level 3: the first lick during the square fires the pump, no lick = no pump. RewardDelay > 0: the pump follows the first lick by RewardDelay s (setting
+% reward_rule: the rule as the experimenter stated it, not yet confirmed against the rig code; 'copy_of_code' gives the rule of the code copy on the analysis PC). The pump TTL is not logged.
+% What the data allow (and what this script tests):
+%   - the onset response (square, first lick, pump) against pseudo-onsets and against the arousal state,
+%   - the CONSUMPTION of the reward: with the pump at the onset, licking starts at a different latency on every trial, so a response locked to the first lick moves with that latency, one
+%     locked to the square does not; with the pump a fixed delay after the first lick, the rewarded lick bout is compared with unrewarded spontaneous bouts of the wait period (same motor
+%     act, no reward) before and after the pump,
+%   - hit (lick inside the square) against miss trials, and the change over the session,
 %   - a cross-validated encoding model with onset, rewarded-bout, spontaneous-bout, lick-rate and arousal regressors (what does each add?).
-% The reward is not logged. If the level or RewardDelay of another session is different, section 2 says so (reward_known).
+% At most max_groups ROI groups are shown and tested (section 8) plus the control group of noise-like ROIs, which is drawn in grey in every figure.
 % Sessions without a lick log (recorded without a spout, e.g. the first training sessions of 2026-10-27; lickData is empty): has_lick = false and
 % 'NO LICK DATA' is printed. Everything that needs licks is skipped (3a, hit rate and lick figure in 8, hit vs miss in 9, all of 10, lick predictors in 11,
 % first-lick / spontaneous-bout / lick-rate families in 14); the onset response against pseudo-onsets, the arousal regression, the ROI-behaviour
@@ -76,6 +78,10 @@ lick_quiet_s = 1.5;      % an isolated bout starts after this long without a lic
 spont_margin_s = 1;      % spontaneous (unrewarded) bouts start in the wait period, at least this long before the square
 lat_split_s = 1;         % consumption latency below / above this separates early from late consumers in section 10
 bout_win   = [0 2];      % window (s from the first lick) of the lick-bout response statistics in section 10
+reward_rule = 'after_first_lick'; % how a RewardDelay > 0 acts (section 2). 'after_first_lick' = the pump fires RewardDelay s after the first lick during the square (the rule the experimenter
+                          % STATED on 2026-11-06 for RB24_261105_1423 / _1520; the copy of timed_Training.m + TrainingBoard.ino on the analysis PC does NOT do this: check the rig code).
+                          % 'copy_of_code' = that copy: pump at the first lick (level 3 ignores RewardDelay; level 1/2: at the first lick or onset + RewardDelay, whichever comes first)
+max_groups = 4;          % ROI groups shown and tested (section 8): ROIs with r > grp_r_thr are one group; if that gives more groups, the tree is cut at max_groups (Ward) instead
 
 neuropil_factor = 0.5;    % must equal dFFsettings.neuropil_factor of save_preprocessed (create_default_dff_settings)
 dff_window_s    = 15;     % half-window (s) of baseline / normalisation used by save_preprocessed
@@ -94,6 +100,7 @@ rng(1);
 
 % figure style: Arial 8 pt, 0.75 pt lines, no box, outward ticks; one colour per signal in every figure
 col = struct('dff', [0 0 0], 'pupil', [0.85 0.15 0.15], 'whisk', [0.1 0.55 0.25], 'face', [0.9 0.55 0.05], 'eye', [0.5 0.3 0.7], 'loc', [0.1 0.35 0.8], 'lick', [0.55 0.35 0.15], 'sq', [0.0 0.65 0.75]);
+col_hit = [0 0.45 0.74];  col_mis = [0.85 0.33 0.1];                           % trials with / without a lick in the square
 beh_cmap = struct('PupilArea', col.pupil, 'WhiskIndex', col.whisk, 'FacePadME', col.face, 'EyeLidOpening', col.eye, 'LocSpeed', col.loc, 'LickRate', col.lick, 'RigidShift', [0.5 0.5 0.5]);
 beh_lab  = struct('PupilArea', 'pupil area', 'WhiskIndex', 'whisking', 'FacePadME', 'face motion', 'EyeLidOpening', 'eyelid opening', 'LocSpeed', 'locomotion', 'LickRate', 'lick rate', 'RigidShift', 'rigid shift');
 beh_short = struct('PupilArea', 'pupil', 'WhiskIndex', 'whisk', 'FacePadME', 'face', 'EyeLidOpening', 'eyelid', 'LocSpeed', 'loc', 'LickRate', 'lick', 'RigidShift', 'rigid');
@@ -236,15 +243,34 @@ n_to   = S.timeoutHistory(:);  n_to = n_to(1:nTr);
 sub_t0 = accumarray(sub_of, tr_t0, [], @min);  sub_t1 = accumarray(sub_of, tr_t1, [], @max);
 b_t0 = sub_t0;  b_t1 = sub_t1;  nB = numel(b_t0);
 
-% reward: timed_Training.m sends the pump TTL before the first square frame of every trial at level 1 / 2 (RewardDelay = 0), no lick needed
-lvl = S.specParams.level;  rdel = S.specParams.RewardDelay;  rmode = S.specParams.RewardMode;
-rew_known = rmode ~= 0 && any(lvl == [1 2]);
-no_rew    = rmode == 0;                                                        % timed_Training.m gates the pump TTL and the lick read-out on RewardMode: the square is shown without reward
-rew_t = on_t + rdel;
+% reward: the rule is built per TRIAL from the training log, nothing is hard-coded to one level:
+%   levelHistory(t) = the level trial t ran. GUI level 2.5 is the ADAPTIVE mode: FS_potentScript sets specParams.level to 2 (rand > StateOfAgent) or 3 before every trial, so
+%                     the specParams.level stored in the file is only the LAST trial's level. Fixed-level sessions have no levelHistory: specParams.level then holds for every trial.
+%   RewardDelay, RewardMode, lickWindowMin / Max, Tend = specParams. The pump TTL itself is not logged: reward_times (local function, called in 3a once the licks are on
+%   the 2P clock) turns level + RewardDelay + licks + reward_rule (section 0) into the pump time of every trial.
+rdel = S.specParams.RewardDelay;  rmode = S.specParams.RewardMode;  lvl_sess = S.specParams.level;
+has_lvlh = isfield(S, 'levelHistory') && numel(S.levelHistory) >= nTr;
+if has_lvlh; lvl_t = double(S.levelHistory(1:nTr)); else; lvl_t = lvl_sess * ones(1, nTr); end
+lvl_t = lvl_t(:);
+lvl_gui = lvl_sess;  if isfield(S, 'level'); lvl_gui = S.level; end
 lw = [S.lickWindowMin S.lickWindowMax];
-chk = addchk(chk, 'reward: delivery rule', grade(rew_known || no_rew, 1), sprintf('level %g, RewardMode %g, RewardDelay %g s, pump weight %g: %s', lvl, rmode, rdel, S.weight, ...
-    iff(rew_known,'pump TTL sent before the first square frame of every trial, whatever the mouse does (timed_Training.m); reward time = square onset + RewardDelay',...
-    iff(no_rew, 'RewardMode 0: no pump TTL (timed_Training.m), the square is shown WITHOUT reward and licks are not read, so the onset response is a pure visual response', 'delivery rule NOT implemented for this level; reward time is set to the square onset, check timed_Training.m'))));
+no_rew    = rmode == 0;                                                        % timed_Training.m gates the pump TTL and the lick read-out on RewardMode: the square is shown without reward
+rew_known = ~no_rew && all(ismember(lvl_t, [1 2 3]));
+lvl_n = arrayfun(@(l) sum(lvl_t == l), 1:3);
+if no_rew
+    rule_msg = 'RewardMode 0: no pump TTL (timed_Training.m), the square is shown WITHOUT reward and licks are not read, so the onset response is a pure visual response';
+elseif ~rew_known
+    rule_msg = sprintf('trial levels %s: the delivery rule is implemented for levels 1-3 only, the reward time is set to the square onset', lst(unique(lvl_t')));
+elseif rdel == 0
+    rule_msg = 'RewardDelay 0: level 1/2 trials = pump TTL before the first square frame whatever the mouse does (reward at the square onset); level 3 trials = the first lick during the square fires the pump at once, no lick = no reward';
+elseif strcmp(reward_rule, 'after_first_lick')
+    rule_msg = sprintf('RewardDelay %g s, reward_rule = after_first_lick: pump %g s after the first lick during the square (level 2 trials without a lick: %g s after the onset, level 3 trials without a lick: no reward). This is the rule the experimenter STATED (2026-11-06), NOT confirmed in code: the copy of timed_Training.m / TrainingBoard.ino on the analysis PC pays at the first lick and ignores RewardDelay at level 3, check the rig code', rdel, rdel, rdel);
+else
+    rule_msg = sprintf('RewardDelay %g s, reward_rule = copy_of_code (timed_Training.m / TrainingBoard.ino copy of 2026-11-06): pump at the first lick during the square, level 3 ignores RewardDelay, level 1/2 trials without a lick in the first %g s are paid %g s after the onset, level 3 trials without a lick get no reward', rdel, rdel, rdel);
+end
+rule_unconfirmed = rew_known && rdel > 0 && strcmp(reward_rule, 'after_first_lick');
+chk = addchk(chk, 'reward: delivery rule', grade((rew_known || no_rew) && ~rule_unconfirmed, 1), sprintf('GUI level %g, trial levels %s: level 1/2/3 in %d/%d/%d trials, RewardMode %g, RewardDelay %g s, lick window %g-%g s, pump weight %g: %s', ...
+    lvl_gui, iff(has_lvlh, 'from levelHistory', 'from specParams.level (no levelHistory)'), lvl_n(1), lvl_n(2), lvl_n(3), rmode, rdel, lw(1), lw(2), S.weight, rule_msg));
 chk = addchk(chk, 'trials: stimulus frames valid', grade(all(n_stfr == n_st), 2), sprintf('%d trials, %d-%d valid square frames (expected %d)', nTr, min(n_stfr), max(n_stfr), n_st));
 chk = addchk(chk, 'trials: onsets ordered', grade(all(diff(on_t) > 0) && all(tr_t0(2:end) >= tr_t1(1:end-1) - 0.5), 2), sprintf('%d trials, %d subsessions of %g; trial starts %.1f-%.1f s', nTr, S.subsessions, S.trials, tr_t0(1), tr_t0(end)));
 chk = addchk(chk, 'trials: inside imaging', grade(tr_t0(1) >= tCa(1) && tr_t1(end) <= tCa(end), 2), sprintf('trials %.1f-%.1f s, imaging %.1f-%.1f s', tr_t0(1), tr_t1(end), tCa(1), tCa(end)));
@@ -324,17 +350,30 @@ if has_lick
     [bout_on, bout_off, bout_n] = find_bouts(lick_t, lick_gap_s, lick_min_n);
     prev_l = arrayfun(@(t0) max([-inf; lick_t(lick_t < t0 - 1e-6)]), bout_on);
     bout_iso = bout_on - prev_l >= lick_quiet_s;
-    % per trial: licks around the square, first consummatory lick and the rewarded (first isolated bout after the reward) bout
-    hit = false(nTr, 1);  n_win = zeros(nTr, 1);  n_pre = zeros(nTr, 1);  n_post = zeros(nTr, 1);  lat1 = nan(nTr, 1);  cons_on = nan(nTr, 1);  cons_n = zeros(nTr, 1);
+    % pump time of every trial from its level, RewardDelay and licks (rule: section 2; rew_kind 0 none, 1 at the onset, 2 on a timer after the onset, 3 at the first lick, 4 first lick + RewardDelay)
+    [rew_t, trig_t, rew_kind] = reward_times(on_t, st_end, lick_t, lvl_t, rdel, rmode, reward_rule);
+    % per trial: licks around the square (times from the square ONSET, like the hit rate the stimulus PC logs), the first lick, and the rewarded bout:
+    %   lick-triggered pump (level 3, or a delay after the first lick): the isolated bout that holds the lick which triggered the pump;
+    %   pump at the onset / on a timer: the first isolated bout lw(1) to cons_max_s after the pump (the mouse collects the reward when it likes).
+    % late_on = first isolated bout after the square in a trial WITHOUT a pump (unrewarded licking of the same kind, a control for the rewarded bouts).
+    hit = false(nTr, 1);  n_win = zeros(nTr, 1);  n_pre = zeros(nTr, 1);  n_post = zeros(nTr, 1);  lat1 = nan(nTr, 1);  cons_on = nan(nTr, 1);  cons_n = zeros(nTr, 1);  late_on = nan(nTr, 1);
     for t = 1:nTr
-        rel = lick_t - rew_t(t);
+        rel = lick_t - on_t(t);
         n_win(t) = sum(rel >= lw(1) & rel <= lw(2));  hit(t) = n_win(t) > 0;
         n_pre(t) = sum(rel >= -5 & rel < 0);  n_post(t) = sum(rel >= 0 & rel < 5);
         j = find(rel >= lw(1) & rel <= cons_max_s, 1);  if ~isempty(j); lat1(t) = rel(j); end
-        jb = find(bout_iso & bout_on - rew_t(t) >= lw(1) & bout_on - rew_t(t) <= cons_max_s, 1);
+        if any(rew_kind(t) == [3 4])
+            jb = find(bout_iso & bout_on <= trig_t(t) + 1e-6 & bout_off >= trig_t(t) - 1e-6, 1);
+        else
+            jb = find(bout_iso & bout_on - rew_t(t) >= lw(1) & bout_on - rew_t(t) <= cons_max_s, 1);      % no pump (rew_t NaN): empty
+        end
         if ~isempty(jb); cons_on(t) = bout_on(jb);  cons_n(t) = bout_n(jb); end
+        if rew_kind(t) == 0
+            jl = find(bout_iso & bout_on - on_t(t) > lw(2) & bout_on - on_t(t) <= cons_max_s + lw(2), 1);
+            if ~isempty(jl); late_on(t) = bout_on(jl); end
+        end
     end
-    cons_lat = cons_on - rew_t;
+    cons_lat = cons_on - on_t;                                                  % latency of the rewarded bout from the square onset (same axis as the lick raster)
     % spontaneous (unrewarded) bouts: isolated bouts in the wait period, at least spont_margin_s before the square
     sp_on = zeros(0, 1);  sp_tr = zeros(0, 1);  sp_n = zeros(0, 1);
     for t = 1:nTr
@@ -347,9 +386,15 @@ if has_lick
 else
     % no lick data: empty licks, no hits, no rewarded / spontaneous bouts (the sections that use them are skipped)
     lick_t = zeros(0, 1);  lick_tr = zeros(0, 1);  bout_on = zeros(0, 1);  bout_n = bout_on;
-    hit = false(nTr, 1);  n_win = zeros(nTr, 1);  n_pre = n_win;  n_post = n_win;  lat1 = nan(nTr, 1);  cons_on = lat1;  cons_n = n_win;  cons_lat = lat1;
+    hit = false(nTr, 1);  n_win = zeros(nTr, 1);  n_pre = n_win;  n_post = n_win;  lat1 = nan(nTr, 1);  cons_on = lat1;  cons_n = n_win;  cons_lat = lat1;  late_on = lat1;
+    [rew_t, trig_t, rew_kind] = reward_times(on_t, st_end, zeros(0, 1), lvl_t, rdel, rmode, reward_rule);
     sp_on = zeros(0, 1);  sp_tr = sp_on;  sp_n = sp_on;  P_mine = NaN;
 end
+
+kind_n = arrayfun(@(k) sum(rew_kind == k), 0:4);
+pump_lat = rew_t - on_t;
+chk = addchk(chk, 'reward: pumps per trial', grade(true, 1), sprintf('%d/%d trials with a pump: none %d | at the onset %d | onset + RewardDelay %d | at the first lick %d | first lick + RewardDelay %d; pump %.2f-%.2f s after the square onset (median %.2f s)', ...
+    sum(isfinite(rew_t)), nTr, kind_n(1), kind_n(2), kind_n(3), kind_n(4), kind_n(5), min([pump_lat; inf]), max([pump_lat; -inf]), median(pump_lat, 'omitnan')));
 
 % 3b  behaviour on the imaging grid
 beh_ca = struct();  beh_names = {};
@@ -419,21 +464,23 @@ printchk(chk, n0);  n0 = size(chk, 1);
 %% 4. Session overview (trials, licks, population activity, behaviour)
 fh = newfig('Session overview', 18, 14);
 tl = tiledlayout(fh, 6, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-title(tl, strrep(session, '_', '\_'), 'FontSize', 9, 'FontWeight', 'normal');
+title(tl, sprintf('%s | %d trials%s, trial levels 1/2/3: %d/%d/%d', strrep(session, '_', '\_'), nTr, iff(has_lick, sprintf(', %d with a lick in the square', sum(hit)), ''), lvl_n(1), lvl_n(2), lvl_n(3)), 'FontSize', 9, 'FontWeight', 'normal');
 ax(1) = nexttile(tl);  hold on;
-for k = 1:nTr
-    patch([tr_t0(k) tr_t1(k) tr_t1(k) tr_t0(k)], [0 0 1 1], [0.9 0.9 0.9] - 0.12 * hit(k), 'EdgeColor', 'none');
-    patch([on_t(k) st_end(k) st_end(k) on_t(k)], [0 0 1 1], col.sq, 'EdgeColor', 'none');
-end
-ylim([0 1]);  yticks([]);  ylabel('trials');
-text(0.005, 0.5, iff(has_lick, 'dark grey = hit trial, cyan = square (+ reward)', 'cyan = square (+ reward)'), 'Units', 'normalized', 'FontSize', 6, 'Color', [0.2 0.2 0.2]);
-ax(2) = nexttile(tl);  hold on;
 if has_lick
-    plot(repmat(lick_t(:)', 2, 1), repmat([0; 1], 1, numel(lick_t)), 'Color', col.lick, 'LineWidth', 0.3);
+    plot(repmat(on_t(hit)', 2, 1), repmat([0; 1], 1, sum(hit)), 'Color', col_hit, 'LineWidth', 0.8);
+    plot(repmat(on_t(~hit)', 2, 1), repmat([0; 1], 1, sum(~hit)), 'Color', col_mis, 'LineWidth', 0.8);
 else
-    text(0.5, 0.5, 'NO LICK DATA', 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 7, 'Color', [0.8 0 0]);
+    plot(repmat(on_t', 2, 1), repmat([0; 1], 1, nTr), 'Color', col.sq, 'LineWidth', 0.8);
 end
-ylim([0 1]);  yticks([]);  ylabel('licks');
+if any(lvl_t == 2) && any(lvl_t ~= 2); plot(on_t(lvl_t == 2), 1.2 * ones(sum(lvl_t == 2), 1), 'v', 'Color', [0.3 0.3 0.3], 'MarkerFaceColor', [0.3 0.3 0.3], 'MarkerSize', 3); end
+ylim([0 1.4]);  yticks([]);  ylabel('squares');
+title(ax(1), iff(has_lick, 'one tick per square: blue = lick in the square, orange = none; black triangle = level 2 trial', 'one tick per square'), 'FontSize', 6, 'FontWeight', 'normal');
+ax(2) = nexttile(tl);
+if has_lick
+    plot(tCa, movmean(lick_rate, round(2 * fs)), 'Color', col.lick);  ylabel('lick rate (Hz)');
+else
+    text(0.5, 0.5, 'NO LICK DATA', 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 7, 'Color', [0.8 0 0]);  yticks([]);  ylabel('licks');
+end
 ax(3) = nexttile(tl);  plot(tCa, movmean(mean(dFF, 1), round(fs)), 'Color', col.dff);  ylabel('mean dF/F');
 ax(4) = nexttile(tl);
 if has_beh && isfield(data.Behav, 'PupilArea'); plot(tcam, data.Behav.PupilArea, 'Color', col.pupil); end
@@ -442,10 +489,13 @@ ax(5) = nexttile(tl);  hold on;  h_face = gobjects(0);  h_whisk = gobjects(0);
 if has_beh && isfield(data.Behav, 'FacePadME'); h_face = plot(tcam, data.Behav.FacePadME, 'Color', col.face); end
 if has_beh && isfield(data.Behav, 'WhiskIndex'); h_whisk = plot(tcam, data.Behav.WhiskIndex, 'Color', col.whisk); end
 ylabel('whisk / face ME');
-if has_beh && all(isfield(data.Behav, {'WhiskIndex', 'FacePadME'})); legend([h_whisk, h_face], {'WhiskIndex', 'FacePadME'}, 'Location', 'northeast', 'FontSize', 7); end
-ax(6) = nexttile(tl);  plot(tCa, loc_speed, 'Color', col.loc);  ylabel('speed (mm/s)');  xlabel('session time (s)');
+if has_beh && all(isfield(data.Behav, {'WhiskIndex', 'FacePadME'}))
+    ylim([0 1.3 * max(10, prctile(double(data.Behav.FacePadME(isfinite(data.Behav.FacePadME))), 99.5))]);                  % the spikes of the face motion are clipped, not the baseline
+    legend([h_whisk, h_face], {'WhiskIndex', 'FacePadME'}, 'Location', 'northeast', 'FontSize', 7);
+end
+ax(6) = nexttile(tl);  plot(tCa, movmean(loc_speed, round(fs), 'omitnan'), 'Color', col.loc);  ylabel('speed (mm/s)');  xlabel('session time (s)');
 if ~loc_ok; text(0.5, 0.5, 'locomotion unusable', 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 7); end
-for a = 3:6; xline(ax(a), b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':', 'HandleVisibility', 'off'); end
+for a = 2:6; xline(ax(a), b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':', 'HandleVisibility', 'off'); end
 linkaxes(ax, 'x');  xlim(ax(1), [tCa(1) tCa(end)]);
 set(ax(1:5), 'XTickLabel', []);
 if save_figs; savef(fh, '01_overview'); end
@@ -644,7 +694,17 @@ printchk(chk, n0);  n0 = size(chk, 1);
 % sel_roi is clustered and every trial statistic below uses the group means (group 1 = the largest group).
 rng(2);
 dFFd = double(dFF);
-if nSel >= 2; gid = cluster(linkage(pdist(double(dsm(sel_roi, :)), 'correlation'), 'average'), 'cutoff', 1 - grp_r_thr, 'criterion', 'distance'); else; gid = ones(nSel, 1); end
+n_fine = 1;
+if nSel >= 2
+    gid = cluster(linkage(pdist(double(dsm(sel_roi, :)), 'correlation'), 'average'), 'cutoff', 1 - grp_r_thr, 'criterion', 'distance');
+    n_fine = max(gid);
+    if n_fine > max_groups                                                     % too many groups to show and test: Ward tree on the z-scored traces (Euclidean distance = correlation distance), cut at max_groups
+        zsel_ = double(dsm(sel_roi, :));  zsel_ = (zsel_ - mean(zsel_, 2)) ./ std(zsel_, 0, 2);
+        gid = cluster(linkage(zsel_, 'ward'), 'maxclust', max_groups);
+    end
+else
+    gid = ones(nSel, 1);
+end
 gid = gid(:)';
 gsz = accumarray(gid(:), 1)';  gmn = accumarray(gid(:), sel_roi(:), [], @min)';
 [~, gord] = sort(-1000 * gsz + gmn);
@@ -655,6 +715,8 @@ grp_lab  = cellfun(@(r) ['ROI ' regexprep(num2str(r), '\s+', ',')], grp_rois, 'U
 grp_mot  = cellfun(@(r) any(mot_flag(r)), grp_rois);
 grp_mean = cell2mat(cellfun(@(r) mean(dFFd(r, :), 1), grp_rois(:), 'UniformOutput', false));     % [ng x nT]
 gcol     = lines(ng);  gcol(1, :) = [0 0 0];
+ctl_col  = [0.55 0.55 0.55];                                                  % control group (noise-like ROIs)
+grp_name = arrayfun(@(g) sprintf('g%d (%d ROIs)', g, numel(grp_rois{g})), 1:ng, 'UniformOutput', false);
 % control: the noise-like ROIs outside the selection. They carry no axonal signal, so whatever they show at the square or around licking is common-mode
 % (motion, neuropil, z-shift) and is the reference for the groups. It is added as the last row of every statistic below (the figures show the groups only).
 ctl_roi = find(noise_like & ~bad_F & ~ismember((1:nROI)', sel_roi))';
@@ -664,9 +726,11 @@ if ~isempty(ctl_roi)
     grp_all = [grp_mean; mean(dFFd(ctl_roi, :), 1)];
     glab_all = [grp_lab, {['control: noise-like ROI ' regexprep(num2str(ctl_roi), '\s+', ',')]}];
 end
+gcol_all = [gcol; ctl_col];  gcol_all = gcol_all([1:ng, ng + (1:(ngc - ng))], :);                 % colours of the groups, the control last (rows of grp_all)
+gnm_all = [grp_name, repmat({'control'}, 1, ngc - ng)];
 roi_lab  = string(sel_roi);  roi_skip = max(1, ceil(nSel / 40));
-fprintf('\nROI groups (r > %g on the smoothed dF/F):\n', grp_r_thr);
-for g = 1:ng; fprintf('  group %d: %s%s\n', g, grp_lab{g}, iff(grp_mot(g), '  (contains motion-coupled ROIs)', '')); end
+fprintf('\nROI groups (r > %g on the smoothed dF/F gives %d groups%s):\n', grp_r_thr, n_fine, iff(n_fine > max_groups, sprintf(', merged to max_groups = %d by a Ward tree', max_groups), ''));
+for g = 1:ng; fprintf('  group %d (%d ROIs): %s%s\n', g, numel(grp_rois{g}), grp_lab{g}, iff(grp_mot(g), '  (contains motion-coupled ROIs)', '')); end
 
 % findings table: {analysis, statistic, value, ci or p, n}
 ex = cell(0, 5);
@@ -687,20 +751,21 @@ xb_lab = cellfun(@(n) beh_lab.(n), xb_names, 'UniformOutput', false);
 xi_ = @(nm) find(strcmp(xb_names, nm), 1);
 
 % trial table
-trl = table((1:nTr)', sub_of, wait_s, n_to, on_t, hit, n_win, lat1, cons_lat, cons_n, n_pre, n_post, ...
-    'VariableNames', {'trial', 'subsession', 'wait_s', 'timeouts', 'onset_s', 'hit', 'licks_0p1_2s', 'first_lick_lat_s', 'bout_lat_s', 'bout_licks', 'licks_pre5s', 'licks_post5s'});
+trl = table((1:nTr)', sub_of, lvl_t, wait_s, n_to, on_t, pump_lat, rew_kind, hit, n_win, lat1, cons_lat, cons_n, n_pre, n_post, ...
+    'VariableNames', {'trial', 'subsession', 'level', 'wait_s', 'timeouts', 'onset_s', 'pump_after_onset_s', 'pump_kind', 'hit', 'licks_in_window', 'first_lick_lat_s', 'bout_lat_s', 'bout_licks', 'licks_pre5s', 'licks_post5s'});
 sub_tbl = table((1:nB)', accumarray(sub_of, 1), 100 * accumarray(sub_of, hit) ./ accumarray(sub_of, 1), accumarray(sub_of, lat1, [], @(x) median(x, 'omitnan')), accumarray(sub_of, n_to), accumarray(sub_of, n_pre) / S.trials, ...
     'VariableNames', {'subsession', 'trials', 'hit_pct', 'median_first_lick_s', 'timeouts', 'licks_5s_before'});
 if ~has_lick                                                                       % no lick data: keep the columns that do not depend on licks
-    trl = trl(:, {'trial', 'subsession', 'wait_s', 'timeouts', 'onset_s'});
+    trl = trl(:, {'trial', 'subsession', 'level', 'wait_s', 'timeouts', 'onset_s', 'pump_after_onset_s', 'pump_kind'});
     sub_tbl = sub_tbl(:, {'subsession', 'trials', 'timeouts'});
 end
 disp(sub_tbl);
 if has_lick
     rate_pre = n_pre / 5;
-    fprintf('Hit trials: %d/%d. First lick after the reward within %g s in %d trials, median latency %.2f s (hit trials %.2f s, other %.2f s).\n', sum(hit), nTr, cons_max_s, sum(isfinite(lat1)), median(lat1, 'omitnan'), median(lat1(hit), 'omitnan'), median(lat1(~hit), 'omitnan'));
-    ex = exadd(ex, '8 licking', 'hit rate (lick 0.1-2 s after the square), %', P_mine, sprintf('log P = %.1f', S.P), nTr);
-    ex = exadd(ex, '8 licking', 'trials with a lick within cons_max_s of the reward, %', 100 * mean(isfinite(lat1)), '', nTr);
+    fprintf('Hit trials: %d/%d. First lick after the square onset within %g s in %d trials, median latency %.2f s (hit trials %.2f s, other %.2f s). Pump in %d trials.\n', sum(hit), nTr, cons_max_s, sum(isfinite(lat1)), median(lat1, 'omitnan'), median(lat1(hit), 'omitnan'), median(lat1(~hit), 'omitnan'), sum(isfinite(rew_t)));
+    ex = exadd(ex, '8 licking', sprintf('hit rate (lick %g-%g s after the square onset), %%', lw(1), lw(2)), P_mine, sprintf('log P = %.1f', S.P), nTr);
+    ex = exadd(ex, '8 licking', 'trials with a pump, %', 100 * mean(isfinite(rew_t)), sprintf('level 1/2/3 trials %d/%d/%d', lvl_n(1), lvl_n(2), lvl_n(3)), nTr);
+    ex = exadd(ex, '8 licking', 'trials with a lick within cons_max_s of the square onset, %', 100 * mean(isfinite(lat1)), '', nTr);
     ex = exadd(ex, '8 licking', 'median first-lick latency (s)', median(lat1, 'omitnan'), ci_str(boot_ci(lat1(isfinite(lat1)), @median)), sum(isfinite(lat1)));
     ex = exadd(ex, '8 licking', 'licks per s in the 5 s before the square', mean(rate_pre), ci_str(boot_ci(rate_pre, @mean)), nTr);
 else
@@ -714,25 +779,32 @@ if has_lick
     ed = -ev_pre_s:0.5:ev_post_s;  ctr = ed(1:end-1) + 0.25;
     LC = zeros(nTr, numel(ctr));
     for t = 1:nTr; LC(t, :) = histcounts(lick_t - on_t(t), ed) / 0.5; end
-    fh = newfig('Lick behaviour', 18, 14);
+    fh = newfig('Lick behaviour', 18, 15);
     tl = tiledlayout(fh, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    title(tl, [strrep(session, '_', '\_') ' | licking around the square + reward'], 'FontSize', 9, 'FontWeight', 'normal');
+    title(tl, [strrep(session, '_', '\_') ' | licking around the square and the pump'], 'FontSize', 9, 'FontWeight', 'normal');
     a1 = nexttile(tl, 1, [3 1]);  hold(a1, 'on');
     patch(a1, [0 lw(2) lw(2) 0], [0 0 nTr + 1 nTr + 1], col.sq, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
     rx = cell(nTr, 1);  ry = rx;
     for t = 1:nTr; r_ = lick_t - on_t(t);  r_ = r_(r_ >= -ev_pre_s & r_ <= ev_post_s);  rx{t} = r_;  ry{t} = t * ones(size(r_)); end
     plot(a1, vertcat(rx{:}), vertcat(ry{:}), '.', 'Color', col.lick, 'MarkerSize', 3);
-    plot(a1, cons_lat(isfinite(cons_lat)), find(isfinite(cons_lat)), 'o', 'Color', [0.8 0 0], 'MarkerSize', 3);
+    ip_ = find(isfinite(pump_lat));
+    plot(a1, pump_lat(ip_), ip_, 'x', 'Color', [0 0.3 0.9], 'MarkerSize', 4, 'LineWidth', 0.8);
+    plot(a1, cons_lat(isfinite(cons_lat)), find(isfinite(cons_lat)), 'o', 'Color', [0.8 0 0], 'MarkerSize', 4);
+    il2_ = find(lvl_t == 2);  if ~isempty(il2_) && any(lvl_t ~= 2); plot(a1, (-ev_pre_s + 0.3) * ones(size(il2_)), il2_, '>', 'Color', [0.3 0.3 0.3], 'MarkerFaceColor', [0.3 0.3 0.3], 'MarkerSize', 3); end
     yline(a1, (1:nB - 1) * S.trials + 0.5, ':', 'Color', [0.5 0.5 0.5]);
-    set(a1, 'YDir', 'reverse');  xlim(a1, [-ev_pre_s ev_post_s]);  ylim(a1, [0 nTr + 1]);  xlabel(a1, 'time from square + reward onset (s)');  ylabel(a1, 'trial');
-    title(a1, 'licks (dots), first rewarded bout (red circles)', 'FontSize', 7, 'FontWeight', 'normal');
+    set(a1, 'YDir', 'reverse');  xlim(a1, [-ev_pre_s ev_post_s]);  ylim(a1, [0 nTr + 1]);  xlabel(a1, 'time from the square onset (s)');  ylabel(a1, 'trial');
+    title(a1, 'dots = licks, x = pump, o = rewarded bout, > = level 2 trial', 'FontSize', 6, 'FontWeight', 'normal');
     a2 = nexttile(tl, 2);  hold(a2, 'on');
     h2 = [sem_trace(a2, ctr, LC(hit, :)', col_hit, true), sem_trace(a2, ctr, LC(~hit, :)', col_mis, true)];
-    xline(a2, [0 lw(2)], ':');  ylabel(a2, 'lick rate (Hz)');  xlabel(a2, 'time from onset (s)');  legend(a2, h2, {sprintf('hit (%d)', sum(hit)), sprintf('miss (%d)', sum(~hit))}, 'FontSize', 6);
-    a3 = nexttile(tl, 4);  histogram(a3, lat1, 0:0.25:cons_max_s, 'FaceColor', col.lick, 'EdgeColor', 'none');  xline(a3, lw(2), ':');
-    xlabel(a3, 'first lick after the onset (s)');  ylabel(a3, 'trials');  title(a3, sprintf('%d trials without a lick within %g s', sum(~isfinite(lat1)), cons_max_s), 'FontSize', 7, 'FontWeight', 'normal');
+    xline(a2, [0 lw(2)], ':');  ylabel(a2, 'lick rate (Hz)');  xlabel(a2, 'time from the square onset (s)');  legend(a2, h2, {sprintf('hit (%d)', sum(hit)), sprintf('miss (%d)', sum(~hit))}, 'FontSize', 6, 'Location', 'northwest');
+    title(a2, 'lick rate, trials with / without a lick in the square (mean +- SEM)', 'FontSize', 7, 'FontWeight', 'normal');
+    a3 = nexttile(tl, 4);  hold(a3, 'on');
+    histogram(a3, lat1, 0:0.25:cons_max_s, 'FaceColor', col.lick, 'EdgeColor', 'none');
+    if any(isfinite(pump_lat)) && range(pump_lat(isfinite(pump_lat))) > 0.01; histogram(a3, pump_lat, 0:0.25:cons_max_s + 2, 'DisplayStyle', 'stairs', 'EdgeColor', [0 0.3 0.9], 'LineWidth', 1.2); end
+    xline(a3, [0 lw(2)], ':');
+    xlabel(a3, 'time from the square onset (s)');  ylabel(a3, 'trials');  title(a3, sprintf('first lick (brown), pump (blue line); no lick in %g s: %d trials, no pump: %d', cons_max_s, sum(~isfinite(lat1)), sum(~isfinite(rew_t))), 'FontSize', 6, 'FontWeight', 'normal');
     a4 = nexttile(tl, 6);  yyaxis(a4, 'left');  bar(a4, 1:nB, sub_tbl.hit_pct, 0.5, 'FaceColor', col_hit, 'EdgeColor', 'none');  ylabel(a4, 'hit trials (%)');  ylim(a4, [0 100]);
-    yyaxis(a4, 'right');  plot(a4, 1:nB, sub_tbl.median_first_lick_s, 'ko-', 'MarkerFaceColor', 'k');  ylabel(a4, 'median first lick (s)');  xticks(a4, 1:nB);  xlabel(a4, 'subsession');
+    yyaxis(a4, 'right');  plot(a4, 1:nB, sub_tbl.median_first_lick_s, 'ko-', 'MarkerFaceColor', 'k');  ylabel(a4, 'median first lick (s)');  ylim(a4, [0 max(1, 1.2 * max(sub_tbl.median_first_lick_s))]);  xticks(a4, 1:nB);  xlabel(a4, 'subsession');
     if save_figs; savef(fh, '02_lick_behaviour'); end
 end
 
@@ -783,10 +855,10 @@ null_band = prctile(null_tr, [2.5 97.5], 3);                                    
 obs_amp = mean(amp, 2);
 p_on = (1 + sum(abs(null_amp) >= abs(obs_amp), 2)) / (n_perm + 1);
 fprintf('\n9 square + reward onset response (mean dF/F change %g-%g s after onset, %d trials; null = %d pseudo-onsets in the wait periods)\n', resp_win(1), resp_win(2), nTr, n_ps_tot);
-p_hm = nan(ngc, 1);  d_hm = nan(ngc, 1);  ci_hm = nan(ngc, 2);
+p_hm = nan(ngc, 1);  d_hm = nan(ngc, 1);  ci_hm = nan(ngc, 2);  ci_on = nan(ngc, 2);
 for g = 1:ngc
     a = amp(g, :)';
-    ci = boot_ci(a, @mean);
+    ci = boot_ci(a, @mean);  ci_on(g, :) = ci;
     ex = exadd(ex, ['9 onset response, ' glab_all{g}], sprintf('mean dF/F change %g-%g s (pseudo-onset null mean %+.3f, sd %.3f)', resp_win(1), resp_win(2), mean(null_amp(g, :)), std(null_amp(g, :))), obs_amp(g), sprintf('%s, perm p=%.3f, signrank p=%.3g', ci_str(ci), p_on(g), signrank(a)), nTr);
     if has_lick && sum(hit) >= 3 && sum(~hit) >= 3
         d_hm(g) = mean(a(hit)) - mean(a(~hit));
@@ -808,85 +880,99 @@ ev_beh = reshape(mean(Bal(:, ri_, :), 2, 'omitnan'), nXB, nTr);
 fprintf('  behaviour change in the same window (session SD): %s\n', strjoin(arrayfun(@(i) sprintf('%s %+.2f', xb_names{i}, mean(ev_beh(i, :), 'omitnan')), 1:nXB, 'UniformOutput', false), ', '));
 for i = 1:nXB; ex = exadd(ex, '9 behaviour at the onset', [xb_lab{i} ', change in resp_win (session SD)'], mean(ev_beh(i, :), 'omitnan'), ci_str(boot_ci(ev_beh(i, isfinite(ev_beh(i, :)))', @mean)), nTr); end
 
-% figure 03
+% figure 03: onset response of the (at most max_groups) ROI groups and the control group of noise-like ROIs (grey, last row of Cg)
 cmap_hm = turbo;
-fh = newfig('Onset response', 18, 22);
+has_ctl = ngc > ng;
+pl_ = pump_lat(isfinite(pump_lat));
+if isempty(pl_); pump_txt = 'no pump'; elseif range(pl_) < 0.01; pump_txt = sprintf('pump %.1f s after the onset', median(pl_)); else; pump_txt = sprintf('pump %.1f-%.1f s after the onset (median %.1f s)', min(pl_), max(pl_), median(pl_)); end
+mm_ = reshape(mean(Cg, 3, 'omitnan'), ngc, []);
+fh = newfig('Onset response', 18, 21);
 tl = tiledlayout(fh, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-title(tl, sprintf('%s | square + reward onset, %d trials, %d ROI group(s)', strrep(session, '_', '\_'), nTr, ng), 'FontSize', 9, 'FontWeight', 'normal');
+title(tl, sprintf('%s | square onset, %s, %d trials, %d ROI group(s)', strrep(session, '_', '\_'), pump_txt, nTr, ng), 'FontSize', 9, 'FontWeight', 'normal');
 a1 = nexttile(tl, 1);
 Mh = squeeze(Cg(1, :, :))';  imagesc(a1, tev, 1:nTr, Mh);  cm = max(0.5, prctile(abs(Mh(:)), 99));  clim(a1, [-cm cm]);  colormap(a1, cmap_hm);  hold(a1, 'on');
-plot(a1, cons_lat(isfinite(cons_lat)), find(isfinite(cons_lat)), 'k.', 'MarkerSize', 4);
-xline(a1, [0 lw(2)], 'w:');  yline(a1, (1:nB - 1) * S.trials + 0.5, 'w:');  xlabel(a1, 'time from onset (s)');  ylabel(a1, 'trial');  cb = colorbar(a1);  cb.Label.String = 'dF/F - baseline';  cb.FontSize = 7;
-title(a1, [grp_lab{1} ' per trial' iff(has_lick, ' (black dots = first rewarded lick bout)', ' (no lick data)')], 'FontSize', 7, 'FontWeight', 'normal');
-a2 = nexttile(tl, 2);
-Mr = squeeze(mean(Cr, 3));  if nSel == 1; Mr = Mr(:)'; end
-imagesc(a2, tev, 1:nSel, Mr);  cm = max(0.3, prctile(abs(Mr(:)), 99));  clim(a2, [-cm cm]);  colormap(a2, cmap_hm);  xline(a2, [0 lw(2)], 'w:');
-yticks(a2, 1:roi_skip:nSel);  yticklabels(a2, roi_lab(1:roi_skip:nSel));  xlabel(a2, 'time from onset (s)');  ylabel(a2, 'ROI');  cb = colorbar(a2);  cb.Label.String = 'trial mean dF/F';  cb.FontSize = 7;
-title(a2, 'every selected ROI, mean over trials', 'FontSize', 7, 'FontWeight', 'normal');
-a3 = nexttile(tl, 3);  hold(a3, 'on');
-patch(a3, [0 lw(2) lw(2) 0], [-1 -1 1 1] * 1e3, col.sq, 'FaceAlpha', 0.12, 'EdgeColor', 'none');
-fill(a3, [t_ps fliplr(t_ps)], [squeeze(null_band(1, :, 1)) fliplr(squeeze(null_band(1, :, 2)))], [0.7 0.7 0.7], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
-hg = gobjects(1, ng);  for g = 1:ng; hg(g) = sem_trace(a3, tev, squeeze(Cg(g, :, :)), gcol(g, :), true); end
-yline(a3, 0, ':');  xlabel(a3, 'time from onset (s)');  ylabel(a3, '\DeltadF/F');  xlim(a3, tev([1 end]));
-yl_ = [min(mean(Cg(1, :, :), 3), [], 'omitnan'), max(mean(Cg(1, :, :), 3), [], 'omitnan')];  ylim(a3, yl_ + [-1 1] * 0.6 * max(0.1, diff(yl_)));
-legend(a3, hg, grp_lab, 'FontSize', 6, 'Location', 'northeast');
-title(a3, 'mean +- SEM over trials; grey band = 95% of pseudo-onset means (group 1)', 'FontSize', 7, 'FontWeight', 'normal');
-a4 = nexttile(tl, 4);  hold(a4, 'on');
-if has_lick
-    h4 = [sem_trace(a4, tev, squeeze(Cg(1, :, hit)), col_hit, true), sem_trace(a4, tev, squeeze(Cg(1, :, ~hit)), col_mis, true)];
-    xline(a4, [0 lw(2)], ':');  yline(a4, 0, ':');  xlabel(a4, 'time from onset (s)');  ylabel(a4, '\DeltadF/F');  xlim(a4, tev([1 end]));
-    legend(a4, h4, {sprintf('hit (%d)', sum(hit)), sprintf('miss (%d)', sum(~hit))}, 'FontSize', 6);
-    title(a4, [grp_lab{1} ': licked within ' num2str(lw(2)) ' s or not'], 'FontSize', 7, 'FontWeight', 'normal');
-else
-    text(a4, 0.5, 0.5, 'NO LICK DATA: no hit / miss split', 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 8, 'Color', [0.8 0 0]);
-    set(a4, 'XTick', [], 'YTick', []);
+plot(a1, cons_lat(isfinite(cons_lat)), find(isfinite(cons_lat)), 'k.', 'MarkerSize', 5);
+plot(a1, pump_lat(isfinite(pump_lat)), find(isfinite(pump_lat)), 'wx', 'MarkerSize', 3);
+xline(a1, [0 lw(2)], 'w:');  yline(a1, (1:nB - 1) * S.trials + 0.5, 'w:');  xlabel(a1, 'time from the square onset (s)');  ylabel(a1, 'trial');  cb = colorbar(a1);  cb.Label.String = '\DeltadF/F';  cb.FontSize = 7;
+title(a1, [grp_name{1} ' per trial' iff(has_lick, '; black dot = rewarded lick bout, white x = pump', '')], 'FontSize', 7, 'FontWeight', 'normal');
+a2 = nexttile(tl, 2);  hold(a2, 'on');
+patch(a2, [0 lw(2) lw(2) 0], [-1 -1 1 1] * 1e3, col.sq, 'FaceAlpha', 0.12, 'EdgeColor', 'none');
+fill(a2, [t_ps fliplr(t_ps)], [squeeze(null_band(1, :, 1)) fliplr(squeeze(null_band(1, :, 2)))], [0.7 0.7 0.7], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+hg = gobjects(1, ngc);  for g = 1:ng; hg(g) = sem_trace(a2, tev, squeeze(Cg(g, :, :)), gcol(g, :), true); end
+if has_ctl; hg(ngc) = sem_trace(a2, tev, squeeze(Cg(ngc, :, :)), ctl_col, true); end
+yline(a2, 0, ':');  xlabel(a2, 'time from the square onset (s)');  ylabel(a2, '\DeltadF/F');  xlim(a2, tev([1 end]));
+ylim(a2, [min(mm_(:)), max(mm_(:))] + [-1 1] * 0.5 * max(0.1, range(mm_(:))));
+legend(a2, hg, [grp_name, repmat({'control (noise-like ROIs)'}, 1, has_ctl)], 'FontSize', 6, 'Location', 'northwest');
+title(a2, 'mean +- SEM over trials; grey band = 95% of pseudo-onset means (g1)', 'FontSize', 7, 'FontWeight', 'normal');
+for q = 1:1 + has_ctl
+    a3 = nexttile(tl, 2 + q);  hold(a3, 'on');
+    gq = iff(q == 1 || ~has_ctl, 1, ngc);
+    if has_lick
+        h3 = [sem_trace(a3, tev, squeeze(Cg(gq, :, hit)), col_hit, true), sem_trace(a3, tev, squeeze(Cg(gq, :, ~hit)), col_mis, true)];
+        xline(a3, [0 lw(2)], ':');  yline(a3, 0, ':');  xlabel(a3, 'time from the square onset (s)');  ylabel(a3, '\DeltadF/F');  xlim(a3, tev([1 end]));
+        legend(a3, h3, {sprintf('lick in the square (%d)', sum(hit)), sprintf('no lick (%d)', sum(~hit))}, 'FontSize', 6, 'Location', 'northwest');
+        title(a3, iff(q == 1 || ~has_ctl, [grp_name{1} ': trials with / without a lick'], 'control (noise-like ROIs): the same split'), 'FontSize', 7, 'FontWeight', 'normal');
+    else
+        text(a3, 0.5, 0.5, 'NO LICK DATA: no hit / miss split', 'Units', 'normalized', 'HorizontalAlignment', 'center', 'FontSize', 8, 'Color', [0.8 0 0]);
+        set(a3, 'XTick', [], 'YTick', []);
+    end
+    a3s(q) = a3; %#ok<SAGROW>
 end
+if has_lick && has_ctl; yl3 = vertcat(a3s.YLim);  set(a3s, 'YLim', [min(yl3(:, 1)) max(yl3(:, 2))]); end
 a5 = nexttile(tl, 5);  hold(a5, 'on');  hb = gobjects(1, nXB);
 for i = 1:nXB; hb(i) = sem_trace(a5, tev, squeeze(Bal(i, :, :)), xb_col{i}, true); end
-xline(a5, [0 lw(2)], ':');  yline(a5, 0, ':');  xlabel(a5, 'time from onset (s)');  ylabel(a5, '\Delta behaviour (session SD)');  xlim(a5, tev([1 end]));  legend(a5, hb, xb_lab, 'FontSize', 6, 'Location', 'northeast');
+xline(a5, [0 lw(2)], ':');  yline(a5, 0, ':');  xlabel(a5, 'time from the square onset (s)');  ylabel(a5, '\Delta behaviour (session SD)');  xlim(a5, tev([1 end]));  legend(a5, hb, xb_lab, 'FontSize', 6, 'Location', 'northwest', 'NumColumns', 2);
 title(a5, 'behaviour at the same onsets', 'FontSize', 7, 'FontWeight', 'normal');
 a6 = nexttile(tl, 6);  hold(a6, 'on');
-for g = 1:ng
+for g = 1:ngc
+    col_g = gcol(min(g, ng), :);  if g > ng; col_g = ctl_col; end
     xj = g + (rand(nTr, 1) - 0.5) * 0.4;
     if has_lick
-        scatter(a6, xj(hit), amp(g, hit), 12, gcol(g, :), 'filled', 'MarkerFaceAlpha', 0.6);
-        scatter(a6, xj(~hit), amp(g, ~hit), 12, gcol(g, :), 'MarkerEdgeAlpha', 0.7);
+        scatter(a6, xj(hit), amp(g, hit), 10, col_g, 'filled', 'MarkerFaceAlpha', 0.5);
+        scatter(a6, xj(~hit), amp(g, ~hit), 10, col_g, 'MarkerEdgeAlpha', 0.7);
     else
-        scatter(a6, xj, amp(g, :), 12, gcol(g, :), 'filled', 'MarkerFaceAlpha', 0.6);
+        scatter(a6, xj, amp(g, :), 10, col_g, 'filled', 'MarkerFaceAlpha', 0.5);
     end
-    plot(a6, g + [-0.3 0.3], obs_amp(g) * [1 1], 'r-', 'LineWidth', 1.5);
+    plot(a6, g + [-0.3 0.3], obs_amp(g) * [1 1], 'r-', 'LineWidth', 1.8);
     plot(a6, g + [-0.3 0.3], prctile(null_amp(g, :), 97.5) * [1 1], 'b:');  plot(a6, g + [-0.3 0.3], prctile(null_amp(g, :), 2.5) * [1 1], 'b:');
 end
-yline(a6, 0, ':');  xticks(a6, 1:ng);  xticklabels(a6, arrayfun(@(g) sprintf('g%d%s', g, iff(grp_mot(g), '*', '')), 1:ng, 'UniformOutput', false));  xlim(a6, [0.4 ng + 0.6]);  ylabel(a6, sprintf('mean \\DeltadF/F, %g-%g s', resp_win(1), resp_win(2)));
-title(a6, ['per trial: ' iff(has_lick, 'filled = hit, open = miss; ', '') 'red = mean, blue = 95% null of the mean; * = motion-coupled'], 'FontSize', 6, 'FontWeight', 'normal');
+yl6 = [min(amp(:)) max(amp(:))];  yl6 = yl6 + [-0.05 0.25] * range(yl6);  ylim(a6, yl6);
+for g = 1:ngc; text(a6, g, yl6(2), sprintf('p=%.2g', p_on(g)), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', 'FontSize', 6); end
+yline(a6, 0, ':');  xticks(a6, 1:ngc);  xticklabels(a6, [arrayfun(@(g) sprintf('g%d%s', g, iff(grp_mot(g), '*', '')), 1:ng, 'UniformOutput', false), repmat({'ctl'}, 1, has_ctl)]);  xlim(a6, [0.4 ngc + 0.6]);  ylabel(a6, sprintf('mean \\DeltadF/F, %g-%g s', resp_win(1), resp_win(2)));
+title(a6, ['per trial' iff(has_lick, ' (filled = lick in the square)', '') ', red = mean, blue = pseudo-onset 95%, * = motion-coupled'], 'FontSize', 6, 'FontWeight', 'normal');
 if save_figs; savef(fh, '03_onset_response'); end
 
-%% 10. Reward consumption: is the response locked to the square + pump, or to the licking that follows?
-% Licking starts 0.1 s to several s after the pump, trial by trial. A response locked to the pump keeps its time whatever the latency, one locked to the
-% consumption moves with it. Rewarded bouts (first isolated bout 0.1-cons_max_s after the pump) are compared with spontaneous bouts of the same kind
-% (isolated, same size criterion) in the wait period: the same motor act without a reward. Baselines: rewarded = the pre-square baseline of that trial,
-% spontaneous = base_win before the bout.
+%% 10. Reward consumption: is the response locked to the square, to the licking that triggers the pump, or to the pump?
+% Three events can be told apart: the square onset, the first lick of the square (which fires the pump at level 3 or starts the RewardDelay countdown) and the pump. With the pump at
+% the onset (level 1/2, RewardDelay 0) licking starts 0.1 s to several s later: a response locked to the pump keeps its time whatever the latency, one locked to the licking moves
+% with it (10a). With the pump RewardDelay s after the first lick the rewarded bout is identical to a spontaneous bout up to the pump: the rewarded - spontaneous difference
+% BEFORE the pump is the context (square, expectation, trigger), AFTER the pump it is the reward (10b / 10c run in both windows). Rewarded bouts (section 3a) are compared with spontaneous
+% bouts of the same kind (isolated, same size criterion) in the wait period: the same motor act without a reward. Baselines: rewarded = the pre-square baseline of that trial,
+% spontaneous = base_win before the bout. Unrewarded bouts after the square in trials without a pump (late bouts) are shown as a second control when there are enough of them.
 if has_lick
     pre_b = 3;  post_b = 8;  nb_c = round((pre_b + post_b) * fs) + 1;  tb = linspace(-pre_b, post_b, nb_c);
-    bb_ = tb >= base_win(1) & tb < base_win(2);  bw_ = tb >= bout_win(1) & tb <= bout_win(2);
+    bb_ = tb >= base_win(1) & tb < base_win(2);
     ev_k = find(isfinite(cons_on));  nEv = numel(ev_k);  nSp = numel(sp_on);
+    late_k = find(isfinite(late_on));  nLate = numel(late_k);
     lat_edges = [lw(1) lat_split_s lw(2) cons_max_s + eps];
-    lat_cls = discretize(cons_lat(ev_k), lat_edges);                                   % latency class of the first rewarded BOUT (rewarded vs spontaneous bouts)
-    cls1 = discretize(lat1, lat_edges);                                               % latency class of the FIRST LICK after the pump, every trial (latency-lock test)
+    lat_cls = discretize(cons_lat(ev_k), lat_edges);                                   % latency class (from the square onset) of the rewarded BOUT
+    cls1 = discretize(lat1, lat_edges);                                               % latency class of the FIRST LICK after the onset, every trial (latency test)
     cls_lab = {sprintf('%.1f-%g s', lw(1), lat_split_s), sprintf('%g-%g s', lat_split_s, lw(2)), sprintf('%g-%g s (after the square)', lw(2), cons_max_s)};
     cls_col = [0 0.45 0.74; 0.93 0.69 0.13; 0.85 0.33 0.1];
-    fprintf('\n10 reward consumption: first lick after the pump in %d trials (latency classes %s: %s trials); %d rewarded bouts (%s trials), %d spontaneous bouts\n', sum(isfinite(lat1)), strjoin(cls_lab, ' | '), strjoin(arrayfun(@(c) num2str(sum(cls1 == c)), 1:3, 'UniformOutput', false), '/'), nEv, strjoin(arrayfun(@(c) num2str(sum(lat_cls == c)), 1:3, 'UniformOutput', false), '/'), nSp);
+    win_sets = {bout_win};  win_lab = {sprintf('%g-%g s after the first lick', bout_win(1), bout_win(2))};
+    if any(rew_kind == 4); win_sets{2} = rdel + bout_win;  win_lab{2} = sprintf('%g-%g s after the pump (first lick + %g s)', rdel + bout_win(1), rdel + bout_win(2), rdel); end
+    nW = numel(win_sets);
+    fprintf('\n10 reward consumption: first lick after the onset in %d trials (latency classes %s: %s trials); %d rewarded bouts (%s trials), %d spontaneous bouts, %d late unrewarded bouts\n', sum(isfinite(lat1)), strjoin(cls_lab, ' | '), strjoin(arrayfun(@(c) num2str(sum(cls1 == c)), 1:3, 'UniformOutput', false), '/'), nEv, strjoin(arrayfun(@(c) num2str(sum(lat_cls == c)), 1:3, 'UniformOutput', false), '/'), nSp, nLate);
     Rg = align_trials_to_onsets(cons_on(ev_k), grp_all, tCa, pre_b, post_b, nb_c) - Cg_base(:, 1, ev_k);          % bout-aligned, baseline of the trial
     Sg = align_trials_to_onsets(sp_on, grp_all, tCa, pre_b, post_b, nb_c);  Sg = Sg - mean(Sg(:, bb_, :), 2, 'omitnan');
     Rb_ = align_trials_to_onsets(cons_on(ev_k), XB, tCa, pre_b, post_b, nb_c) - Braw_base(:, 1, ev_k);
     Sb_ = align_trials_to_onsets(sp_on, XB, tCa, pre_b, post_b, nb_c);  Sb_ = Sb_ - mean(Sb_(:, bb_, :), 2, 'omitnan');
-    A_rew = reshape(mean(Rg(:, bw_, :), 2, 'omitnan'), ngc, nEv);  A_sp = reshape(mean(Sg(:, bw_, :), 2, 'omitnan'), ngc, nSp);
-    B_rew = reshape(mean(Rb_(:, bw_, :), 2, 'omitnan'), nXB, nEv);  B_sp = reshape(mean(Sb_(:, bw_, :), 2, 'omitnan'), nXB, nSp);
-    nl_rew = arrayfun(@(k) sum(lick_t >= cons_on(k) + bout_win(1) & lick_t <= cons_on(k) + bout_win(2)), ev_k);
-    nl_sp  = arrayfun(@(k) sum(lick_t >= k + bout_win(1) & lick_t <= k + bout_win(2)), sp_on);
-    fprintf('  licks in the %g-%g s after the bout onset: rewarded %.1f, spontaneous %.1f\n', bout_win(1), bout_win(2), mean(nl_rew), mean(nl_sp));
+    if nLate >= 5
+        Lg = align_trials_to_onsets(late_on(late_k), grp_all, tCa, pre_b, post_b, nb_c) - Cg_base(:, 1, late_k);                    % trial baseline, like the rewarded bouts
+        Lb_ = align_trials_to_onsets(late_on(late_k), XB, tCa, pre_b, post_b, nb_c) - Braw_base(:, 1, late_k);
+    end
 
-    % 10a  timing of the response against the consumption latency (half-rise of the single-trial group trace, trials with a clear response)
+    % 10a  timing of the response against the latency of the first lick (half-rise of the single-trial group trace, trials with a clear response)
     th = nan(ngc, nTr);
     for g = 1:ngc
         for t = find(isfinite(lat1))'
@@ -899,7 +985,7 @@ if has_lick
         v = isfinite(th(g, :)') & isfinite(lat1);  n_th(g) = sum(v);
         if n_th(g) >= 6
             [rho_th(g), p_th(g)] = corr(th(g, v)', lat1(v), 'Type', 'Spearman');
-            ex = exadd(ex, ['10a response timing, ' glab_all{g}], 'Spearman: half-rise time of the response vs latency of the first lick (0 = locked to the pump, >0 = follows the licking)', rho_th(g), sprintf('p=%.3g', p_th(g)), n_th(g));
+            ex = exadd(ex, ['10a response timing, ' glab_all{g}], 'Spearman: half-rise time of the response vs latency of the first lick (0 = locked to the square / a pump at the onset, >0 = follows the licking)', rho_th(g), sprintf('p=%.3g', p_th(g)), n_th(g));
         end
         v2 = isfinite(amp(g, :)') & isfinite(lat1);
         [rho_am(g), p_am(g)] = corr(amp(g, v2)', lat1(v2), 'Type', 'Spearman');
@@ -907,114 +993,124 @@ if has_lick
         fprintf('  %s: half-rise vs first-lick latency rho %+.2f (p=%.3g, n=%d trials with a clear response); response size vs latency rho %+.2f (p=%.3g)\n', glab_all{g}, rho_th(g), p_th(g), n_th(g), rho_am(g), p_am(g));
     end
 
-    % 10b  rewarded vs spontaneous bouts, with the behaviour of the same events as covariates
+    % 10b / 10c  rewarded vs spontaneous bouts in each window, with the behaviour of the same events as covariates
     bcov = intersect({'LocSpeed', 'WhiskIndex', 'PupilArea', 'FacePadME', 'RigidShift'}, xb_names, 'stable');
     bcov_ix = cellfun(xi_, bcov);
     pairs = {'rewarded (all)', 1:nEv; sprintf('rewarded, latency %s', cls_lab{3}), find(lat_cls == 3)'};
-    reg_out = struct('name', {}, 'group', {}, 'b', {}, 'ci', {}, 'p', {}, 'n', {});
-    for g = 1:ngc
+    A_rew_w = cell(1, nW);  A_sp_w = cell(1, nW);  nl_rew_w = cell(1, nW);  nl_sp_w = cell(1, nW);
+    rs_b = nan(nW, ngc);  rs_ci = nan(nW, ngc, 2);                                    % rewarded - spontaneous (adjusted, 10b) per window and group, for the summary figure
+    for wi = 1:nW
+        bw_ = tb >= win_sets{wi}(1) & tb <= win_sets{wi}(2);
+        A_rew = reshape(mean(Rg(:, bw_, :), 2, 'omitnan'), ngc, nEv);  A_sp = reshape(mean(Sg(:, bw_, :), 2, 'omitnan'), ngc, nSp);
+        B_rew = reshape(mean(Rb_(:, bw_, :), 2, 'omitnan'), nXB, nEv);  B_sp = reshape(mean(Sb_(:, bw_, :), 2, 'omitnan'), nXB, nSp);
+        nl_rew = arrayfun(@(k) sum(lick_t >= cons_on(k) + win_sets{wi}(1) & lick_t <= cons_on(k) + win_sets{wi}(2)), ev_k);
+        nl_sp  = arrayfun(@(k) sum(lick_t >= k + win_sets{wi}(1) & lick_t <= k + win_sets{wi}(2)), sp_on);
+        A_rew_w{wi} = A_rew;  A_sp_w{wi} = A_sp;  nl_rew_w{wi} = nl_rew;  nl_sp_w{wi} = nl_sp;
+        fprintf('  window %s: licks in the window: rewarded %.1f, spontaneous %.1f\n', win_lab{wi}, mean(nl_rew), mean(nl_sp));
+        for g = 1:ngc
+            for q = 1:size(pairs, 1)
+                ii = pairs{q, 2};
+                if numel(ii) < 5 || nSp < 5; continue; end
+                y_ = [A_rew(g, ii)'; A_sp(g, :)'];
+                X_ = [ones(numel(y_), 1), [ones(numel(ii), 1); zeros(nSp, 1)], [B_rew(bcov_ix, ii), B_sp(bcov_ix, :)]', [nl_rew(ii); nl_sp]];
+                sdx = std(X_(:, 3:end), 0, 1);  sdx(sdx == 0) = 1;  X_(:, 3:end) = (X_(:, 3:end) - mean(X_(:, 3:end), 1)) ./ sdx;
+                [b_, ci_, p_] = ols_boot(y_, X_, n_boot);
+                if q == 1; rs_b(wi, g) = b_(2);  rs_ci(wi, g, :) = reshape(ci_(2, :), 1, 1, 2); end
+                d_raw = mean(A_rew(g, ii)) - mean(A_sp(g, :));
+                p_rs = ranksum(A_rew(g, ii), A_sp(g, :));
+                fprintf('  %s | %s vs spontaneous, %s: raw %+.3f dF/F (rank-sum p=%.3g); adjusted for %s and licks in the window: %+.3f %s (bootstrap p=%.3f), n=%d+%d\n', glab_all{g}, pairs{q, 1}, win_lab{wi}, d_raw, p_rs, strjoin(bcov, '/'), b_(2), ci_str(ci_(2, :)), p_(2), numel(ii), nSp);
+                ex = exadd(ex, ['10b ' pairs{q, 1} ' minus spontaneous bout, ' glab_all{g}], sprintf('mean dF/F change %s (raw %+.3f, rank-sum p=%.3g)', win_lab{wi}, d_raw, p_rs), b_(2), sprintf('adjusted for behaviour+licks %s, p=%.3f', ci_str(ci_(2, :)), p_(2)), numel(y_));
+            end
+        end
+        % 10c  the same comparison standardised for the number of licks: mean difference inside strata of the licks in the window (<= 4, 5-6, 7-8, >= 9), averaged with
+        % the weights of the spontaneous bouts (strata with fewer than 3 bouts in either set are left out); bootstrap over bouts (rewarded and spontaneous resampled separately)
+        cnt_edges = [0 5 7 9 Inf];
         for q = 1:size(pairs, 1)
             ii = pairs{q, 2};
             if numel(ii) < 5 || nSp < 5; continue; end
-            y_ = [A_rew(g, ii)'; A_sp(g, :)'];
-            X_ = [ones(numel(y_), 1), [ones(numel(ii), 1); zeros(nSp, 1)], [B_rew(bcov_ix, ii), B_sp(bcov_ix, :)]', [nl_rew(ii); nl_sp]];
-            sdx = std(X_(:, 3:end), 0, 1);  sdx(sdx == 0) = 1;  X_(:, 3:end) = (X_(:, 3:end) - mean(X_(:, 3:end), 1)) ./ sdx;
-            [b_, ci_, p_] = ols_boot(y_, X_, n_boot);
-            d_raw = mean(A_rew(g, ii)) - mean(A_sp(g, :));
-            p_rs = ranksum(A_rew(g, ii), A_sp(g, :));
-            reg_out(end+1) = struct('name', pairs{q, 1}, 'group', g, 'b', b_, 'ci', ci_, 'p', p_, 'n', numel(y_)); %#ok<SAGROW>
-            fprintf('  %s | %s vs spontaneous: raw %+.3f dF/F (rank-sum p=%.3g); adjusted for %s and licks in the window: %+.3f %s (bootstrap p=%.3f), n=%d+%d\n', glab_all{g}, pairs{q, 1}, d_raw, p_rs, strjoin(bcov, '/'), b_(2), ci_str(ci_(2, :)), p_(2), numel(ii), nSp);
-            ex = exadd(ex, ['10b ' pairs{q, 1} ' minus spontaneous bout, ' glab_all{g}], sprintf('mean dF/F change %g-%g s after the bout onset (raw %+.3f, rank-sum p=%.3g)', bout_win(1), bout_win(2), d_raw, p_rs), b_(2), sprintf('adjusted for behaviour+licks %s, p=%.3f', ci_str(ci_(2, :)), p_(2)), numel(y_));
-        end
-    end
-
-    % 10c  the same comparison standardised for the number of licks: mean difference inside strata of the licks in the window (<= 4, 5-6, 7-8, >= 9), averaged with
-    % the weights of the spontaneous bouts (strata with fewer than 3 bouts in either set are left out); bootstrap over bouts (rewarded and spontaneous resampled separately)
-    cnt_edges = [0 5 7 9 Inf];
-    for q = 1:size(pairs, 1)
-        ii = pairs{q, 2};
-        if numel(ii) < 5 || nSp < 5; continue; end
-        for g = 1:ngc
-            d_ = strat_diff(nl_rew(ii), A_rew(g, ii)', nl_sp, A_sp(g, :)', cnt_edges);
-            if ~isfinite(d_); continue; end
-            bs = zeros(n_boot, 1);
-            for b = 1:n_boot
-                ir = randi(numel(ii), numel(ii), 1);  is_ = randi(nSp, nSp, 1);
-                bs(b) = strat_diff(nl_rew(ii(ir)), A_rew(g, ii(ir))', nl_sp(is_), A_sp(g, is_)', cnt_edges);
+            for g = 1:ngc
+                d_ = strat_diff(nl_rew(ii), A_rew(g, ii)', nl_sp, A_sp(g, :)', cnt_edges);
+                if ~isfinite(d_); continue; end
+                bs = zeros(n_boot, 1);
+                for b = 1:n_boot
+                    ir = randi(numel(ii), numel(ii), 1);  is_ = randi(nSp, nSp, 1);
+                    bs(b) = strat_diff(nl_rew(ii(ir)), A_rew(g, ii(ir))', nl_sp(is_), A_sp(g, is_)', cnt_edges);
+                end
+                bs = bs(isfinite(bs));  ci_ = prctile(bs, [2.5 97.5]);  p_ = max(2 * min(mean(bs > 0), mean(bs < 0)), 1 / n_boot);
+                fprintf('  %s | %s vs spontaneous, %s, standardised for the number of licks in the window (rewarded %.1f vs spontaneous %.1f licks): %+.3f dF/F %s (bootstrap p=%.3f)\n', glab_all{g}, pairs{q, 1}, win_lab{wi}, mean(nl_rew(ii)), mean(nl_sp), d_, ci_str(ci_), p_);
+                ex = exadd(ex, ['10c ' pairs{q, 1} ' minus spontaneous bout, lick-count standardised, ' glab_all{g}], sprintf('mean dF/F change %s', win_lab{wi}), d_, sprintf('%s, bootstrap p=%.3f', ci_str(ci_), p_), numel(ii) + nSp);
             end
-            bs = bs(isfinite(bs));  ci_ = prctile(bs, [2.5 97.5]);  p_ = max(2 * min(mean(bs > 0), mean(bs < 0)), 1 / n_boot);
-            fprintf('  %s | %s vs spontaneous, standardised for the number of licks in the window (rewarded %.1f vs spontaneous %.1f licks before): %+.3f dF/F %s (bootstrap p=%.3f)\n', glab_all{g}, pairs{q, 1}, mean(nl_rew(ii)), mean(nl_sp), d_, ci_str(ci_), p_);
-            ex = exadd(ex, ['10c ' pairs{q, 1} ' minus spontaneous bout, lick-count standardised, ' glab_all{g}], sprintf('mean dF/F change %g-%g s after the bout onset', bout_win(1), bout_win(2)), d_, sprintf('%s, bootstrap p=%.3f', ci_str(ci_), p_), numel(ii) + nSp);
         end
     end
+    A_rew = A_rew_w{1};  A_sp = A_sp_w{1};
 
-    % figure 04
-    fh = newfig('Reward consumption', 18, 24);
-    tl = tiledlayout(fh, 4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    title(tl, sprintf('%s | reward consumption (%d rewarded vs %d spontaneous lick bouts)', strrep(session, '_', '\_'), nEv, nSp), 'FontSize', 9, 'FontWeight', 'normal');
+    % figure 04: group 1 (and the control) around the square, the first lick and the pump; behaviour around the same bouts (the two kinds of bouts should lick alike)
+    col_rew = [0.8 0 0];  col_sp = [0.4 0.4 0.4];  col_late = [0.93 0.55 0.1];
+    fh = newfig('Reward consumption', 18, 19);
+    tl = tiledlayout(fh, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+    title(tl, sprintf('%s | square, first lick and pump (%d rewarded, %d spontaneous, %d late bouts)', strrep(session, '_', '\_'), nEv, nSp, nLate), 'FontSize', 9, 'FontWeight', 'normal');
     a1 = nexttile(tl, 1);  hold(a1, 'on');  h1 = gobjects(1, 3);
     for c = 1:3
         if sum(cls1 == c) >= 2; h1(c) = sem_trace(a1, tev, squeeze(Cg(1, :, cls1 == c)), cls_col(c, :), true); end
     end
-    xline(a1, [0 lw(2)], ':');  yline(a1, 0, ':');  xlabel(a1, 'time from the square + pump (s)');  ylabel(a1, '\DeltadF/F');  xlim(a1, tev([1 end]));
-    ok_h = isgraphics(h1);  legend(a1, h1(ok_h), arrayfun(@(c) sprintf('first lick %s (n=%d)', cls_lab{c}, sum(cls1 == c)), find(ok_h), 'UniformOutput', false), 'FontSize', 6, 'Location', 'northeast');
-    title(a1, [grp_lab{1} ', aligned to the pump, trials split by the latency of the first lick'], 'FontSize', 7, 'FontWeight', 'normal');
-    a2 = nexttile(tl, 2);  hold(a2, 'on');  h2 = gobjects(1, 4);
-    for c = 1:3
-        if sum(lat_cls == c) >= 2; h2(c) = sem_trace(a2, tb, squeeze(Rg(1, :, lat_cls == c)), cls_col(c, :), true); end
-    end
-    if nSp >= 2; h2(4) = sem_trace(a2, tb, squeeze(Sg(1, :, :)), [0.4 0.4 0.4], true); end
+    xline(a1, [0 lw(2)], ':');  yline(a1, 0, ':');  xlabel(a1, 'time from the square onset (s)');  ylabel(a1, '\DeltadF/F');  xlim(a1, tev([1 end]));
+    ok_h = isgraphics(h1);  legend(a1, h1(ok_h), arrayfun(@(c) sprintf('first lick %s (n=%d)', cls_lab{c}, sum(cls1 == c)), find(ok_h), 'UniformOutput', false), 'FontSize', 6, 'Location', 'northwest');
+    title(a1, [grp_name{1} ' at the square onset, split by first-lick latency'], 'FontSize', 7, 'FontWeight', 'normal');
+    a2 = nexttile(tl, 2);  hold(a2, 'on');  h2 = gobjects(1, 3);
+    if nEv >= 2; h2(1) = sem_trace(a2, tb, squeeze(Rg(1, :, :)), col_rew, true); end
+    if nSp >= 2; h2(2) = sem_trace(a2, tb, squeeze(Sg(1, :, :)), col_sp, true); end
+    if nLate >= 5; h2(3) = sem_trace(a2, tb, squeeze(Lg(1, :, :)), col_late, true); end
     xline(a2, 0, ':');  yline(a2, 0, ':');  xlabel(a2, 'time from the first lick of the bout (s)');  ylabel(a2, '\DeltadF/F');  xlim(a2, tb([1 end]));
-    ok_h = isgraphics(h2);  l2 = [cellfun(@(s) ['rewarded ' s], cls_lab, 'UniformOutput', false), {sprintf('spontaneous (%d)', nSp)}];  legend(a2, h2(ok_h), l2(ok_h), 'FontSize', 6, 'Location', 'northeast');
-    title(a2, [grp_lab{1} ', aligned to the first lick'], 'FontSize', 7, 'FontWeight', 'normal');
+    if any(rew_kind == 4); xline(a2, rdel, '--', 'pump', 'Color', [0 0.3 0.9], 'LabelVerticalAlignment', 'bottom', 'FontSize', 6); end
+    ok_h = isgraphics(h2);  l2 = {sprintf('rewarded (%d)', nEv), sprintf('spontaneous (%d)', nSp), sprintf('late, no pump (%d)', nLate)};  legend(a2, h2(ok_h), l2(ok_h), 'FontSize', 6, 'Location', 'northwest');
+    title(a2, [grp_name{1} ' at the first lick of the bout'], 'FontSize', 7, 'FontWeight', 'normal');
     a3 = nexttile(tl, 3);  hold(a3, 'on');
     ilr = xi_('LickRate');  h3 = gobjects(1, 3);
-    for c = 1:3
-        if sum(cls1 == c) >= 2; h3(c) = sem_trace(a3, tev, squeeze(Bal(ilr, :, cls1 == c)), cls_col(c, :), false); end
+    h3(1) = sem_trace(a3, tb, squeeze(Rb_(ilr, :, :)), col_rew, true);
+    if nSp >= 2; h3(2) = sem_trace(a3, tb, squeeze(Sb_(ilr, :, :)), col_sp, true); end
+    if nLate >= 5; h3(3) = sem_trace(a3, tb, squeeze(Lb_(ilr, :, :)), col_late, true); end
+    xline(a3, 0, ':');  xlabel(a3, 'time from the first lick of the bout (s)');  ylabel(a3, '\Delta lick rate (session SD)');  xlim(a3, tb([1 end]));  legend(a3, h3(isgraphics(h3)), l2(isgraphics(h3)), 'FontSize', 6, 'Location', 'northeast');
+    title(a3, 'control: the kinds of bouts should lick alike', 'FontSize', 7, 'FontWeight', 'normal');
+    a4 = nexttile(tl, 4);  hold(a4, 'on');
+    beh_show = intersect({'PupilArea', 'LocSpeed'}, xb_names, 'stable');  ls_ = {'-', '--'};  hh = gobjects(0);  hl = {};
+    for q = 1:numel(beh_show)
+        ib = xi_(beh_show{q});
+        hh(end+1) = sem_trace(a4, tb, squeeze(Rb_(ib, :, :)), col_rew, false);  set(hh(end), 'LineStyle', ls_{q});  hl{end+1} = [xb_lab{ib} ', rewarded']; %#ok<SAGROW>
+        if nSp >= 2; hh(end+1) = sem_trace(a4, tb, squeeze(Sb_(ib, :, :)), col_sp, false);  set(hh(end), 'LineStyle', ls_{q});  hl{end+1} = [xb_lab{ib} ', spontaneous']; end %#ok<SAGROW>
     end
-    xline(a3, [0 lw(2)], ':');  xlabel(a3, 'time from the square + pump (s)');  ylabel(a3, '\Delta lick rate (session SD)');  xlim(a3, tev([1 end]));
-    title(a3, 'licking by first-lick latency class', 'FontSize', 7, 'FontWeight', 'normal');
-    a4 = nexttile(tl, 4);  hold(a4, 'on');  h4 = gobjects(1, 2);
-    if any(strcmp(xb_names, 'LickRate'))
-        h4(1) = sem_trace(a4, tb, squeeze(Rb_(ilr, :, :)), [0.8 0 0], true);
-        if nSp >= 2; h4(2) = sem_trace(a4, tb, squeeze(Sb_(ilr, :, :)), [0.4 0.4 0.4], true); end
+    xline(a4, 0, ':');  yline(a4, 0, ':');  xlim(a4, tb([1 end]));  ylabel(a4, '\Delta behaviour (session SD)');  xlabel(a4, 'time from the first lick of the bout (s)');
+    if ~isempty(hh); legend(a4, hh, hl, 'FontSize', 6, 'Location', 'northeast'); end
+    yl4 = ylim(a4);  ylim(a4, [yl4(1), yl4(2) + 0.5 * range(yl4)]);
+    title(a4, 'control: arousal around the same bouts', 'FontSize', 7, 'FontWeight', 'normal');
+    a5 = nexttile(tl, 5);  hold(a5, 'on');
+    for g = [1, ngc * (ngc > ng)]
+        if g == 0; continue; end
+        v = isfinite(th(g, :)') & isfinite(lat1);
+        cg_ = gcol(min(g, ng), :);  if g > ng; cg_ = ctl_col; end
+        scatter(a5, lat1(v), th(g, v), 14, cg_, 'filled', 'MarkerFaceAlpha', 0.6);
     end
-    xline(a4, 0, ':');  xlabel(a4, 'time from the first lick of the bout (s)');  ylabel(a4, '\Delta lick rate (session SD)');  xlim(a4, tb([1 end]));  legend(a4, h4(isgraphics(h4)), {'rewarded', 'spontaneous'}, 'FontSize', 6);
-    title(a4, 'the two kinds of bouts should lick alike', 'FontSize', 7, 'FontWeight', 'normal');
-    beh_show = intersect({'LocSpeed', 'PupilArea'}, xb_names, 'stable');
-    for q = 1:2
-        a5 = nexttile(tl, 4 + q);  hold(a5, 'on');
-        if q <= numel(beh_show)
-            ib = xi_(beh_show{q});  hh = gobjects(1, 2);
-            hh(1) = sem_trace(a5, tb, squeeze(Rb_(ib, :, :)), [0.8 0 0], true);
-            if nSp >= 2; hh(2) = sem_trace(a5, tb, squeeze(Sb_(ib, :, :)), [0.4 0.4 0.4], true); end
-            xline(a5, 0, ':');  yline(a5, 0, ':');  xlim(a5, tb([1 end]));  ylabel(a5, ['\Delta ' xb_lab{ib} ' (SD)']);  xlabel(a5, 'time from the first lick of the bout (s)');
-            title(a5, [xb_lab{ib} ' around rewarded (red) and spontaneous (grey) bouts'], 'FontSize', 7, 'FontWeight', 'normal');
+    plot(a5, [0 cons_max_s], [0 cons_max_s], 'k:');  xlabel(a5, 'first lick after the onset, latency (s)');  ylabel(a5, 'half-rise of the dF/F response (s)');  xlim(a5, [0 cons_max_s]);
+    title(a5, sprintf('g1 (black) and control (grey): on the dotted line = follows the lick (rho g1 %+.2f%s)', rho_th(1), iff(ngc > ng, sprintf(', ctl %+.2f', rho_th(ngc)), '')), 'FontSize', 6, 'FontWeight', 'normal');
+    a6 = nexttile(tl, 6);  hold(a6, 'on');
+    Mbar = nan(ngc, 2 * nW);  Ebar = Mbar;
+    for g = 1:ngc
+        for wi = 1:nW
+            Mbar(g, 2 * wi - 1) = mean(A_rew_w{wi}(g, :), 'omitnan');  Ebar(g, 2 * wi - 1) = std(A_rew_w{wi}(g, :), 'omitnan') / sqrt(max(1, nEv));
+            Mbar(g, 2 * wi) = mean(A_sp_w{wi}(g, :), 'omitnan');  Ebar(g, 2 * wi) = std(A_sp_w{wi}(g, :), 'omitnan') / sqrt(max(1, nSp));
         end
     end
-    a7 = nexttile(tl, 7);  hold(a7, 'on');
-    for g = 1:min(ng, 3)
-        v = isfinite(th(g, :)') & isfinite(lat1);
-        scatter(a7, lat1(v), th(g, v), 14, gcol(g, :), 'filled', 'MarkerFaceAlpha', 0.6);
+    bh = bar(a6, [Mbar; nan(1, size(Mbar, 2))], 'grouped');                      % padded row: a single group would otherwise be drawn as one series
+    bcols = [col_rew; col_sp; 0.45 0 0; 0.25 0.25 0.25];
+    for c = 1:size(Mbar, 2)
+        bh(c).FaceColor = bcols(c, :);  bh(c).EdgeColor = 'none';
+        errorbar(a6, bh(c).XEndPoints(1:ngc), Mbar(:, c), Ebar(:, c), 'k.', 'CapSize', 3);
     end
-    plot(a7, [0 cons_max_s], [0 cons_max_s], 'k:');  xlabel(a7, 'first lick after the pump, latency (s)');  ylabel(a7, 'half-rise of the dF/F response (s)');  xlim(a7, [0 cons_max_s]);
-    title(a7, sprintf('dotted = response follows the lick; flat = locked to the pump (rho %s)', strjoin(arrayfun(@(g) sprintf('%+.2f', rho_th(g)), 1:min(ng, 3), 'UniformOutput', false), '/')), 'FontSize', 6, 'FontWeight', 'normal');
-    a8 = nexttile(tl, 8);  hold(a8, 'on');
-    Mbar = nan(ng, 4);  Ebar = Mbar;
-    for g = 1:ng
-        for c = 1:3; v = A_rew(g, lat_cls == c); Mbar(g, c) = mean(v, 'omitnan'); Ebar(g, c) = std(v, 'omitnan') / sqrt(max(1, sum(isfinite(v)))); end
-        Mbar(g, 4) = mean(A_sp(g, :), 'omitnan');  Ebar(g, 4) = std(A_sp(g, :), 'omitnan') / sqrt(max(1, nSp));
-    end
-    bh = bar(a8, [Mbar; nan(1, 4)], 'grouped');                                  % padded row: a single group would otherwise be drawn as one series
-    for c = 1:4
-        if c < 4; bh(c).FaceColor = cls_col(c, :); else; bh(c).FaceColor = [0.4 0.4 0.4]; end
-        bh(c).EdgeColor = 'none';
-        errorbar(a8, bh(c).XEndPoints(1:ng), Mbar(:, c), Ebar(:, c), 'k.', 'CapSize', 3);
-    end
-    xlim(a8, [0.4 ng + 0.6]);
-    xticks(a8, 1:ng);  xticklabels(a8, arrayfun(@(g) sprintf('g%d%s', g, iff(grp_mot(g), '*', '')), 1:ng, 'UniformOutput', false));  ylabel(a8, sprintf('\\DeltadF/F, %g-%g s after the first lick', bout_win(1), bout_win(2)));
-    legend(a8, bh, [cellfun(@(s) ['rewarded ' s], cls_lab, 'UniformOutput', false), {'spontaneous'}], 'FontSize', 6, 'Location', 'best');
-    title(a8, 'bout response by group (mean +- SEM)', 'FontSize', 7, 'FontWeight', 'normal');
+    xlim(a6, [0.4 ngc + 0.6]);  xticks(a6, 1:ngc);  xticklabels(a6, [arrayfun(@(g) sprintf('g%d%s', g, iff(grp_mot(g), '*', '')), 1:ng, 'UniformOutput', false), repmat({'ctl'}, 1, ngc > ng)]);
+    ylabel(a6, '\DeltadF/F');
+    bl_ = {}; for wi = 1:nW; bl_ = [bl_, {['rewarded, ' win_lab{wi}], ['spontaneous, ' win_lab{wi}]}]; end %#ok<AGROW>
+    legend(a6, bh, bl_, 'FontSize', 5, 'Location', 'northeast');
+    yl6 = ylim(a6);  ylim(a6, [yl6(1), yl6(2) + 0.6 * range(yl6)]);
+    title(a6, 'bout response (mean +- SEM) by group; * = motion-coupled', 'FontSize', 7, 'FontWeight', 'normal');
     if save_figs; savef(fh, '04_reward_consumption'); end
 else
     fprintf('\n10 reward consumption: skipped, NO LICK DATA (no first-lick latency, rewarded or spontaneous bouts).\n');
@@ -1069,34 +1165,58 @@ fh = newfig('Trial regression', 18, 14);
 tl = tiledlayout(fh, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 title(tl, [strrep(session, '_', '\_') ' | trial-by-trial regression and change over the session'], 'FontSize', 9, 'FontWeight', 'normal');
 a1 = nexttile(tl, 1, [1 2]);  hold(a1, 'on');
-for g = 1:ng
-    plot(a1, 1:nTr, amp(g, :), '-', 'Color', [gcol(g, :) 0.3], 'LineWidth', 0.5);
-    if has_lick
-        plot(a1, find(hit), amp(g, hit), 'o', 'Color', gcol(g, :), 'MarkerFaceColor', gcol(g, :), 'MarkerSize', 3);
-        plot(a1, find(~hit), amp(g, ~hit), 'o', 'Color', gcol(g, :), 'MarkerSize', 3);
-    else
-        plot(a1, 1:nTr, amp(g, :), 'o', 'Color', gcol(g, :), 'MarkerFaceColor', gcol(g, :), 'MarkerSize', 3);
-    end
-    plot(a1, 1:nTr, movmean(amp(g, :), 9, 'omitnan'), '-', 'Color', gcol(g, :), 'LineWidth', 1.5);
+if has_lick
+    plot(a1, find(hit), amp(1, hit), 'o', 'Color', gcol(1, :), 'MarkerFaceColor', gcol(1, :), 'MarkerSize', 3);
+    plot(a1, find(~hit), amp(1, ~hit), 'o', 'Color', gcol(1, :), 'MarkerSize', 3);
+else
+    plot(a1, 1:nTr, amp(1, :), 'o', 'Color', gcol(1, :), 'MarkerFaceColor', gcol(1, :), 'MarkerSize', 3);
 end
+h1 = gobjects(1, ngc);
+for g = 1:ngc; h1(g) = plot(a1, 1:nTr, movmean(amp(g, :), 9, 'omitnan'), '-', 'Color', gcol_all(g, :), 'LineWidth', 1.6); end
 xline(a1, (1:nB - 1) * S.trials + 0.5, ':');  yline(a1, 0, ':');  xlabel(a1, 'trial');  ylabel(a1, sprintf('mean \\DeltadF/F, %g-%g s', resp_win(1), resp_win(2)));  xlim(a1, [0 nTr + 1]);
-title(a1, sprintf('%sline = 9-trial mean; rho vs trial %s', iff(has_lick, 'filled = hit, open = miss, ', ''), strjoin(arrayfun(@(g) sprintf('g%d %+.2f (p=%.2g)', g, rho_tr(g), p_tr(g)), 1:ng, 'UniformOutput', false), ', ')), 'FontSize', 7, 'FontWeight', 'normal');
+yl1 = ylim(a1);  ylim(a1, [yl1(1), yl1(2) + 0.45 * range(yl1)]);
+legend(a1, h1, arrayfun(@(g) sprintf('%s: rho vs trial %+.2f (p=%.2g)', gnm_all{g}, rho_tr(g), p_tr(g)), 1:ngc, 'UniformOutput', false), 'FontSize', 6, 'Location', 'northeast');
+title(a1, sprintf('lines = 9-trial mean of every group; dots = single trials of g1%s', iff(has_lick, ' (filled = lick in the square, open = none)', '')), 'FontSize', 7, 'FontWeight', 'normal');
 a2 = nexttile(tl, 3);  hold(a2, 'on');
-np_ = numel(pred);  dy = 0.8 / ng;
-for g = 1:ng
-    yy = (1:np_) + (g - (ng + 1) / 2) * dy / 1.5;
-    errorbar(a2, beta(g, 2:end), yy, beta(g, 2:end) - squeeze(beta_ci(g, 2:end, 1)), squeeze(beta_ci(g, 2:end, 2)) - beta(g, 2:end), 'horizontal', 'o', 'Color', gcol(g, :), 'MarkerFaceColor', gcol(g, :), 'MarkerSize', 3, 'CapSize', 2);
+np_ = numel(pred);  dy = 0.8 / ngc;
+for g = 1:ngc
+    yy = (1:np_) + (g - (ngc + 1) / 2) * dy;
+    errorbar(a2, beta(g, 2:end), yy, beta(g, 2:end) - squeeze(beta_ci(g, 2:end, 1)), squeeze(beta_ci(g, 2:end, 2)) - beta(g, 2:end), 'horizontal', 'o', 'Color', gcol_all(g, :), 'MarkerFaceColor', gcol_all(g, :), 'MarkerSize', 3, 'CapSize', 2);
 end
 xline(a2, 0, ':');  yticks(a2, 1:np_);  yticklabels(a2, pred);  set(a2, 'YDir', 'reverse');  ylim(a2, [0.4 np_ + 0.6]);  xlabel(a2, '\DeltadF/F per SD of the predictor (95% CI)');
 title(a2, 'what goes with a bigger onset response?', 'FontSize', 7, 'FontWeight', 'normal');
 a3 = nexttile(tl, 4);  hold(a3, 'on');
-for g = 1:ng
+for g = 1:ngc
     mu_s = arrayfun(@(k) mean(amp(g, sub_of == k)), 1:nB);  se_s = arrayfun(@(k) std(amp(g, sub_of == k)) / sqrt(nnz(sub_of == k)), 1:nB);
-    errorbar(a3, 1:nB, mu_s, se_s, 'o-', 'Color', gcol(g, :), 'MarkerFaceColor', gcol(g, :), 'CapSize', 3);
+    errorbar(a3, (1:nB) + (g - (ngc + 1) / 2) * 0.06, mu_s, se_s, 'o-', 'Color', gcol_all(g, :), 'MarkerFaceColor', gcol_all(g, :), 'CapSize', 3);
 end
 yline(a3, 0, ':');  xticks(a3, 1:nB);  xlim(a3, [0.5 nB + 0.5]);  xlabel(a3, 'subsession');  ylabel(a3, 'mean \DeltadF/F (+- SEM)');
 if has_lick; title(a3, sprintf('hit rate %s %%', strjoin(arrayfun(@(x) sprintf('%.0f', x), sub_tbl.hit_pct', 'UniformOutput', false), ' / ')), 'FontSize', 7, 'FontWeight', 'normal'); end
 if save_figs; savef(fh, '05_trial_regression'); end
+
+% figure 05b: the main effects of sections 9 and 10 on one axis (95% bootstrap CIs; the control group of noise-like ROIs is the common-mode reference)
+ef_lab = {};  ef_v = zeros(0, ngc);  ef_lo = ef_v;  ef_hi = ef_v;
+ef_lab{end+1} = sprintf('onset response %g-%g s (vs 0)', resp_win(1), resp_win(2));  ef_v(end+1, :) = obs_amp(:)';  ef_lo(end+1, :) = ci_on(:, 1)';  ef_hi(end+1, :) = ci_on(:, 2)';
+if has_lick && any(isfinite(d_hm))
+    ef_lab{end+1} = 'trials with a lick - without';  ef_v(end+1, :) = d_hm(:)';  ef_lo(end+1, :) = ci_hm(:, 1)';  ef_hi(end+1, :) = ci_hm(:, 2)';
+end
+if has_lick && exist('rs_b', 'var')
+    for wi = 1:size(rs_b, 1)
+        ef_lab{end+1} = sprintf('rewarded - spont. bout, %g-%g s after %s', win_sets{wi}(1), win_sets{wi}(2), iff(wi == 1, 'the first lick', 'the pump'));  ef_v(end+1, :) = rs_b(wi, :);  ef_lo(end+1, :) = rs_ci(wi, :, 1);  ef_hi(end+1, :) = rs_ci(wi, :, 2); %#ok<SAGROW>
+    end
+end
+fh = newfig('Effects summary', 18, 4 + 1.6 * numel(ef_lab));  hold on;
+for r = 1:numel(ef_lab)
+    for g = 1:ngc
+        yy = r + (g - (ngc + 1) / 2) * 0.14;
+        errorbar(ef_v(r, g), yy, ef_v(r, g) - ef_lo(r, g), ef_hi(r, g) - ef_v(r, g), 'horizontal', 'o', 'Color', gcol_all(g, :), 'MarkerFaceColor', gcol_all(g, :), 'MarkerSize', 4, 'CapSize', 3);
+    end
+end
+xline(0, ':');  yticks(1:numel(ef_lab));  yticklabels(ef_lab);  set(gca, 'YDir', 'reverse');  ylim([0.4 numel(ef_lab) + 0.6]);  xlabel('\DeltadF/F (95% CI)');
+hl_ = gobjects(1, ngc);  for g = 1:ngc; hl_(g) = plot(NaN, NaN, 'o', 'Color', gcol_all(g, :), 'MarkerFaceColor', gcol_all(g, :)); end
+legend(hl_, gnm_all, 'FontSize', 6, 'Location', 'southeast');
+title([strrep(session, '_', '\_') ' | main effects (95% CI); grey = control, i.e. what is common-mode'], 'FontSize', 8, 'FontWeight', 'normal');
+if save_figs; savef(fh, '05b_effects_summary'); end
 
 %% 12. Correlation of ROI activity with behaviour over the session
 % Behaviour: pupil, whisking, face motion, eyelid, locomotion, lick rate (+ suite2p rigid shift). 1 s smoothing, 5 Hz. Per ROI and behaviour: r at lag 0 and at the
@@ -1146,20 +1266,35 @@ cbn_ = cb_names(:);
 corr_tbl = table(Ri(vv), ismember(Ri(vv), sel_roi), cbn_(Bi(vv)), coup_r0(vv), coup_r(vv), coup_lag(vv), coup_p(vv), 'VariableNames', {'roi', 'selected', 'behaviour', 'r_lag0', 'r_best', 'lag_s', 'p'});
 if ~isempty(corr_tbl); disp(groupsummary(corr_tbl(corr_tbl.selected, :), 'behaviour', {'median', 'median'}, {'r_best', 'lag_s'})); end
 printchk(chk, n0);  n0 = size(chk, 1);
-h1_ = max(3.5, 0.25 * nSel);  FH = 1.3 + h1_ + 1.5 + 4.0 + 1.5;  FW = 18;
+% figure 06: ROIs ordered by group (the noise-like control ROIs last), best-lag correlation with every behaviour, lags only where the coupling is significant
+[~, ord_] = sortrows([gid(:), sel_roi(:)]);
+roi_ord = [sel_roi(ord_), ctl_roi];  nRow = numel(roi_ord);
+grp_row = [gid(ord_), (ng + 1) * ones(1, numel(ctl_roi))];
+bnd_ = find(diff(grp_row) ~= 0) + 0.5;
+ug_ = unique(grp_row);  ytk_ = arrayfun(@(g) mean(find(grp_row == g)), ug_);
+ylb_ = arrayfun(@(g) iff(g <= ng, sprintf('g%d', g), 'control'), ug_, 'UniformOutput', false);
+h1_ = max(3.5, 0.12 * nRow);  FH = 1.3 + h1_ + 1.5 + 4.0 + 1.5;  FW = 18;
 fh = newfig('Behaviour correlation', FW, FH);
 ax1 = axes('Units', 'centimeters', 'Position', [2.1, FH - 1.3 - h1_, 6.5, h1_]);
-imagesc(coup_r(sel_roi, :));  clim([-0.8 0.8]);  colormap(ax1, div_cmap);  hold on;
-[sr, sc] = find(coup_p(sel_roi, :) < 0.01);  plot(sc, sr, 'k*', 'MarkerSize', 3);
-xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks(1:roi_skip:nSel);  yticklabels(roi_lab(1:roi_skip:nSel));  ylabel('ROI');
-cb = colorbar(ax1);  cb.Label.String = 'r at best lag (* p < 0.01)';  cb.FontSize = 7;  set(ax1, 'Units', 'centimeters', 'Position', [2.1, FH - 1.3 - h1_, 6.5, h1_]);
+imagesc(coup_r(roi_ord, :));  clim([-0.8 0.8]);  colormap(ax1, div_cmap);  hold on;
+[sr, sc] = find(coup_p(roi_ord, :) < 0.01);  plot(sc, sr, 'k.', 'MarkerSize', 3);
+yline(bnd_, 'k-');  xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks(ytk_);  yticklabels(ylb_);  title('r at the best lag (dot: p < 0.01)', 'FontWeight', 'normal', 'FontSize', 7);
+cb = colorbar(ax1);  cb.Label.String = 'r';  cb.FontSize = 7;  set(ax1, 'Units', 'centimeters', 'Position', [2.1, FH - 1.3 - h1_, 6.5, h1_]);
 ax2 = axes('Units', 'centimeters', 'Position', [11.2, FH - 1.3 - h1_, 5.5, h1_]);
-imagesc(coup_lag(sel_roi, :));  clim([-corr_max_lag_s corr_max_lag_s]);  colormap(ax2, div_cmap);  xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks([]);
-cb = colorbar(ax2);  cb.Label.String = 'best lag (s), positive = ROI follows';  cb.FontSize = 7;  set(ax2, 'Units', 'centimeters', 'Position', [11.2, FH - 1.3 - h1_, 5.5, h1_]);
+im_lag = imagesc(coup_lag(roi_ord, :));  set(im_lag, 'AlphaData', double(coup_p(roi_ord, :) < 0.01));  clim([-corr_max_lag_s corr_max_lag_s]);  colormap(ax2, div_cmap);  hold on;
+yline(bnd_, 'k-');  xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks([]);  title('best lag, only where p < 0.01', 'FontWeight', 'normal', 'FontSize', 7);
+cb = colorbar(ax2);  cb.Label.String = 'lag (s), positive = ROI follows';  cb.FontSize = 7;  set(ax2, 'Units', 'centimeters', 'Position', [11.2, FH - 1.3 - h1_, 5.5, h1_]);
 ax3 = axes('Units', 'centimeters', 'Position', [2.1, 1.5, 4.0, 4.0]);
 imagesc(beh_cc);  clim([-1 1]);  colormap(ax3, div_cmap);  hold on;
 for a = 1:ncb; for b = 1:ncb; if isfinite(beh_cc(a, b)); text(b, a, sprintf('%.1f', beh_cc(a, b)), 'HorizontalAlignment', 'center', 'FontSize', 6); end; end; end
 xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks(1:ncb);  yticklabels(cb_lab);  title('behaviour vs behaviour, lag 0', 'FontWeight', 'normal', 'FontSize', 7);
+ax4 = axes('Units', 'centimeters', 'Position', [11.2, 1.5, 5.5, 4.0]);  hold on;
+med_sel = median(coup_r(sel_roi, :), 1, 'omitnan');
+if ~isempty(ctl_roi); med_ctl = median(coup_r(ctl_roi, :), 1, 'omitnan'); bb_ = bar(1:ncb, [med_sel; med_ctl]', 'grouped'); bb_(2).FaceColor = ctl_col; else; bb_ = bar(1:ncb, med_sel', 'grouped'); end
+bb_(1).FaceColor = [0.2 0.4 0.8];
+yline(0, ':');  xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  ylabel('median r at the best lag');
+legend(bb_, iff(isempty(ctl_roi), {'selected ROIs'}, {'selected ROIs', 'control (noise-like)'}), 'FontSize', 6, 'Location', 'best');
+title('signal vs control ROIs: similar = common-mode', 'FontWeight', 'normal', 'FontSize', 7);
 annotation(fh, 'textbox', [0, 1 - 0.55 / FH, 1, 0.5 / FH], 'String', sprintf('%s | ROI activity vs behaviour over the three subsessions (%.0f s)', strrep(session, '_', '\_'), n_e / fs5), 'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontName', 'Arial', 'FontSize', 9);
 if save_figs; savef(fh, '06_behaviour_correlation'); end
 
@@ -1218,11 +1353,12 @@ if extra_figs
     % C4 population: heatmap, FOV-wide events, ROI-ROI correlation, drift
     fh = newfig('Population', 18, 18);
     tiledlayout(fh, 4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    [~, so2] = sort(slow_ratio, 'descend');  show = so2(1:min(nROI, 200));
-    nexttile([2 2]);  imagesc(tCa, 1:numel(show), double(dsm(show, :)));  clim([-1 max(prctile(double(dsm(:)), 99.7), 1)]);  colormap(gca, turbo);  colorbar;
-    ylabel('ROI (sorted by slow\_ratio)');  xlabel('session time (s)');  title(sprintf('smoothed dFF (%.1f s); white ticks = square onsets', smooth_s), 'FontWeight', 'normal');  xline(on_t, 'w:');
+    Zhm = double(dsm(roi_ord, :));  Zhm = (Zhm - mean(Zhm, 2)) ./ std(Zhm, 0, 2);
+    nexttile([2 2]);  imagesc(tCa, 1:nRow, Zhm);  clim([-3 3]);  colormap(gca, div_cmap);  cb = colorbar;  cb.Label.String = 'z-scored dF/F';  cb.FontSize = 7;  hold on;
+    yline(bnd_, 'k-');  plot(on_t, 0.3 * ones(size(on_t)), 'v', 'Color', 'k', 'MarkerFaceColor', 'k', 'MarkerSize', 3);  ylim([0.2 nRow + 0.5]);
+    yticks(ytk_);  yticklabels(ylb_);  xlabel('session time (s)');  title(sprintf('smoothed dFF (%.1f s), z-scored per ROI, ordered by group (control last); triangles = square onsets', smooth_s), 'FontWeight', 'normal', 'FontSize', 7);
     nexttile([1 2]);  plot(tCa, co, 'k');  hold on;  yline(co_thr, 'r--', 'FOV-wide threshold');  ylabel('fraction of ROIs up');  xlabel('session time (s)');  xlim([tCa(1) tCa(end)]);  xline(on_t, 'Color', [0.8 0.8 0.8], 'LineStyle', ':');
-    nexttile;  imagesc(Cm);  axis image;  clim([-0.3 1]);  colormap(gca, turbo);  colorbar;  title('ROI-ROI correlation (smoothed dFF)', 'FontWeight', 'normal');  xlabel('ROI index in sorted list');
+    nexttile;  imagesc(corrcoef(Zhm'));  axis image;  clim([-1 1]);  colormap(gca, div_cmap);  colorbar;  hold on;  xline(bnd_, 'k-');  yline(bnd_, 'k-');  title('ROI-ROI correlation (same order)', 'FontWeight', 'normal');  xlabel('ROI (group order)');
     nexttile;  plot(1:nb, Fb_rel', 'Color', [0.6 0.6 0.6]);  hold on;  plot(1:nb, median(Fb_rel, 1, 'omitnan'), 'k', 'LineWidth', 2);  xlabel('minute');  ylabel('Fc / Fc(minute 1)');  title('fluorescence drift', 'FontWeight', 'normal');
     if save_figs; savef(fh, 'C4_population'); end
 
@@ -1230,18 +1366,20 @@ if extra_figs
     if have_motion
         fh = newfig('Motion', 18, 12);
         tiledlayout(fh, 3, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-        nexttile;  plot(tCa, rigid, 'k');  ylabel('rigid shift (px)');  xlim([tCa(1) tCa(end)]);  xline(b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':');
-        nexttile;  plot(tCa, nonr, 'Color', [0.7 0.3 0]);  ylabel('non-rigid spread (px)');  xlim([tCa(1) tCa(end)]);  xline(b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':');
+        nexttile;  plot(tCa, movmedian(rigid, round(fs)), 'k');  ylabel('rigid shift (px)');  xlim([tCa(1) tCa(end)]);  xline(b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':');
+        nexttile;  plot(tCa, movmean(nonr, round(fs)), 'Color', [0.7 0.3 0]);  ylabel('non-rigid (px)');  xlim([tCa(1) tCa(end)]);  xline(b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':');
         nexttile;  bar([motion_r(:, 1) motion_r(:, 2)]);  hold on;  plot(thr99(:, 1), 'k_', 'LineWidth', 2);  ylabel('r(dFF, motion)');  xlabel('ROI');  legend([mot_names, {'shuffle p99 (rigid)'}]);
         if save_figs; savef(fh, 'C5_motion'); end
     end
 
-    % C6 best lag of the behaviour correlations
-    fh = newfig('Correlation lags', 12, 4 + 0.15 * nSel);
-    imagesc(coup_lag(sel_roi, :));  clim([-corr_max_lag_s corr_max_lag_s]);  colormap(gca, div_cmap);
-    xticks(1:ncb);  xticklabels(cb_lab);  xtickangle(45);  yticks(1:roi_skip:nSel);  yticklabels(roi_lab(1:roi_skip:nSel));  ylabel('ROI');
-    cb = colorbar;  cb.Label.String = 'best lag (s), positive = ROI follows';  cb.FontSize = 7;
-    if save_figs; savef(fh, 'C6_correlation_lags'); end
+    % C6 onset response of every selected ROI (trial mean), ordered by group
+    Mr = reshape(mean(Cr, 3, 'omitnan'), nSel, []);
+    fh = newfig('Onset response by ROI', 12, 4 + 0.12 * nSel);
+    imagesc(tev, 1:nSel, Mr(ord_, :));  cm = max(0.3, prctile(abs(Mr(:)), 99));  clim([-cm cm]);  colormap(gca, turbo);  hold on;
+    xline([0 lw(2)], 'w:');  yline(find(diff(gid(ord_)) ~= 0) + 0.5, 'w-');
+    yticks(arrayfun(@(g) mean(find(gid(ord_) == g)), 1:ng));  yticklabels(arrayfun(@(g) sprintf('g%d', g), 1:ng, 'UniformOutput', false));  xlabel('time from the square onset (s)');
+    cb = colorbar;  cb.Label.String = 'trial mean \DeltadF/F';  cb.FontSize = 7;  title('every selected ROI, ordered by group', 'FontWeight', 'normal', 'FontSize', 7);
+    if save_figs; savef(fh, 'C6_onset_response_by_roi'); end
 end
 
 %% 13. Summary
@@ -1274,7 +1412,7 @@ end
 if explore_stats
     rng(3);
     wb  = round(0.5 * fs);
-    Yg  = grp_mean';                                                                  % [nT x ng]
+    Yg  = grp_all';                                                                  % [nT x ngc]
     blk_f = zeros(nT, 1);  for k = 1:nB; blk_f(tCa >= b_t0(k) & tCa <= b_t1(k)) = k; end
     zf  = @(x) fillmissing((x - mean(x, 'omitnan')) / std(x, 'omitnan'), 'constant', 0);
     nEvF = iff(has_lick, 3, 1);                                                       % event families: square + pump (+ first lick, spont. bout when there are licks)
@@ -1304,13 +1442,13 @@ if explore_stats
     ev0 = mk_ev(on_t(:)', cons_on(:)', sp_on(:)');
     Xfam = [ev0, Xcont];                                                              % families in the order of fam_names
     cvr2 = @(Xc) cv_r2(Yg, Xc, blk_f, 0.05);
-    fprintf('\n14 encoding model: %d groups, %d families, %d regressors, %d held-out subsessions\n', ng, nF, sum(cellfun(@(x) size(x, 2), Xfam)), nB);
+    fprintf('\n14 encoding model: %d groups, %d families, %d regressors, %d held-out subsessions\n', ngc, nF, sum(cellfun(@(x) size(x, 2), Xfam)), nB);
     r2_full = cvr2(Xfam);
-    r2_drop = nan(nF, ng);
+    r2_drop = nan(nF, ngc);
     for f = 1:nF; r2_drop(f, :) = cvr2(Xfam([1:f-1, f+1:nF])); end
-    d_uni = r2_full - r2_drop;                                                        % [nF x ng] unique held-out R^2
+    d_uni = r2_full - r2_drop;                                                        % [nF x ngc] unique held-out R^2
     % nulls for the event families (three with licks, only square + pump without)
-    dnull = nan(n_null, nEvF, ng);
+    dnull = nan(n_null, nEvF, ngc);
     kk = find(isfinite(cons_on));
     for it = 1:n_null
         on_n = shift_in_blocks(on_t(:)', b_t0, b_t1);
@@ -1322,22 +1460,22 @@ if explore_stats
         evn = mk_ev(on_n, co_n, sp_n);
         for f = 1:nEvF
             Xn = Xfam;  Xn{f} = evn{f};
-            dnull(it, f, :) = reshape(cvr2(Xn) - r2_drop(f, :), 1, 1, ng);
+            dnull(it, f, :) = reshape(cvr2(Xn) - r2_drop(f, :), 1, 1, ngc);
         end
     end
-    p_ev = nan(nEvF, ng);
-    for f = 1:nEvF; for g = 1:ng; p_ev(f, g) = (1 + sum(dnull(:, f, g) >= d_uni(f, g))) / (n_null + 1); end; end
-    for g = 1:ng
+    p_ev = nan(nEvF, ngc);
+    for f = 1:nEvF; for g = 1:ngc; p_ev(f, g) = (1 + sum(dnull(:, f, g) >= d_uni(f, g))) / (n_null + 1); end; end
+    for g = 1:ngc
         fs_ = cell(1, nF);
         for f = 1:nF
             fs_{f} = sprintf('%s %+.3f', fam_names{f}, d_uni(f, g));
             if f <= nEvF; fs_{f} = sprintf('%s (p=%.2f)', fs_{f}, p_ev(f, g)); end
         end
-        fprintf('  %s: held-out R2 of the full model %.2f; unique R2: %s\n', grp_lab{g}, r2_full(g), strjoin(fs_, ', '));
-        ex = exadd(ex, ['14 encoding model, ' grp_lab{g}], 'held-out R2 of the full model', r2_full(g), '', sum(blk_f > 0));
+        fprintf('  %s: held-out R2 of the full model %.2f; unique R2: %s\n', glab_all{g}, r2_full(g), strjoin(fs_, ', '));
+        ex = exadd(ex, ['14 encoding model, ' glab_all{g}], 'held-out R2 of the full model', r2_full(g), '', sum(blk_f > 0));
         for f = 1:nF
             if f <= nEvF; pstr = sprintf('shuffle null %+.3f+-%.3f, p=%.2f', mean(dnull(:, f, g)), std(dnull(:, f, g)), p_ev(f, g)); else; pstr = ''; end
-            ex = exadd(ex, ['14 encoding model, ' grp_lab{g}], ['unique held-out R2: ' fam_names{f}], d_uni(f, g), pstr, sum(blk_f > 0));
+            ex = exadd(ex, ['14 encoding model, ' glab_all{g}], ['unique held-out R2: ' fam_names{f}], d_uni(f, g), pstr, sum(blk_f > 0));
         end
     end
 
@@ -1353,16 +1491,16 @@ if explore_stats
         kern{f} = Bk(c0(f) + 1:c0(f + 1), :);  tk{f} = (fam_js{f} + 0.5) * wb / fs;
     end
     % amplitude of the kernels: mean over the lag bins that matter (square: 0-3 s, first lick: 0-2 s), against the bins before
-    for g = 1:ng
+    for g = 1:ngc
         k1 = kern{1}(tk{1} >= 0 & tk{1} <= resp_win(2), g);
-        ex = exadd(ex, ['14 kernels, ' grp_lab{g}], sprintf('square + pump kernel, mean 0-%g s (dF/F, in-sample)', resp_win(2)), mean(k1), '', nTr);
+        ex = exadd(ex, ['14 kernels, ' glab_all{g}], sprintf('square + pump kernel, mean 0-%g s (dF/F, in-sample)', resp_win(2)), mean(k1), '', nTr);
         if has_lick
             k2 = kern{2}(tk{2} >= 0 & tk{2} <= 2, g);  k3 = kern{3}(tk{3} >= 0 & tk{3} <= 2, g);
-            fprintf('  %s kernels (in-sample, dF/F per event): square + pump %g-%g s %+.3f; first lick 0-2 s %+.3f; spontaneous bout 0-2 s %+.3f\n', grp_lab{g}, 0, resp_win(2), mean(k1), mean(k2), mean(k3));
-            ex = exadd(ex, ['14 kernels, ' grp_lab{g}], 'first-lick kernel, mean 0-2 s (dF/F, in-sample)', mean(k2), '', numel(kk));
-            ex = exadd(ex, ['14 kernels, ' grp_lab{g}], 'spontaneous-bout kernel, mean 0-2 s (dF/F, in-sample)', mean(k3), '', nSp);
+            fprintf('  %s kernels (in-sample, dF/F per event): square + pump %g-%g s %+.3f; first lick 0-2 s %+.3f; spontaneous bout 0-2 s %+.3f\n', glab_all{g}, 0, resp_win(2), mean(k1), mean(k2), mean(k3));
+            ex = exadd(ex, ['14 kernels, ' glab_all{g}], 'first-lick kernel, mean 0-2 s (dF/F, in-sample)', mean(k2), '', numel(kk));
+            ex = exadd(ex, ['14 kernels, ' glab_all{g}], 'spontaneous-bout kernel, mean 0-2 s (dF/F, in-sample)', mean(k3), '', nSp);
         else
-            fprintf('  %s kernels (in-sample, dF/F per event): square + pump %g-%g s %+.3f\n', grp_lab{g}, 0, resp_win(2), mean(k1));
+            fprintf('  %s kernels (in-sample, dF/F per event): square + pump %g-%g s %+.3f\n', glab_all{g}, 0, resp_win(2), mean(k1));
         end
     end
     if has_lick
@@ -1381,17 +1519,18 @@ if explore_stats
     bd = bar(a1, [d_uni'; nan(1, nF)], 'grouped');                                % padded row: a single group would otherwise be drawn as one series
     for f = 1:nF
         bd(f).FaceColor = fcols(f, :);  bd(f).EdgeColor = 'none';
-        if f <= nEvF; errorbar(a1, bd(f).XEndPoints(1:ng), squeeze(mean(dnull(:, f, :), 1))', 1.96 * squeeze(std(dnull(:, f, :), 0, 1))', 'k.', 'CapSize', 3, 'MarkerSize', 6); end
+        if f <= nEvF; errorbar(a1, bd(f).XEndPoints(1:ngc), squeeze(mean(dnull(:, f, :), 1))', 1.96 * squeeze(std(dnull(:, f, :), 0, 1))', 'k.', 'CapSize', 3, 'MarkerSize', 6); end
     end
-    yline(a1, 0, '-');  xlim(a1, [0.4 ng + 0.6]);  xticks(a1, 1:ng);  xticklabels(a1, arrayfun(@(g) sprintf('%s (full R^2 %.2f)', grp_lab{g}, r2_full(g)), 1:ng, 'UniformOutput', false));
+    yline(a1, 0, '-');  xlim(a1, [0.4 ngc + 0.6]);  xticks(a1, 1:ngc);  xticklabels(a1, arrayfun(@(g) sprintf('%s (R^2 %.2f)', iff(g <= ng, sprintf('g%d', g), 'control'), r2_full(g)), 1:ngc, 'UniformOutput', false));  xtickangle(a1, 0);
     ylabel(a1, 'unique held-out R^2');  legend(a1, bd, fam_names, 'FontSize', 6, 'Location', 'northeastoutside');
-    title(a1, 'what each family adds to the rest (black: mean +- 1.96 SD of the shuffled event regressors)', 'FontSize', 7, 'FontWeight', 'normal');
+    title(a1, 'what each family adds to the rest, held out (black: mean +- 1.96 SD of the shuffled event regressors); last group = control', 'FontSize', 7, 'FontWeight', 'normal');
     ttl = {'square + pump kernel', 'first-lick kernel', 'spontaneous-bout kernel'};
     for f = 1:nEvF
         a = nexttile(tl, 3 + f);  hold(a, 'on');
-        for g = 1:ng; plot(a, tk{f}, kern{f}(:, g), '-o', 'Color', gcol(g, :), 'MarkerSize', 2, 'LineWidth', 1); end
+        kg_ = unique([1, ngc]);                                                    % the kernels of g1 and the control (all groups: findings table)
+        for g = kg_; plot(a, tk{f}, kern{f}(:, g), '-o', 'Color', gcol_all(g, :), 'MarkerSize', 2, 'LineWidth', 1); end
         xline(a, 0, ':');  yline(a, 0, ':');  xlabel(a, 'time from the event (s)');  title(a, ttl{f}, 'FontSize', 7, 'FontWeight', 'normal');
-        if f == 1; ylabel(a, '\DeltadF/F per event'); legend(a, grp_lab, 'FontSize', 6, 'Location', 'northwest'); end
+        if f == 1; ylabel(a, '\DeltadF/F per event'); legend(a, gnm_all(kg_), 'FontSize', 6, 'Location', 'northwest'); end
     end
     if save_figs; savef(fh, '07_encoding_model'); end
 end
@@ -1408,6 +1547,39 @@ if save_figs; writetable(findings, fullfile(fig_dir, 'findings.csv')); end
 
 
 %% local functions
+function [rew_t, trig_t, kind] = reward_times(on_t, st_end, lick_t, lvl_t, rdel, rmode, rule)
+% Pump time of every trial on the 2P clock (the pump TTL is not logged) from the level the trial ran, RewardDelay and the licks.
+% timed_Training.m sends '2' before the first square frame (TrainingBoard.ino then arms flag = 1: a lick with flag = 1 fires the pump); level 1/2 with RewardDelay 0 send '1' (pump at once);
+% level 3 sends '0' after the square (no lick during the square = no pump); level 1/2 with RewardDelay > 0 add a PC timer ('7') that fires the pump RewardDelay s into the square.
+% rule 'after_first_lick' = the experimenter's statement of 2026-11-06: with RewardDelay > 0 the pump follows the first lick of the square by RewardDelay s (level 2 trials without a
+% lick keep the PC timer: onset + RewardDelay); rule 'copy_of_code' = the 2026-11-06 copy of the code: pump at the first lick, level 3 ignores RewardDelay.
+% kind: 0 no pump, 1 at the square onset, 2 onset + RewardDelay (timer), 3 at the first lick, 4 first lick + RewardDelay. trig_t = the first lick during the square (NaN if none).
+n = numel(on_t);  rew_t = nan(n, 1);  trig_t = nan(n, 1);  kind = zeros(n, 1);
+if rmode == 0; return; end
+for t = 1:n
+    j = find(lick_t >= on_t(t) & lick_t <= st_end(t), 1);
+    if ~isempty(j); trig_t(t) = lick_t(j); end
+    L = lvl_t(t);
+    if L == 3
+        if isfinite(trig_t(t))
+            if rdel > 0 && strcmp(rule, 'after_first_lick'); rew_t(t) = trig_t(t) + rdel;  kind(t) = 4; else; rew_t(t) = trig_t(t);  kind(t) = 3; end
+        end
+    elseif L == 1 || L == 2
+        if rdel == 0
+            rew_t(t) = on_t(t);  kind(t) = 1;
+        elseif strcmp(rule, 'after_first_lick') && isfinite(trig_t(t))
+            rew_t(t) = trig_t(t) + rdel;  kind(t) = 4;
+        elseif strcmp(rule, 'copy_of_code') && isfinite(trig_t(t)) && trig_t(t) - on_t(t) <= rdel
+            rew_t(t) = trig_t(t);  kind(t) = 3;
+        else
+            rew_t(t) = on_t(t) + rdel;  kind(t) = 2;
+        end
+    else                                                                        % levels 4 / 5: rule not implemented, reward time = onset
+        rew_t(t) = on_t(t);  kind(t) = 1;
+    end
+end
+end
+
 function [icpt, slope, info] = lick_clock_from_face_motion(lickData, tcam, fpme, tmax)
 % Arduino lick log -> 2P clock when the log has no per-trial anchors (redFrames only a placeholder). t_Arduino = icpt + slope * t_2P.
 % Statistic: mean z-scored face-pad motion energy (jaw / face movement of licking, 50 Hz camera, high-passed at 1 s, smoothed 40 ms) at the lick
