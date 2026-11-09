@@ -1,0 +1,41 @@
+analysis,statistic,value,ci_or_p,n
+"13b latency ROI - whisking, flash","median lag (s)",0.0475,"[0.00, 0.09]",8
+"13b latency ROI - whisking, looming","median lag (s)",0.0952,"[-0.03, 0.25]",7
+"13d encoding model, ROI 2,3,35,38,49,51,53,55,56,64,65","held-out R2 gain from stimulus kernels, looming blocks",-0.22,"null -0.080+-0.096, p=0.95",3
+"13d encoding model, ROI 2,3,35,38,49,51,53,55,56,64,65","held-out R2 gain from stimulus kernels, flash blocks",-0.0565,"null +0.024+-0.055, p=0.90",1
+"13d encoding model, ROI 6,33","held-out R2 gain from stimulus kernels, looming blocks",-0.0566,"null +0.003+-0.053, p=0.86",3
+"13d encoding model, ROI 6,33","held-out R2 gain from stimulus kernels, flash blocks",0.00573,"null -0.003+-0.036, p=0.38",1
+"13d encoding model, ROI 14","held-out R2 gain from stimulus kernels, looming blocks",-0.00831,"null -0.019+-0.012, p=0.29",3
+"13d encoding model, ROI 14","held-out R2 gain from stimulus kernels, flash blocks",-0.0465,"null +0.003+-0.037, p=0.95",1
+"13d encoding model, ROI 41","held-out R2 gain from stimulus kernels, looming blocks",-0.00335,"null -0.007+-0.007, p=0.38",3
+"13d encoding model, ROI 41","held-out R2 gain from stimulus kernels, flash blocks",0.0303,"null -0.003+-0.015, p=0.05",1
+"13d encoding model, ROI 50","held-out R2 gain from stimulus kernels, looming blocks",-0.0362,"null -0.002+-0.034, p=0.86",3
+"13d encoding model, ROI 50","held-out R2 gain from stimulus kernels, flash blocks",-0.0238,"null -0.002+-0.028, p=0.86",1
+"13d encoding model, ROI 57","held-out R2 gain from stimulus kernels, looming blocks",-0.00741,"null -0.005+-0.011, p=0.62",3
+"13d encoding model, ROI 57","held-out R2 gain from stimulus kernels, flash blocks",0.0165,"null -0.001+-0.017, p=0.14",1
+"13d encoding model, ROI 58","held-out R2 gain from stimulus kernels, looming blocks",-0.071,"null -0.008+-0.040, p=0.95",3
+"13d encoding model, ROI 58","held-out R2 gain from stimulus kernels, flash blocks",-0.0108,"null +0.010+-0.017, p=0.95",1
+"13d encoding model, ROI 59","held-out R2 gain from stimulus kernels, looming blocks",-0.0438,"null -0.037+-0.026, p=0.52",3
+"13d encoding model, ROI 59","held-out R2 gain from stimulus kernels, flash blocks",-0.0128,"null +0.004+-0.014, p=0.90",1
+"13d encoding model, ROI 67","held-out R2 gain from stimulus kernels, looming blocks",-0.0888,"null -0.051+-0.058, p=0.76",3
+"13d encoding model, ROI 67","held-out R2 gain from stimulus kernels, flash blocks",-0.0802,"null +0.010+-0.018, p=1.00",1
+"14b flash kinetics, dF/F bundle","onset latency (s) / 10-90% rise (s)",0.11,"rise 0.28 s [0.12, 0.84]",16
+"14b flash kinetics, dF/F other selected","onset latency (s) / 10-90% rise (s)",0.11,"rise 0.24 s [0.14, 0.28]",16
+"14b flash kinetics, dF/F flat ROIs","onset latency (s) / 10-90% rise (s)",NaN,"rise 0.22 s [0.16, 0.28]",16
+"14b flash kinetics, dF/F neuropil-limited","onset latency (s) / 10-90% rise (s)",NaN,"rise 0.38 s [0.14, 1.94]",16
+"14b flash kinetics, F bundle","onset latency (s) / 10-90% rise (s)",0.11,"rise 0.28 s [0.10, 0.76]",16
+"14b flash kinetics, Fneu bundle","onset latency (s) / 10-90% rise (s)",NaN,"rise 0.18 s [0.08, 0.42]",16
+"14b flash kinetics, F flat ROIs","onset latency (s) / 10-90% rise (s)",NaN,"rise NaN s [0.18, 0.26]",16
+"14b flash kinetics, whisking","onset latency (s) / 10-90% rise (s)",0.09,"rise 0.16 s [0.08, 1.84]",16
+"14b flash kinetics, face motion","onset latency (s) / 10-90% rise (s)",0.13,"rise 0.14 s [0.10, 0.54]",16
+"14b flash kinetics, pupil (inverted)","onset latency (s) / 10-90% rise (s)",0.29,"rise 0.46 s [0.44, 0.50]",16
+"14b flash kinetics, nose speed (DLC)","onset latency (s) / 10-90% rise (s)",0.11,"rise 0.04 s [0.04, 0.04]",16
+"14b flash kinetics, pinna speed (DLC)","onset latency (s) / 10-90% rise (s)",NaN,"rise 0.08 s [0.00, 1.56]",16
+"14b flash kinetics, whisker follicle speed (DLC)","onset latency (s) / 10-90% rise (s)",NaN,"rise NaN s [0.10, 0.58]",16
+"14b flash kinetics, rigid shift","onset latency (s) / 10-90% rise (s)",NaN,"rise NaN s [0.10, 1.90]",16
+"14c flash change vs baseline, F","slope of change in counts against baseline counts",0.0931,"[0.05, 0.14]",68
+"14c flash change vs baseline, Fneu","slope of change in counts against baseline counts",0.000624,"[-0.02, 0.02]",68
+"14d flash response by evoked whisking, bundle","dF/F low vs high whisking flashes",0.351,"lo 0.33+-0.08 hi 0.68+-0.17, rho 0.29",16
+"14d flash response by evoked whisking, other selected","dF/F low vs high whisking flashes",0.157,"lo 0.22+-0.07 hi 0.38+-0.07, rho 0.29",16
+"14d flash response by evoked whisking, flat ROIs","dF/F low vs high whisking flashes",0.136,"lo 0.02+-0.02 hi 0.15+-0.03, rho 0.55",16
+"14d flash response by evoked whisking, neuropil-limited","dF/F low vs high whisking flashes",0.206,"lo 0.07+-0.07 hi 0.28+-0.05, rho 0.31",16

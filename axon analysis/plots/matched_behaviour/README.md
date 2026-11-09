@@ -52,7 +52,7 @@ These are 3-4 sessions in 1-2 animals each: nothing here is established, the fla
 ## Caveats
 * Cross-session level comparisons (task vs passive "baseline" activity) are not possible with this dF/F definition (running 10th-percentile baseline +-60 s, 30 s high-pass absorbs level shifts; raw pupil / face units differ between sessions, e.g. pupil median 800-1480 px). Only within-session event contrasts are compared between conditions.
 * Flash coverage is 65% (the rest of the flashes start with movement that no control window has): the effect applies to the matched flashes.
-* Control windows are on a 1 s grid and may overlap each other (different pairs can share a control); this is inside the nulls because the same procedure is repeated, variant `step5` (controls >= 5 s apart) is the check (M4).
+* Control windows are on a 1 s grid and may overlap each other (different pairs can share a control); this is inside the nulls because the same procedure is repeated, variant `step5` (controls >= 5 s apart) is the check (M4): same estimates (task cue -0.024, flash +0.035, expanding loom +0.069, receding loom +0.046, rewarded - spontaneous +0.004) but fewer testable sessions (the control pool shrinks: flash 2, passive cue 1).
 * Flagged sessions (RB23 1306 / 1704, RB24 1527 / 1640 / 11-06 sessions) are drawn hollow and never pooled. RB23 1704 (flagged: inconsistent behaviour channels) shows rewarded - spontaneous +0.038 (p 0.003) - not interpreted.
 * The ball is usable in about half of the sessions only (`loco_ok`), so locomotion is matched there only.
 

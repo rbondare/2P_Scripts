@@ -57,6 +57,7 @@ def forest(ax, res, key, sessions, title=None, xlabel='dF/F', show_pool=True, la
     ax.set_ylim(-0.7, n + (1.6 if show_pool else 0) - 0.3); ax.set_xlabel(xlabel)
     if title: ax.set_title(title, loc='left')
     if xlim: ax.set_xlim(xlim)
+    elif labels: x0, x1 = ax.get_xlim(); ax.set_xlim(x0, x1 + 0.28 * (x1 - x0))
 
 
 def legend_forest(fig, x=0.01, y=0.005, shift=True):
@@ -199,11 +200,12 @@ def fig_m3(res):
     for i, (key, sess) in enumerate(items):
         ax = fig.add_subplot(gs[i // 4, i % 4]); forest(ax, res, key, sess, title=mb.LABEL[key], xlim=None, labels=True, fs=5.0)
         if i == 0: plabel(ax, 'a', dx=-34)
-    ax = fig.add_subplot(gs[1, 3]); ax.axis('off'); lines = ['Pooled, unflagged + testable', '(matched, 95% CI; sessions; p shift / benchmark)']
+    ax = fig.add_subplot(gs[1, 3]); ax.axis('off'); lines = ['Pooled (unflagged, testable)', 'matched [95% CI]', 'n sessions; p shift / bench', '']
+    short_lab = {'flash': 'flash', 'loom_expand': 'exp. loom', 'loom_recede': 'rec. loom', 'bar': 'bar', 'expand_vs_recede': 'exp - rec', 'rew_vs_spont': 'rew - spont', 'hit_vs_miss': 'hit - miss'}
     for key, sess in items:
         P = mp.pooled(res, key, sess)
-        lines.append('%s: %+.3f [%+.3f, %+.3f]\n   n=%d, p %s / %s' % (mb.LABEL[key], P['est'], P['lo'], P['hi'], len(P['sessions']), fmt_p(P.get('p_shift')).replace('p ', ''), fmt_p(P.get('p_sim')).replace('p ', '')) if P else '%s: not testable' % mb.LABEL[key])
-    ax.text(0, 1, '\n'.join(lines), va='top', fontsize=4.8, linespacing=1.35, transform=ax.transAxes)
+        lines.append('%s %+.3f [%+.3f, %+.3f]\n   n=%d; shift %s, bench %s' % (short_lab[key], P['est'], P['lo'], P['hi'], len(P['sessions']), fmt_p(P.get('p_shift')).replace('p = ', 'p ').replace('p ', '', 1) if False else fmt_p(P.get('p_shift')), fmt_p(P.get('p_sim'))) if P else '%s: not testable' % short_lab[key])
+    ax.text(-0.15, 1, '\n'.join(lines), va='top', fontsize=4.8, linespacing=1.35, transform=ax.transAxes)
     legend_forest(fig); save(fig, 'M3_other_cases')
 
 

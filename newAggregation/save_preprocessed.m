@@ -395,6 +395,16 @@ for File = 1:numFiles
 end
 close(w);
 
+% A TIFF whose ScanImage frame description was cut off (first frame of a session with many pre-start aux triggers)
+% has no parsed header; rebuild it, otherwise its frame is missing and calcium / video / ball are shifted
+tif_paths = cell(1, numFiles);
+for File = 1:numFiles
+    if strcmp(files(File).name(max(end-3, 1):end), '.tif')
+        tif_paths{File} = fullfile(basedir, files(File).name);
+    end
+end
+Headers = recover_truncated_headers(Headers, tif_paths);
+
 % Clean up headers for last file if needed
 k1 = 1;
 if isempty(Headers(k1).SI); k1 = 2; end
@@ -997,8 +1007,24 @@ if train_ball
     % written into the stim file in <stim folder>\*_BallCamTail.mat (RB24_261104_1651: 30,403 readings in the stim
     % file + 26,936 in the tail = 57,339 for 57,340 ball triggers); without it the second half has no locomotion
     tail_readings = load_ball_tail(StimFiles(1), numel(BallCamData_temp{1}), sum(cellfun(@numel, BT)));
-    BallCamData = training_ball_data([reshape(BallCamData_temp{1}, [], 1); tail_readings], BT);
-    BallCamData.SyncInfo.n_tail_readings = numel(tail_readings);
+    main_readings = reshape(BallCamData_temp{1}, [], 1);
+    use_tail = ~isempty(tail_readings);
+    if use_tail && ~training_ball_data([main_readings; tail_readings], BT, true).SyncInfo.ok && ...
+            training_ball_data(main_readings, BT, true).SyncInfo.ok
+        % The pairing of readings and triggers verifies only WITHOUT the tail: the last reading(s) were taken after
+        % the last trigger the headers hold (RB24_261104_1540: 1 reading, counter 241, after the last 2P frame;
+        % both trigger trains end just before it), so they have no time stamp and are left out
+        use_tail = false;
+        fprintf('  Ball camera tail: %d reading(s) have no trigger in the headers, not used\n', numel(tail_readings));
+    end
+    if use_tail
+        BallCamData = training_ball_data([main_readings; tail_readings], BT);
+        BallCamData.SyncInfo.n_tail_readings = numel(tail_readings);
+    else
+        BallCamData = training_ball_data(main_readings, BT);
+        BallCamData.SyncInfo.n_tail_readings = 0;
+    end
+    BallCamData.SyncInfo.n_tail_unused = numel(tail_readings) * ~use_tail;
 end
 
 % Calibrate locomotion — pre-load model to avoid uigetfile in batch mode
@@ -1526,10 +1552,11 @@ function Stimopts = synchronize_red_frames_training(Stimopts, PT, acq_timestamps
 %     2. at least min_cover of the trial must lie inside imaged acquisitions
 %     3. the projector pulses from the trial's first frame to its last red frame are paired with its red
 %        frames by match_red_pulses, which tolerates lost pulses (see there for its consistency checks)
-%     4. the PC-clock offset (pulse time - PC clock time) of the trials must follow one smooth line over the
-%        session (the two clocks drift slowly apart). A trial off that line, or one that could not be
-%        matched, is matched again with its first pulse anchored on the line; if that does not agree
-%        either, it keeps PC clock times
+%     4. the PC-clock offset (pulse time - PC clock time) of a trial must agree with that of the trials around
+%        it (the two clocks drift apart slowly and smoothly, but not necessarily linearly over a session): it is
+%        compared with a line through its n_neighbours nearest synchronized trials in time. A trial that
+%        disagrees, or one that could not be matched, is matched again with its first pulse anchored on that
+%        expectation; if that does not agree either, it keeps PC clock times
 %     5. the frame times are interpolated between the pulses and must increase
 %   A trial that cannot be synchronized safely keeps PC clock times and says why in its RedSyncInfo.
 %
@@ -1544,12 +1571,14 @@ function Stimopts = synchronize_red_frames_training(Stimopts, PT, acq_timestamps
 %                                acquisitions), n_frames (real frames), n_dropped_rows (rows with a time that
 %                                are not real frames, e.g. placeholders)
 %     RedSyncSession             session summary: n_trials, n_synced, trials_pc_clock, offset_min_ms,
-%                                offset_max_ms, drift_ms_per_min and offset_start_ms (the line fitted to
-%                                the trials' PC-clock offsets), max_dev_ms (largest distance of a trial from it)
+%                                offset_max_ms, drift_ms_per_min and offset_start_ms (overall straight-line
+%                                trend of the trials' PC-clock offsets, information only), max_dev_ms (largest
+%                                distance of a trial from the offset expected from its neighbouring trials)
 
 % --- limits of the checks (named so a rig that needs different ones can change them here)
-lag_tol_s = 0.020;      % a trial's PC-clock offset may differ this much from the session's drift line
-min_trials_fit = 5;     % synchronized trials needed to fit that line
+lag_tol_s = 0.020;      % a trial's PC-clock offset may differ this much from that of its neighbouring trials
+n_neighbours = 8;       % neighbouring trials (nearest in time) that give the expected offset of a trial
+min_trials_fit = 5;     % synchronized trials needed for that comparison
 min_cover = 0.9;        % share of a trial that must lie inside imaged acquisitions
 win_margin_s = 0.005;   % pulse window of a trial: see match_training_trial
 % limits of match_red_pulses for training trials: the projector chain shows isolated pulses 2 frames (33 ms) late and
@@ -1630,7 +1659,15 @@ for q = 1:ntr
     end
 end
 
-% --- 4. the PC-clock offsets of the trials follow one smooth line over the session
+% --- 4. the PC-clock offset of a trial must agree with the trials around it
+% A trial whose first pulse was numbered one pulse period (or one frame) off has an offset that jumps away from its
+% neighbours. The stimulus PC clock does not drift linearly against the 2P clock over a whole session
+% (RB24_261104_1540: +0.4 ms per trial for 65 trials, then -1.5 ms per trial down to +4 ms), so a trial is compared
+% with a robust line through its n_neighbours nearest synchronized trials in time (itself left out), not with one
+% line for the session. Trials that disagree are rejected from the reference and matched again anchored on it.
+% Limit: this finds trials that disagree with their neighbours. If the true offset drifted across the edge of the
+% anchoring window of match_red_pulses for ALL later trials, they would agree with each other (anchor_borderline,
+% reported below, warns when a trial is near that edge).
 ok = cellfun(@(s) s.ok, info);
 off = cellfun(@(s) s.offset_median_ms, info);
 tmid = nan(1, ntr);
@@ -1638,34 +1675,31 @@ for q = 1:ntr
     if ~isempty(pc{q}); tmid(q) = mean(pc{q}([1 end])); end
 end
 sel = ok & isfinite(off) & isfinite(tmid);
-p = [];
-mu = mean(tmid(sel));
+pred = nan(1, ntr);                     % offset expected from the neighbouring trials
 if nnz(sel) >= min_trials_fit
-    keep = sel;
-    for it = 1:4
-        p = polyfit(tmid(keep) - mu, off(keep), 1);
-        newkeep = sel & abs(off - polyval(p, tmid - mu)) <= 1e3 * lag_tol_s;
-        if nnz(newkeep) < min_trials_fit; p = []; break; end
-        if isequal(newkeep, keep); break; end
-        keep = newkeep;
+    good = sel;
+    for it = 1:6
+        pred = neighbour_offset_reference(tmid, off, good, n_neighbours);
+        newgood = sel & abs(off - pred) <= 1e3 * lag_tol_s;
+        if nnz(newgood) < min_trials_fit; pred(:) = NaN; break; end
+        if isequal(newgood, good); break; end
+        good = newgood;
     end
 end
-pred = nan(1, ntr);
-if ~isempty(p)
-    pred = polyval(p, tmid - mu);
-    redo = find(tried & (~ok | (sel & abs(off - pred) > 1e3 * lag_tol_s)));
+if any(isfinite(pred))
+    redo = find(tried & isfinite(pred) & (~ok | (sel & abs(off - pred) > 1e3 * lag_tol_s)));
     for q = redo
         [rf2, pt2, m2] = match_training_trial(PT, pc{q}, nth, ifi, pred(q) / 1e3, win_margin_s, opts);
         if m2.ok && abs(m2.offset_median_ms - pred(q)) <= 1e3 * lag_tol_s
-            m2.note = sprintf('first pulse anchored on the session drift line: PC-clock offset %+.0f ms (line %+.0f ms)', ...
+            m2.note = sprintf('first pulse anchored on the neighbouring trials: PC-clock offset %+.0f ms (neighbours %+.0f ms)', ...
                 m2.offset_median_ms, pred(q));
             rf{q} = rf2;
             pt{q} = pt2;
             info{q} = m2;
             ok(q) = true;
         elseif ok(q)
-            info{q} = pc_clock_info(sprintf(['PC-clock offset %+.0f ms but the session line gives %+.0f ms, ' ...
-                'and anchoring on the line did not work either'], off(q), pred(q)), info{q});
+            info{q} = pc_clock_info(sprintf(['PC-clock offset %+.0f ms but the neighbouring trials give %+.0f ms, ' ...
+                'and anchoring on them did not work either'], off(q), pred(q)), info{q});
             ok(q) = false;
         end
     end
@@ -1715,10 +1749,13 @@ if any(ok)
     sess.offset_min_ms = min(offF(ok));
     sess.offset_max_ms = max(offF(ok));
 end
-if ~isempty(p)
+if any(isfinite(pred(ok)))
+    % overall trend of the offset (information only; the decision above is made against the neighbouring trials)
+    tm = tmid(ok & isfinite(offF)); mu = mean(tm);
+    p = polyfit(tm - mu, offF(ok & isfinite(offF)), 1);
     sess.drift_ms_per_min = 60 * p(1);
     sess.offset_start_ms = polyval(p, -mu);
-    sess.max_dev_ms = max(abs(offF(ok) - pred(ok)));
+    sess.max_dev_ms = max(abs(offF(ok) - pred(ok)));    % largest distance of a trial from its neighbouring trials
 end
 
 Stimopts.TimeStimulusFrame = TSF;
@@ -1737,14 +1774,14 @@ if any(ok)
     fprintf('    pulses lost: %d of %d red frames (%.1f%%), trials with a gap: %d; isolated late pulses dropped: %d\n', n_lost, n_exp, ...
         100 * n_lost / n_exp, nnz([info(ok).n_gaps] > 0), sum([info(ok).n_outliers]));
     fprintf('    PC-clock offset (pulse - PC clock): %+.0f to %+.0f ms', sess.offset_min_ms, sess.offset_max_ms);
-    if ~isempty(p)
-        fprintf('; line %+.0f ms %+.2f ms/min, largest deviation of a trial %.1f ms (limit %.0f ms)', ...
-            sess.offset_start_ms, sess.drift_ms_per_min, sess.max_dev_ms, sess.tolerance_ms);
+    if isfinite(sess.max_dev_ms)
+        fprintf('; overall trend %+.2f ms/min, largest deviation of a trial from its neighbouring trials %.1f ms (limit %.0f ms)', ...
+            sess.drift_ms_per_min, sess.max_dev_ms, sess.tolerance_ms);
     end
     fprintf('\n');
     re = find(ok & ~cellfun(@isempty, {info.note}));
     if ~isempty(re)
-        fprintf('    first pulse anchored on the drift line for trial(s) %s\n', mat2str(re));
+        fprintf('    first pulse anchored on the neighbouring trials for trial(s) %s\n', mat2str(re));
     end
     bl = find(ok & [info.anchor_borderline]);
     if ~isempty(bl)
@@ -1761,6 +1798,39 @@ if ~isempty(bad)
         mat2str(bad));
 end
 
+end
+
+
+function ref = neighbour_offset_reference(tmid, off, good, k)
+%NEIGHBOUR_OFFSET_REFERENCE PC-clock offset expected for every trial from the trials around it
+%   tmid  trial times (s), off  PC-clock offsets (ms), good  logical, trials that may serve as reference,
+%   k     number of reference trials. For every trial (also those not in good) the k nearest trials in time
+%   that are in good, the trial itself left out, are taken and a straight line through their offsets is
+%   evaluated at the trial's time. The line is a Theil-Sen line (median of the slopes between all pairs, median
+%   intercept), so that a few wrong neighbours do not pull it: with a least-squares line, 3 wrong trials at the end
+%   of a session vouch for each other and the correct ones next to them are rejected instead (tested on the
+%   offsets of RB24_261104_1540 with 83 ms errors injected: a robust line over 8 neighbours finds up to 4 wrong
+%   trials at either end or in the middle). With fewer than 4 reference trials their median is used, with fewer
+%   than 3 the result is NaN.
+ref = nan(size(off));
+idx = find(good & isfinite(tmid) & isfinite(off));
+for q = find(isfinite(tmid))
+    cand = idx(idx ~= q);
+    if numel(cand) < 3; continue; end
+    [~, o] = sort(abs(tmid(cand) - tmid(q)));
+    nb = cand(o(1:min(k, numel(cand))));
+    x = reshape(tmid(nb) - tmid(q), [], 1);
+    y = reshape(off(nb), [], 1);
+    if numel(nb) >= 4 && range(x) > 0
+        [i1, i2] = find(triu(true(numel(nb), numel(nb)), 1));
+        dx = x(i2) - x(i1);
+        use = dx ~= 0;
+        slope = median((y(i2(use)) - y(i1(use))) ./ dx(use));
+        ref(q) = median(y - slope * x);   % value of the line at the trial's own time (x = 0)
+    else
+        ref(q) = median(y);
+    end
+end
 end
 
 
@@ -1819,7 +1889,7 @@ end
 end
 
 
-function Ball = training_ball_data(readings, BT)
+function Ball = training_ball_data(readings, BT, quiet)
 %TRAINING_BALL_DATA Ball camera readings of a training session, each with a time stamp
 %   A training stimulus file holds ONE ball camera log for the whole session while Triggers.TimeBall has one
 %   cell per acquisition (BT), so the time stamps of the log are all the triggers in acquisition order -
@@ -1836,12 +1906,14 @@ function Ball = training_ball_data(readings, BT)
 %   Readings that are not 5 numbers are NaN.
 %   Ball.SyncInfo: ok, method, reason, n_readings, n_triggers, n_dropped_triggers, counter_jumps (reading index
 %   before each jump), readings_missing (per jump), trigger_gaps (trigger index before each gap), gap_s.
+%   quiet (optional, default false): print / warn nothing (to try a variant of the readings).
 
+if nargin < 3; quiet = false; end
 nr = numel(readings);
 good = reshape(cellfun(@numel, readings) == 5, [], 1);
 Values = nan(nr, 5);
 Values(good, :) = cell2mat(reshape(readings(good), [], 1));
-if any(~good)
+if any(~good) && ~quiet
     warning('Ball camera data contains %d bad readings (set to NaN)', nnz(~good));
 end
 tb = cell2mat(cellfun(@(x) reshape(x, [], 1), reshape(BT, [], 1), 'UniformOutput', false));
@@ -1876,9 +1948,11 @@ else
     info.method = 'first triggers';
     tb = tb(1:min(numel(tb), nr));
     tb = [tb; nan(nr - numel(tb), 1)];
-    warning('Ball camera time stamps: %s', info.reason);
+    if ~quiet; warning('Ball camera time stamps: %s', info.reason); end
 end
-fprintf('  Ball camera log: %d readings, %d triggers (%s)\n', nr, info.n_triggers, info.method);
+if ~quiet
+    fprintf('  Ball camera log: %d readings, %d triggers (%s)\n', nr, info.n_triggers, info.method);
+end
 
 Ball = struct('Values', Values, 'Triggers_sec', tb, 'SyncInfo', info);
 

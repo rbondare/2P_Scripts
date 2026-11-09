@@ -1846,12 +1846,20 @@ if do_arousal
             qn.roi_mag(:, end+1) = mg; %#ok<SAGROW>
         end
     end
-    fprintf('13: %d quiet reference times, group-1 peak statistic on noise %.2f +- %.2f dF/F\n', size(qn.roi_mag, 2), mean(qn.roi_mag(1, :)), std(qn.roi_mag(1, :)));
+    have_q = size(qn.roi_mag, 2) >= 5;                                           % a session in which the animal whisks all the time (RB24_261105_1549: 100% whisking) has no quiet times: the quiet-time comparisons are skipped
+    if have_q
+        fprintf('13: %d quiet reference times, group-1 peak statistic on noise %.2f +- %.2f dF/F\n', size(qn.roi_mag, 2), mean(qn.roi_mag(1, :)), std(qn.roi_mag(1, :)));
+    else
+        fprintf('13: only %d quiet reference times (whisking amplitude < %.2g within the spontaneous / grey windows): the quiet-time comparisons are skipped\n', size(qn.roi_mag, 2), whisk_lo);
+    end
 
     % dose-response model: roi_mag ~ 1 + whisking + flash + looming, fit on all events; bootstrap over events
     wh_all = [evm.wh_mag];  ty_all = [ones(1, numel(evm(1).ons)), 2 * ones(1, numel(evm(2).ons)), 3 * ones(1, numel(evm(3).ons))];
     dose = struct('g', {}, 'b', {}, 'ci', {});
+    do_dose = numel(evm(1).ons) >= 3;                                            % the spontaneous bouts are the baseline of the model (the flash / looming offsets are relative to them)
+    if ~do_dose; fprintf('13c: only %d spontaneous whisking bout(s), the dose-response model needs >= 3 as its baseline: skipped\n', numel(evm(1).ons)); end
     for g = 1:ng
+        if ~do_dose; dose(g).g = g;  dose(g).b = nan(1, 4);  dose(g).ci = nan(2, 4);  continue; end
         y_ = [evm.roi_mag];  y_ = y_(g, :);
         X_ = [ones(numel(y_), 1), wh_all(:), ty_all(:) == 2, ty_all(:) == 3];
         ok = all(isfinite([y_(:), X_]), 2);
@@ -1866,7 +1874,7 @@ if do_arousal
     % stimulus trials without whisking
     for e = 2:3
         lo = evm(e).wh_mag < whisk_lo | isnan(evm(e).wh_mag);  nlo = sum(lo);
-        if nlo >= 2
+        if nlo >= 2 && have_q
             for g = 1:min(ng, 2)
                 v = evm(e).roi_mag(g, lo);  v = v(isfinite(v));
                 p_rs = ranksum(v, qn.roi_mag(g, :));
@@ -1939,13 +1947,14 @@ if do_arousal
     tl = tiledlayout(fh, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
     title(tl, [session ' | arousal vs stimulus (exploratory)'], 'FontSize', 9, 'FontWeight', 'normal', 'Interpreter', 'none');
     a1 = nexttile(tl, 1);  hold(a1, 'on');  hg = gobjects(1, ng);
-    for g = 1:ng; hg(g) = sem_trace(a1, tev, squeeze(Aev(g, :, :)), gcol(g, :), g == 1); end
+    Ag = @(i) reshape(Aev(i, :, :), size(Aev, 2), size(Aev, 3));                 % [time x bouts]; squeeze would turn a single bout into a row
+    for g = 1:ng; hg(g) = sem_trace(a1, tev, Ag(g), gcol(g, :), g == 1); end
     xline(a1, 0, ':');  ylabel(a1, 'dF/F');  xlim(a1, tev([1 end]));  set(a1, 'XTickLabel', []);
     title(a1, sprintf('whisking-bout onset, %d isolated bouts', numel(ons_sp)), 'FontSize', 7, 'FontWeight', 'normal');
     legend(a1, hg, grp_lab, 'FontSize', 6, 'Location', 'northwest');
     a3 = nexttile(tl, 3);  hold(a3, 'on');  hb = gobjects(1, 0);  lb = {};
-    for i = 1:numel(beh_names); hb(end+1) = sem_trace(a3, tev, squeeze(Aev(ng + i, :, :)), beh_cmap.(beh_names{i}), true); lb{end+1} = beh_lab.(beh_names{i}); end %#ok<SAGROW>
-    if have_motion; hb(end+1) = sem_trace(a3, tev, squeeze(Aev(ng + numel(beh_names) + 1, :, :)), [0.5 0.5 0.5], true); lb{end+1} = 'rigid shift'; end
+    for i = 1:numel(beh_names); hb(end+1) = sem_trace(a3, tev, Ag(ng + i), beh_cmap.(beh_names{i}), true); lb{end+1} = beh_lab.(beh_names{i}); end %#ok<SAGROW>
+    if have_motion; hb(end+1) = sem_trace(a3, tev, Ag(ng + numel(beh_names) + 1), [0.5 0.5 0.5], true); lb{end+1} = 'rigid shift'; end
     xline(a3, 0, ':');  ylabel(a3, 'SD of session');  xlabel(a3, 'time from whisking onset (s)');  xlim(a3, tev([1 end]));  legend(a3, hb, lb, 'FontSize', 6, 'Location', 'northwest');
     a2 = nexttile(tl, 2);  hold(a2, 'on');
     for e = 1:3
@@ -1961,7 +1970,7 @@ if do_arousal
         hs(e) = scatter(a4, evm(e).wh_mag, evm(e).roi_mag(1, :), 16, ecol(e, :), 'filled');
         plot(a4, wg, dose(1).b(1) + dose(1).b(2) * wg + (e == 2) * dose(1).b(3) + (e == 3) * dose(1).b(4), '-', 'Color', ecol(e, :), 'LineWidth', 1);
     end
-    yline(a4, mean(qn.roi_mag(1, :)), ':', 'quiet times', 'FontSize', 6);
+    if have_q; yline(a4, mean(qn.roi_mag(1, :)), ':', 'quiet times', 'FontSize', 6); end
     xlabel(a4, 'whisking amplitude (peak, 0-2 s)');  ylabel(a4, 'peak dF/F, 0-3 s');  title(a4, 'dose-response (group 1); lines = fit with a stimulus offset', 'FontSize', 7, 'FontWeight', 'normal');
     legend(a4, hs, {evm.name}, 'FontSize', 6, 'Location', 'northwest');
     a5 = nexttile(tl, 5, [1 2]);  hold(a5, 'on');
@@ -2407,6 +2416,7 @@ function h = sem_trace(ax, t, M, c, band)
 % mean over the columns of M [time x events] (line, returned handle), +- SEM as a cloud if band
 t = t(:);  mu = mean(M, 2, 'omitnan');  se = std(M, 0, 2, 'omitnan') / sqrt(size(M, 2));
 hold(ax, 'on');
+if size(M, 2) == 0; h = plot(ax, t, nan(size(t)), 'Color', c, 'LineWidth', 1.2); return; end      % no events: an empty line that keeps the legend entry
 ok = isfinite(mu) & isfinite(se);
 if band; fill(ax, [t(ok); flipud(t(ok))], [mu(ok) + se(ok); flipud(mu(ok) - se(ok))], c, 'FaceAlpha', 0.2, 'EdgeColor', 'none'); end
 h = plot(ax, t, mu, 'Color', c, 'LineWidth', 1.2);
