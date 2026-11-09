@@ -1,0 +1,51 @@
+thumb,suite2p roi index,group,skew,passes transient test,adjacent to accepted
+1,429,"rejected, activity-like",1.56,True,True
+2,401,accepted,1.64,True,
+3,363,"rejected, activity-like",2.04,True,True
+4,411,"rejected, not activity-like",0.14,False,False
+5,420,"rejected, not activity-like",0.77,False,False
+6,433,"rejected, activity-like",1.27,True,True
+7,0,"rejected, activity-like",2.12,True,False
+8,222,"rejected, activity-like",1.55,True,True
+9,197,"rejected, not activity-like",0.29,False,False
+10,438,"rejected, not activity-like",0.09,False,False
+11,111,"rejected, not activity-like",0.80,False,True
+12,238,"rejected, activity-like",1.62,True,False
+13,212,accepted,0.32,False,
+14,428,"rejected, not activity-like",0.07,False,False
+15,52,accepted,0.37,False,
+16,13,accepted,2.75,True,
+17,206,"rejected, activity-like",0.53,True,True
+18,2,accepted,1.14,True,
+19,268,accepted,0.95,False,
+20,263,"rejected, not activity-like",0.08,False,False
+21,136,"rejected, not activity-like",0.19,False,True
+22,367,"rejected, activity-like",0.84,True,True
+23,399,"rejected, not activity-like",0.32,False,False
+24,22,"rejected, activity-like",1.36,True,False
+25,427,"rejected, activity-like",1.87,True,True
+26,384,"rejected, activity-like",1.43,True,True
+27,265,"rejected, not activity-like",0.29,False,True
+28,314,"rejected, not activity-like",0.12,False,True
+29,208,"rejected, activity-like",1.24,True,True
+30,122,"rejected, activity-like",0.95,True,True
+31,377,"rejected, not activity-like",1.14,False,False
+32,346,"rejected, not activity-like",0.42,False,False
+33,18,"rejected, activity-like",38.08,True,False
+34,231,accepted,0.87,True,
+35,8,"rejected, activity-like",1.41,True,False
+36,422,"rejected, not activity-like",0.21,False,True
+37,15,accepted,0.82,True,
+38,207,accepted,1.85,True,
+39,72,"rejected, not activity-like",0.07,False,False
+40,394,"rejected, activity-like",1.40,True,False
+41,369,"rejected, activity-like",6.41,True,False
+42,386,"rejected, not activity-like",0.18,False,False
+43,227,"rejected, not activity-like",0.24,False,True
+44,153,"rejected, not activity-like",0.17,False,False
+45,414,"rejected, activity-like",1.48,True,True
+46,179,"rejected, activity-like",1.02,True,False
+47,230,"rejected, activity-like",1.70,True,False
+48,374,accepted,0.38,False,
+49,236,"rejected, not activity-like",0.59,False,False
+50,97,"rejected, not activity-like",0.23,False,False

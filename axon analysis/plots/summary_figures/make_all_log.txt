@@ -1,0 +1,15 @@
+caches cleaned
+event_triggered.py         ok  19 s  
+roi_heterogeneity.py       ok  104 s  
+fig1_overview.py           ok  30 s  saved Fig1_overview
+fig2_state_coupling.py     ok  39 s  saved Fig2_state_coupling
+fig3_events.py             ok  6 s  saved Fig3_events
+fig4_heterogeneity.py      ok  8 s  saved Fig4_heterogeneity
+fig5_stimuli.py            ok  6 s  saved Fig5_stimuli
+fig6_context.py            ok  9 s  saved Fig6_context
+fig7_negative.py           ok  4 s  saved Fig7_negative
+fig9_whisking.py           ok  28 s  saved Fig9_whisking
+fig10_loom_heatmaps.py     ok  14 s  saved Fig10_loom_heatmaps
+context_state.py           ok  61 s  
+fig11_task_engagement.py   ok  7 s  saved Fig11_task_engagement
+fig8_ledger.py             ok  3 s  saved Fig8_ledger; ledger rows 49; saved Fig8b_ledger_figs9-11; ledger rows 25
