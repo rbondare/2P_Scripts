@@ -103,11 +103,16 @@ def pair_stats(sa, sb, shift_cells=(0, 0), shift_um=(0, 0)):
 
 
 def build(P, dil_um, accepted_only=True, names=None):
-    inv = read_inventory(); names = names or [s for s in SESSIONS if s in P]
+    inv = read_inventory(); names = names or [s for s in SESSIONS if s in P and s not in EXCLUDE_ROI_SESSIONS]
     sess = {}
     for n in names:
         S = Sess(n, inv)
         masks0 = rasterise(S, P[n], accepted_only)
+        # drop ROIs on the bright blob landmark (not an axon)
+        keep = []
+        for (i, ci, cj, m) in masks0:
+            a, b = np.nonzero(m); keep.append(np.hypot(ci[a].mean() * FG - LM[0], cj[b].mean() * FG - LM[1]) > BLOB_R)
+        masks0 = [x for x, k in zip(masks0, keep) if k]
         masks = dilate(masks0, int(round(dil_um / FG)))
         rect = fov_rect(S, P[n])
         sess[n] = dict(S=S, masks=masks, masks0=masks0, rect=rect, ids=np.array([m[0] for m in masks]))

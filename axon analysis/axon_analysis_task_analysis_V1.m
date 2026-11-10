@@ -985,10 +985,12 @@ if has_lick
     bb_ = tb >= base_win(1) & tb < base_win(2);
     ev_k = find(isfinite(cons_on));  nEv = numel(ev_k);  nSp = numel(sp_on);
     late_k = find(isfinite(late_on));  nLate = numel(late_k);
-    lat_edges = [lw(1) lat_split_s lw(2) cons_max_s + eps];
+    lat_split_c = lat_split_s;  if ~(lw(1) < lat_split_c && lat_split_c < lw(2)); lat_split_c = mean(lw); end   % the split must lie inside the lick window (RB24_261104_1540: lickWindowMin 1.1 s > lat_split_s 1 s made the edges decrease), else the middle of the window
+    lat_edges = [lw(1) lat_split_c lw(2) cons_max_s + eps];
+    assert(issorted(lat_edges, 'strictascend'), 'latency class edges %s are not increasing: lickWindow [%g %g] s, cons_max_s %g s', mat2str(lat_edges), lw(1), lw(2), cons_max_s);
     lat_cls = discretize(cons_lat(ev_k), lat_edges);                                   % latency class (from the square onset) of the rewarded BOUT
     cls1 = discretize(lat1, lat_edges);                                               % latency class of the FIRST LICK after the onset, every trial (latency test)
-    cls_lab = {sprintf('%.1f-%g s', lw(1), lat_split_s), sprintf('%g-%g s', lat_split_s, lw(2)), sprintf('%g-%g s (after the square)', lw(2), cons_max_s)};
+    cls_lab = {sprintf('%.1f-%g s', lw(1), lat_split_c), sprintf('%g-%g s', lat_split_c, lw(2)), sprintf('%g-%g s (after the square)', lw(2), cons_max_s)};
     cls_col = [0 0.45 0.74; 0.93 0.69 0.13; 0.85 0.33 0.1];
     win_sets = {bout_win};  win_lab = {sprintf('%g-%g s after the first lick', bout_win(1), bout_win(2))};
     if any(rew_kind == 4); win_sets{2} = rdel + bout_win;  win_lab{2} = sprintf('%g-%g s after the pump (first lick + %g s)', rdel + bout_win(1), rdel + bout_win(2), rdel); end

@@ -31,6 +31,13 @@ SAME_DAY = {'1023': ['AnimalRB24_261023_1453', 'AnimalRB24_261023_1527', 'Animal
 # the stimulus-folder date of 1826 is 10-28, the DATA_2P folder says 10-21 (typo); calendar date used in the analysis comes from the TIFF time stamp (fov_inventory.csv)
 
 
+# bright blob (cell-like object with dark halo) seen in most sessions: used as an independent registration landmark and NOT an axon -> ROIs on it are dropped from the ROI analyses
+LM = (24.0, 97.3)                 # um, reference frame (11-05 1520), from fov_refine.py
+BLOB_R = 10.0
+# 261104_1640: suite2p plane-sum with iscell set to accept-all; its ROIs are horizontal bands covering the whole field (default sourcery on 5 summed planes) -> used for registration only
+EXCLUDE_ROI_SESSIONS = {'AnimalRB24_261104_1640'}
+
+
 def short(nm):
     d, t = nm.replace('AnimalRB24_', '').split('_')
     return '%s-%s %s' % (d[2:4], d[4:6], t)

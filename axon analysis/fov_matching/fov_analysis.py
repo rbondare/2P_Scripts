@@ -14,9 +14,9 @@ Outputs: fov_session_summary.csv, fov_persistence.csv, fov_carryover.csv, cache/
 import os, csv, pickle, collections, numpy as np
 from fov_common import *
 
-NOV = ['AnimalRB24_261104_1540', 'AnimalRB24_261104_1640', 'AnimalRB24_261104_1651', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261105_1549',
-       'AnimalRB24_261106_1317', 'AnimalRB24_261106_1529', 'AnimalRB24_261106_1555', 'AnimalRB24_261106_1604']
-ACCEPT_ALL = {'AnimalRB24_261104_1640', 'AnimalRB24_261106_1604'}          # iscell set to all-1 (no rejected class available)
+NOV = ['AnimalRB24_261104_1540', 'AnimalRB24_261104_1651', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261105_1549',
+       'AnimalRB24_261106_1317', 'AnimalRB24_261106_1529', 'AnimalRB24_261106_1555', 'AnimalRB24_261106_1604']      # 261104_1640 excluded from all ROI analyses (junk band ROIs)
+ACCEPT_ALL = {'AnimalRB24_261106_1604'}          # iscell all-1 (user-curated 93 + 67 new): no rejected class available
 
 
 def main():

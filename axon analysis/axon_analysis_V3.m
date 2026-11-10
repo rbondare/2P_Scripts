@@ -399,8 +399,15 @@ printchk(chk, n0);  n0 = size(chk, 1);
 
 %% 3. Behaviour (arousal proxies) and locomotion
 beh_ca = struct();  beh_names = {};
+whisk_plot = [];  whisk_art = [];   % WhiskIndex for DRAWING only: frames flagged Behav.WhiskArtifact (grooming, forepaw in front of the face) are NaN, because their index (up to ~5x the real range)
+                                    % would set the y-axis and flatten the real whisking. The analyses still use Behav.WhiskIndex / WhiskAmp / WhiskOn exactly as before.
 if has_beh
     Bh = data.Behav;
+    if isfield(Bh, 'WhiskIndex')
+        whisk_plot = double(Bh.WhiskIndex(:))';
+        whisk_art  = false(size(whisk_plot));
+        if isfield(Bh, 'WhiskArtifact'); whisk_art = double(Bh.WhiskArtifact(:))' > 0; whisk_plot(whisk_art) = NaN; end
+    end
     in_blk = false(size(tcam));
     for k = 1:nB; in_blk = in_blk | (tcam >= b_a0(k) & tcam <= b_a1(k)); end
     beh_defs = {'PupilArea', 'WhiskIndex', 'FacePadME', 'EyeLidOpening'};
@@ -484,12 +491,13 @@ ax(4) = nexttile(tl);
 if has_beh && isfield(data.Behav, 'PupilArea'); plot(tcam, data.Behav.PupilArea, 'Color', col.pupil); end
 ylabel('pupil (px^2)');
 ax(5) = nexttile(tl);  hold on;  h_face = gobjects(0);  h_whisk = gobjects(0);
+shade_whisk_art(ax(5), tcam, whisk_art);                                                                                       % light red = grooming frames, whisking is a gap there
 if has_beh && isfield(data.Behav, 'FacePadME'); h_face = plot(tcam, data.Behav.FacePadME, 'Color', col.face); end          % drawn first, whisking on top
-if has_beh && isfield(data.Behav, 'WhiskIndex'); h_whisk = plot(tcam, data.Behav.WhiskIndex, 'Color', col.whisk); end
+if has_beh && ~isempty(whisk_plot); h_whisk = plot(tcam, whisk_plot, 'Color', col.whisk); end
 ax5_lines = [h_whisk, h_face];
 ylabel('whisk / face ME');  xlabel('session time (s)');
 if has_beh && all(isfield(data.Behav, {'WhiskIndex', 'FacePadME'}))
-    ylim([0 1.5 * prctile([data.Behav.WhiskIndex(:); data.Behav.FacePadME(:)], 99.5)]);          % a few movement spikes would flatten everything else
+    ylim([0 1.5 * prctile([whisk_plot(:); data.Behav.FacePadME(:)], 99.5)]);          % a few movement spikes would flatten everything else
     legend(ax5_lines, {'WhiskIndex', 'FacePadME'}, 'Location', 'northeast', 'FontSize', 7);
 end
 for a = 3:5; xline(ax(a), b_t0, 'Color', [0.6 0.6 0.6], 'LineStyle', ':', 'HandleVisibility', 'off'); end
@@ -866,6 +874,7 @@ for ti = 1:numel(fig_types)
             ic = tcam >= tw(1) & tcam <= tw(2);
             v  = double(Bh.(bq)(:))';
             if strcmp(bq, 'PupilArea'); v = v * pup_scale;  ylabel({'pupil', ['(' pup_unit ')']}); else; ylabel({'whisking', 'index'}); end
+            if strcmp(bq, 'WhiskIndex'); v = whisk_plot;  shade_whisk_art(bax(q), tcam(ic), whisk_art(ic)); end          % grooming frames: gap + light red band
             plot(tcam(ic), v(ic), 'Color', cc);
             if strcmp(bq, 'WhiskIndex'); ylim([0, 1.1 * max(1, prctile(v(ic), 99.7))]); end
         else
@@ -1500,7 +1509,7 @@ else
     bt  = {tcm, tcm, tCa(:)'};  bv = cell(1, 3);
     blab = {{'pupil', ['(' pup_unit ')']}, {'whisking', 'index'}, {'speed', '(mm/s)'}};
     if has_beh && isfield(Bh, 'PupilArea'); bv{1} = double(Bh.PupilArea(:))' * pup_scale; end
-    if has_beh && isfield(Bh, 'WhiskIndex'); bv{2} = double(Bh.WhiskIndex(:))'; end
+    if has_beh && ~isempty(whisk_plot); bv{2} = whisk_plot; end                                % drawing only: grooming frames are gaps (the correlations below use beh_ca)
     if any(isfinite(loc_speed)); bv{3} = loc_speed(:)'; end
     loc_msg = 'locomotion unusable';
     if ~bracketed && ~isempty(sp_blk); loc_msg = sprintf('locomotion unusable (ball log %g values for %g triggers)', loc_n(sp_blk, 1), loc_n(sp_blk, 2)); end
@@ -1544,6 +1553,7 @@ else
             y = y - h_b;  axq = axes('Units', 'centimeters', 'Position', [xk y wSeg(k) h_b]);  hold on;
             ic = bt{q} >= tw(1) & bt{q} <= tw(2);
             if ~isempty(bv{q}) && sum(isfinite(bv{q}(ic))) > 1
+                if q == 2; shade_whisk_art(axq, bt{q}(ic) - tw(1), whisk_art(ic)); end                  % light red = grooming frames (gap in the whisking trace)
                 plot(bt{q}(ic) - tw(1), bv{q}(ic), 'Color', beh_cmap.(bnf{q}));
                 if all(isfinite(ylq(q, :))) && diff(ylq(q, :)) > 0; ylim(ylq(q, :)); end
             else
@@ -2390,6 +2400,18 @@ end
 function plabel(fh, FW, FH, x, y, s)
 % bold panel letter with its top-left corner at (x, y) cm from the bottom-left of the figure
 annotation(fh, 'textbox', [x / FW, (y - 0.6) / FH, 1.2 / FW, 0.6 / FH], 'String', s, 'EdgeColor', 'none', 'FontWeight', 'bold', 'FontSize', 10, 'FontName', 'Arial', 'Margin', 0, 'VerticalAlignment', 'top');
+end
+
+function shade_whisk_art(ax, t, art)
+% light red bands behind a whisking trace where the frames are flagged Behav.WhiskArtifact (grooming, forepaw in front of the face); t and art are the camera clock
+% and the flag of the same frames (art empty = nothing to draw). The trace itself is NaN there (whisk_plot), the band says why.
+if isempty(art) || ~any(art); return; end
+art = logical(art(:)');  t = double(t(:)');
+d  = diff([0, art, 0]);
+i0 = find(d == 1);  i1 = find(d == -1) - 1;
+for j = 1:numel(i0)
+    patch(ax, t([i0(j) i1(j) i1(j) i0(j)]), [-1e9 -1e9 1e9 1e9], [0.85 0.25 0.25], 'FaceAlpha', 0.15, 'EdgeColor', 'none', 'HandleVisibility', 'off', 'HitTest', 'off');
+end
 end
 
 function r = xc_lags(X, y, seg, lags)
