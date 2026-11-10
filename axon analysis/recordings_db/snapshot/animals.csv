@@ -1,0 +1,4 @@
+animal,cohort,population,indicator,genotype,sex,date_birth,date_injection,date_implantation,virus,comments
+RB22,1st cohort of axo-GCaMP6 (RB22-RB24),LC-NE axons (user statement),,,,,,,,"FILL IN: AnimalInfo in the aggregated files holds the dialog defaults (Ai148/Rorb, m, GCaMP6f, placeholder dates), not real values"
+RB23,1st cohort of axo-GCaMP6 (RB22-RB24),LC-NE axons (user statement),,,,,,,,"FILL IN: AnimalInfo in the aggregated files holds the dialog defaults (Ai148/Rorb, m, GCaMP6f, placeholder dates), not real values"
+RB24,1st cohort of axo-GCaMP6 (RB22-RB24),LC-NE axons (user statement),,,,,,,,"FILL IN: AnimalInfo in the aggregated files holds the dialog defaults (Ai148/Rorb, m, GCaMP6f, placeholder dates), not real values"

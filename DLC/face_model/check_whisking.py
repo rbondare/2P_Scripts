@@ -128,6 +128,67 @@ def make(args):
     print('wrote %d clips to %s' % (len(key), args.out_dir))
 
 
+def make_strat(args):
+    """Clips sampled by the window-mean whisking index instead of the code's on/off call: --per-bin windows from every bin of
+    the index range (default bins cover the ambiguous 1.3-1.75 band that 'make' never samples), --clip-s seconds long, pooled
+    over all sessions. code_says = whisking if the window is mostly 'on'. Score with the same 'score' command, and look at
+    your answers against mean_index in answer_key.csv to set the threshold."""
+    global CLIP_S
+    CLIP_S = args.clip_s
+    os.makedirs(args.out_dir, exist_ok=True)
+    rng = np.random.default_rng(args.seed)
+    n = int(CLIP_S * fm.FPS)
+    edges = [float(b) for b in args.bins.split(',')]
+    pool = {b: [] for b in range(len(edges) - 1)}
+    meta = {}
+    for pair in args.sessions:
+        video, csv_path = pair.split('|')
+        idx, on, art = load(csv_path)
+        info = json.load(open(csv_path.replace('_whisker.csv', '_whisker.json')))
+        session = info['session']
+        meta[session] = (video, tuple(info['anchor_median_xy_px']), idx, on)
+        starts = np.arange(int(SKIP_START_S * fm.FPS), len(idx) - n, int(fm.FPS))
+        c = np.concatenate([[0], np.cumsum(idx)])
+        ca = np.concatenate([[0], np.cumsum(art)])
+        mean = (c[starts + n] - c[starts]) / n
+        clean = (ca[starts + n] - ca[starts]) == 0
+        for b in pool:
+            pool[b] += [(session, int(s)) for s in starts[clean & (mean >= edges[b]) & (mean < edges[b + 1])]]
+    items = []
+    for b, cand in pool.items():
+        chosen = []
+        for j in rng.permutation(len(cand)):
+            session, s = cand[j]
+            if all(session != s2 or abs(s - st2) > 30 * fm.FPS for s2, st2 in [(x[0], x[1]) for x in chosen] + [(x[0], x[1]) for x in items]):
+                chosen.append((session, s, b))
+            if len(chosen) == args.per_bin:
+                break
+        items += chosen
+        print('bin %.2f-%.2f: %d candidate windows, %d chosen' % (edges[b], edges[b + 1], len(cand), len(chosen)))
+    order = rng.permutation(len(items))
+    key = []
+    for rank, i in enumerate(order, 1):
+        session, s, b = items[i]
+        video, anchor, idx, on = meta[session]
+        name = 'clip_%02d' % rank
+        ok = render(video, s, anchor, idx, os.path.join(args.out_dir, name + '.mp4'), name, False)
+        onf = float(on[s:s + n].mean())
+        key.append(dict(clip=name, code_says='whisking' if onf > 0.5 else 'rest', session=session, start_s=round(s / fm.FPS, 1),
+                        mean_index=round(float(idx[s:s + n].mean()), 2), rendered=ok, on_fraction=round(onf, 2),
+                        bin='%.2f-%.2f' % (edges[b], edges[b + 1])))
+        print(name, 'done' if ok else 'SHORT READ', flush=True)
+    with open(os.path.join(args.out_dir, 'answer_key.csv'), 'w', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=list(key[0]))
+        w.writeheader()
+        w.writerows(key)
+    with open(os.path.join(args.out_dir, 'your_answers.csv'), 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['clip', 'whisking (y/n/?)'])
+        for k in key:
+            w.writerow([k['clip'], ''])
+    print('wrote %d clips to %s' % (len(key), args.out_dir))
+
+
 def score(args):
     key = {r['clip']: r for r in csv.DictReader(open(os.path.join(args.out_dir, 'answer_key.csv')))}
     ans = {}
@@ -164,6 +225,14 @@ def main():
                    help='draw the whisking index under the clip (shows the code\'s answer, so not blind)')
     m.add_argument('sessions', nargs='+', help='"<raw video.mp4>|<session_whisker.csv>" (one argument per session)')
     m.set_defaults(func=make)
+    st = sub.add_parser('make-strat', help='clips sampled by window-mean index (all levels), pooled over sessions')
+    st.add_argument('--out-dir', required=True)
+    st.add_argument('--per-bin', type=int, default=5)
+    st.add_argument('--clip-s', type=float, default=3.0)
+    st.add_argument('--bins', default='0,1.15,1.3,1.45,1.6,1.75,99', help='comma separated index bin edges')
+    st.add_argument('--seed', type=int, default=0)
+    st.add_argument('sessions', nargs='+', help='"<raw video.mp4>|<session_whisker.csv>" (one argument per session)')
+    st.set_defaults(func=make_strat)
     s = sub.add_parser('score')
     s.add_argument('--out-dir', required=True)
     s.set_defaults(func=score)

@@ -1,0 +1,41 @@
+session,pool,flag_reason,curation,tags,quality,visible_activity,comments,notion_planes,notion_quality,notion_visible_activity,notion_comments,notion_suite2p,notion_stimuli_camera,seeded_from
+AnimalRB22_261017_1247,,,,,,,,,,,,,,
+AnimalRB22_261023_1314,,,,,,,,,,,,,,
+AnimalRB22_261023_1427,yes,,,,,,,,,,,,,"session_qc.csv (analysed, not flagged)"
+AnimalRB22_261027_1138,yes,,,grey_recorded,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.GREY_SESSIONS"
+AnimalRB22_261028_1503,,,,,,,,,,,,,,
+AnimalRB22_261028_1539,,,,,,,,,,,,,,
+AnimalRB22_261028_1631,,,,,,,,,,,,,,
+AnimalRB22_261029_1516,,,,,,,,,,,,,,
+AnimalRB23_261017_1511,,,,,,,,,,,,,,
+AnimalRB23_261021_1747,,,,,,,,,,,,,,
+AnimalRB23_261022_1908,,,,,,,,,,,,,,
+AnimalRB23_261022_2004,,,,,,,,,,,,,,
+AnimalRB23_261023_1642,yes,,,grey_recorded,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.GREY_SESSIONS"
+AnimalRB23_261027_1306,no,"face / whisking / pupil tracking inconsistent (face-whisk r 0.09), 4 signal-like ROIs",,grey_recorded,,,,,,,,,,fig_common.FLAG + fig_common.GREY_SESSIONS
+AnimalRB23_261027_1423,yes,,,,,,,,,,,,,"session_qc.csv (analysed, not flagged)"
+AnimalRB23_261028_1714,,,,,,,,,,,,,,
+AnimalRB23_261029_1704,no,"face / whisking / pupil tracking inconsistent (face-whisk r 0.13), 3 signal-like ROIs",,task_analysis,,,,,,,,,,fig_common.FLAG + fig_common.TASK_SESSIONS
+AnimalRB23_261030_1546,,,,,,,,,,,,,,
+AnimalRB24_261017_1620,,,,,,,,,,,,,,
+AnimalRB24_261021_1630,yes,,,,,,,,,,,,,"session_qc.csv (analysed, not flagged)"
+AnimalRB24_261021_1826,,,,,,,,,,,,,,
+AnimalRB24_261022_2026,,,,,,,,,,,,,,
+AnimalRB24_261023_1453,,,,,,,,,,,,,,
+AnimalRB24_261023_1527,no,"interrupted, 6 min: circular null has few independent lags",,,,,,,,,,,,fig_common.FLAG
+AnimalRB24_261023_1538,yes,,,grey_recorded,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.GREY_SESSIONS"
+AnimalRB24_261027_1456,yes,,,,,,,,,,,,,"session_qc.csv (analysed, not flagged)"
+AnimalRB24_261027_1534,yes,,,grey_recorded,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.GREY_SESSIONS"
+AnimalRB24_261029_1752,yes,,,task_analysis,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.TASK_SESSIONS"
+AnimalRB24_261030_1744,yes,,,task_analysis,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.TASK_SESSIONS"
+AnimalRB24_261104_1540,,,,,,,,,,,,,,
+AnimalRB24_261104_1640,no,"7 min, 5-plane: circular null has few independent lags, no recorded grey",,rois_unusable,,,,,,,,,,fig_common.FLAG + fov_common.EXCLUDE_ROI_SESSIONS
+AnimalRB24_261104_1651,yes,,,,,,,,,,,,,"session_qc.csv (analysed, not flagged)"
+AnimalRB24_261105_1423,yes,,,task_analysis,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.TASK_SESSIONS"
+AnimalRB24_261105_1520,yes,,,task_analysis,,,,,,,,,,"session_qc.csv (analysed, not flagged) + fig_common.TASK_SESSIONS"
+AnimalRB24_261105_1549,,,,,,,,,,,,,,
+AnimalRB24_261106_1317,no,"11-06: very little behavioural range, ball reads running 82%",,task_analysis,,,,,,,,,,fig_common.FLAG + fig_common.TASK_SESSIONS
+AnimalRB24_261106_1529,no,"11-06: very little behavioural range, ball reads running 79%",,,,,,,,,,,,fig_common.FLAG
+AnimalRB24_261106_1555,,,,,,,,,,,,,,
+AnimalRB24_261106_1604,no,"11-06: very little behavioural range, ball reads running 71%",,grey_recorded,,,,,,,,,,fig_common.FLAG + fig_common.GREY_SESSIONS
+AnimalRB24_261109_1506,,,,,,,,,,,,,,
