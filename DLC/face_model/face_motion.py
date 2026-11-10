@@ -1,6 +1,7 @@
 """Whisking on/off and amplitude, and face motion, from the raw camera video, in regions anchored on the nose tip.
 
     python face_motion.py <raw video.mp4> <face csv from analyze_face.py> --out-dir <folder> [--name <session name>]
+    python face_motion.py --reclassify <raw video.mp4> <whisker csv> --out-dir <folder>    (new REST / rules, no decoding)
 
 The face DLC model (analyze_face.py) tracks the nose tip. The head sits in a different place in every session (the
 median nose position differs by up to ~120 px between sessions), so every region is placed relative to the nose. If the
@@ -8,22 +9,33 @@ face csv covers the whole video the anchor is the rolling median of the confiden
 if it covers only one clip the anchor is the median over that clip; if it holds several sampled clips
 (analyze_face.py --sample) the anchor follows the clip medians over the session. Regions (dx0, dy0, dx1, dy1 from the
 anchor, full-resolution px):
-  fan_front  whisker shafts in front of and above the snout
-  fan_down   whisker shafts hanging below the pad
+  front_top  whisker shafts in front of and above the snout, ABOVE the lick spout: the whisking index (WHISKER_BOX)
+  fan_front  the whole fan in front of the snout; its lower part holds the spout tip in lick sessions (not used for
+             the index, kept in the csv for comparison)
+  fan_down   chin, lower jaw, tongue and the shafts hanging below the pad: JAW / LICK motion, not whisking
   pad        whisker pad skin right of the nose: face motion (moves with whisking, but also with chewing, breathing)
   ctrl       background without face or body, a noise reference
+Why front_top only (RB24_261109_1506, 4,734 licks with the independent lick line): licking explains 45% of the variance of
+the former index (mean of fan_front and fan_down) and 93% of its running-vs-still contrast, 87% of that through the
+jaw box; front_top has 0.2% lick-explained variance and a lick effect of 4% of the running contrast (CI 0-9%) while keeping
+the largest running-vs-still effect size (d 1.16 vs 1.02). See axon analysis/whisking_lick_check/.
 Motion energy (ME) = mean |frame t - frame t-1| inside a region (both frames cropped at the same absolute position),
-after a 1 px Gaussian blur. The raw video is MPEG-4 with a keyframe every 12 frames; the keyframe and the frame after
-it carry codec noise, not motion (up to 4x background), so these two frames of every 12 are interpolated.
+after a 1 px Gaussian blur. The raw video has a keyframe every 12 frames; the keyframe and the frame after it carry codec
+noise, not motion (up to 4x background), so these two frames of every 12 are interpolated.
 
-whisk_index = mean over the two whisker regions of (smoothed ME / REST), where REST is the resting ME of that region
-(median over the sessions that have a clear rest period), so 1 = whiskers at rest and the scale is the same in every
-session. A per-session floor cannot be used: some mice whisk through the whole session and have no rest period.
+whisk_index = smoothed ME of front_top / REST, where REST is the resting ME of that region (median over the sessions
+that have a clear rest period) for the codec of the video, so 1 = whiskers at rest. The camera files were MPEG-4
+(~24 Mb/s) up to 2026-10-29 and are H.264 (~50 Mb/s) since 2026-10-30; the H.264 files keep much more sensor noise, so
+the resting ME is about twice as high and each codec has its own REST (see calibrate_rest.py). A per-session floor
+cannot be used: some mice whisk through the whole session and have no rest period.
 whisk_on = hysteresis threshold at THRESH_X * REST (short gaps closed, short bouts dropped). whisk_amp = index - 1
 (0 = rest). Between 'held back' and 'clearly whisking' there is a continuum, so the threshold is a convention:
-whisk_amp carries the graded information. ME follows the speed of the whiskers, not their angle.
+whisk_amp carries the graded information. ME follows the speed of the whiskers, not their angle, and cannot tell whisker
+motion from head motion.
 Frames with an implausibly high index (a forepaw in front of the face when grooming) are flagged as artifact and
-left empty in whisk_amp and whisk_on.
+left empty in whisk_amp and whisk_on. The flag is raised when either the whisking index or the whole-face motion (the former
+two-box index of fan_front and fan_down) exceeds ARTIFACT_X times its own 95th percentile, because grooming mostly shows in
+the jaw / pad boxes and hardly in front_top.
 """
 import argparse
 import csv
@@ -45,20 +57,29 @@ MIN_SAMPLE_FRAMES = 25  # confident nose frames a sampled clip needs to count
 BLUR_SIGMA_PX = 1.0
 BOXES = {
     'fan_front': (-260, -110, 60, 200),
+    'front_top': (-260, -110, 60, 0),
     'fan_down': (60, 80, 300, 300),
     'pad': (60, -100, 260, 60),
     'ctrl': (-320, -300, -200, -180),
 }
-WHISKER_BOXES = ('fan_front', 'fan_down')
-# resting ME (gray levels/frame) of the whisker regions: median of the per-session 3rd percentile of the smoothed ME over
-# the 8 of 13 sessions (RB22, RB23, RB24, 2026-10) that have a clear rest period; range 0.36-0.57
-REST = {'fan_front': 0.447, 'fan_down': 0.450}
+WHISKER_BOX = 'front_top'
+# resting ME (gray levels/frame) of the whisker region (front_top) per video codec: median over the sessions of that codec
+# that have a clear rest period (10th percentile within 15% of the 3rd) of the per-session 3rd percentile of the smoothed
+# ME, calibrate_rest.py on the 43 RB22-24 sessions of 2026-10-17..11-09 (14 of 29 MPEG-4 sessions, range 0.30-0.58, CV 18%;
+# 9 of 14 H.264 sessions, range 0.84-1.65, the tight cluster of 10-30..11-05 RB24 sessions is 0.84-0.98). MPEG-4 is the
+# camera file format up to 2026-10-29, H.264 (50 Mb/s, ~2x the sensor noise) from 2026-10-30.
+REST = {'mpeg4': 0.473, 'h264': 0.952}
 SMOOTH_SIGMA_FRAMES = 3  # 60 ms
 THRESH_X = 1.6  # on/off threshold in multiples of the resting level
 HYSTERESIS = 0.1  # on above thr*(1+h), off below thr*(1-h)
 MIN_GAP_S = 0.3  # off periods shorter than this inside a bout are closed
 MIN_BOUT_S = 0.3  # on periods shorter than this are dropped
 ARTIFACT_X = 2.0  # smoothed index above this multiple of its 95th percentile is not whisking
+# A forepaw / grooming shows up mostly in the jaw and pad boxes and hardly at all in front_top (RB24_261105_1549: 3 grooming
+# episodes, 8-12x median in fan_down, front_top <= 1.5x its 95th percentile), so the artifact flag also uses the former
+# two-box motion index (mean of fan_front and fan_down over these fixed scales; only its ratio to its own 95th percentile
+# matters). This keeps the flags of the earlier version, which were checked on frames.
+ARTIFACT_BOXES = {'fan_front': 0.447, 'fan_down': 0.450}
 ARTIFACT_PAD_S = 0.5  # flagged periods are widened by this much on both sides
 
 
@@ -71,6 +92,20 @@ def find_tool(name):
         if os.path.isfile(p):
             return p
     raise FileNotFoundError(name + ' not found on PATH (activate the dlc-tf environment)')
+
+
+def video_codec(video):
+    """Codec name of the first video stream ('mpeg4', 'h264', ...)."""
+    out = subprocess.run([find_tool('ffprobe'), '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+                          'stream=codec_name', '-of', 'csv=p=0', video], capture_output=True, text=True, check=True)
+    return out.stdout.strip().split(',')[0]
+
+
+def rest_for(codec):
+    if codec not in REST:
+        raise RuntimeError("no resting level for codec '%s': run calibrate_rest.py on sessions of this codec and add it to REST"
+                           % codec)
+    return REST[codec]
 
 
 def keyframes(video):
@@ -208,11 +243,13 @@ def clean_me(me, video):
     return {k: drop_codec_frames(v, is_key) for k, v in me.items()}
 
 
-def classify(me):
-    """From the cleaned ME traces to the whisking index, artifact flags and on/off state."""
+def classify(me, rest):
+    """From the cleaned ME traces to the whisking index, artifact flags and on/off state. rest = resting ME of WHISKER_BOX."""
     sm = {k: gaussian_filter1d(v, SMOOTH_SIGMA_FRAMES) for k, v in me.items()}
-    index = np.mean([sm[k] / REST[k] for k in WHISKER_BOXES], axis=0)
-    artifact = binary_dilation(index > ARTIFACT_X * np.percentile(index, 95), iterations=int(ARTIFACT_PAD_S * FPS))
+    index = sm[WHISKER_BOX] / rest
+    motion = np.mean([sm[k] / r for k, r in ARTIFACT_BOXES.items()], axis=0)  # whole-face motion (the former index)
+    odd = (index > ARTIFACT_X * np.percentile(index, 95)) | (motion > ARTIFACT_X * np.percentile(motion, 95))
+    artifact = binary_dilation(odd, iterations=int(ARTIFACT_PAD_S * FPS))
     thr = THRESH_X
     on = hysteresis(index, thr * (1 - HYSTERESIS), thr * (1 + HYSTERESIS))
     on = clean_bouts(on, int(MIN_GAP_S * FPS), int(MIN_BOUT_S * FPS))
@@ -225,10 +262,28 @@ def process(video, face_csv, name=None):
     n_frames, width, height = video_frames(video)
     face = pd.read_csv(face_csv, index_col=0)
     anchor = nose_anchor(face, n_frames)
+    codec = video_codec(video)
+    rest = rest_for(codec)
     me = anchored_motion_energy(video, anchor)
     me = clean_me(me, video)
-    res = classify(me)
-    res.update(name=name, video=video, size=(width, height), anchor=anchor, me=me, face_frames=len(face))
+    res = classify(me, rest)
+    res.update(name=name, video=video, size=(width, height), anchor=anchor, me=me, face_frames=len(face), codec=codec, rest=rest)
+    return res
+
+
+def reclassify(video, whisker_csv, name=None):
+    """Same result as process() but from the ME traces of an earlier run (the me_* columns of its csv and the anchor
+    columns): a new REST or new rules without decoding the video again. The anchor is that run's per-frame anchor."""
+    T = pd.read_csv(whisker_csv)
+    me = {k: T['me_' + k].values.astype(float) for k in BOXES}
+    anchor = [T['anchor_x'].values.astype(int), T['anchor_y'].values.astype(int)]
+    info = json.load(open(whisker_csv.replace('_whisker.csv', '_whisker.json')))
+    _, width, height = video_frames(video)
+    codec = video_codec(video)
+    rest = rest_for(codec)
+    res = classify(me, rest)
+    res.update(name=name or info['session'], video=video, size=(width, height), anchor=anchor, me=me,
+               face_frames=info['face_track_frames'], codec=codec, rest=rest)
     return res
 
 
@@ -239,6 +294,7 @@ def summary(res):
     ax, ay = res['anchor']
     return dict(
         session=res['name'], frames=n, fps=FPS, face_track_frames=res['face_frames'],
+        codec=res['codec'], whisker_box=WHISKER_BOX,
         anchor_median_xy_px=[int(np.median(ax)), int(np.median(ay))],
         anchor_range_px=[int(ax.max() - ax.min()), int(ay.max() - ay.min())],
         boxes_rel_to_nose_px={k: list(v) for k, v in BOXES.items()},
@@ -246,10 +302,11 @@ def summary(res):
         n_bouts=len(bouts), median_bout_s=round(float(np.median([b - a for a, b in bouts])) / FPS, 2) if bouts else None,
         index_p5=round(float(np.percentile(idx, 5)), 2), index_median=round(float(np.median(idx)), 2),
         index_p95=round(float(np.percentile(idx, 95)), 2),
-        rest_level=dict(REST), threshold_x_rest=THRESH_X,
+        rest_level={WHISKER_BOX: res['rest']}, threshold_x_rest=THRESH_X,
         ctrl_me_median=round(float(np.median(res['me']['ctrl'])), 3),
         params=dict(blur_sigma_px=BLUR_SIGMA_PX, smooth_sigma_frames=SMOOTH_SIGMA_FRAMES, hysteresis=HYSTERESIS,
-                    min_gap_s=MIN_GAP_S, min_bout_s=MIN_BOUT_S, artifact_x_p95=ARTIFACT_X, artifact_pad_s=ARTIFACT_PAD_S))
+                    min_gap_s=MIN_GAP_S, min_bout_s=MIN_BOUT_S, artifact_x_p95=ARTIFACT_X, artifact_pad_s=ARTIFACT_PAD_S,
+                    artifact_motion_boxes=dict(ARTIFACT_BOXES)))
 
 
 def write_outputs(res, out_dir):
@@ -259,11 +316,14 @@ def write_outputs(res, out_dir):
     me = res['me']
     with open(os.path.join(out_dir, name + '_whisker.csv'), 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['frame', 'time_s', 'whisk_index', 'whisk_amp', 'whisk_on', 'artifact'] + ['me_' + k for k in BOXES])
+        w.writerow(['frame', 'time_s', 'whisk_index', 'whisk_amp', 'whisk_on', 'artifact'] + ['me_' + k for k in BOXES] +
+                   ['anchor_x', 'anchor_y'])
+        ax, ay = res['anchor']
         for i in range(n):
+            a = min(i, len(ax) - 1)
             w.writerow([i, '%.2f' % (i / FPS), '%.3f' % res['index'][i],
                         '' if art[i] else '%.3f' % res['amp'][i], '' if art[i] else int(res['on'][i]), int(art[i])] +
-                       ['%.4f' % me[k][i] for k in BOXES])
+                       ['%.4f' % me[k][i] for k in BOXES] + [int(ax[a]), int(ay[a])])
     info = summary(res)
     with open(os.path.join(out_dir, name + '_whisker.json'), 'w') as f:
         json.dump(info, f, indent=2)
@@ -302,8 +362,9 @@ def qc_figure(res, path):
     lo = float(np.clip(t[-1] / 2 - 30, 0, max(t[-1] - 60, 0)))
     seg = slice(int(lo * FPS), int((lo + 60) * FPS))
     ax.plot(t[seg], idx[seg], lw=.8, c='tab:blue', label='whisking index')
-    ax.plot(t[seg], gaussian_filter1d(res['me']['pad'], SMOOTH_SIGMA_FRAMES)[seg] / 0.5, lw=.6, c='tab:orange', alpha=.7,
-            label='pad (face) motion / 0.5')
+    for k, col, lab in (('fan_down', 'tab:red', 'jaw / lick motion'), ('pad', 'tab:orange', 'pad (face) motion')):
+        sm = gaussian_filter1d(res['me'][k], SMOOTH_SIGMA_FRAMES)
+        ax.plot(t[seg], sm[seg] / np.percentile(sm, 5), lw=.6, c=col, alpha=.6, label=lab + ' (x its 5th pct)')
     ax.axhline(THRESH_X, c='tab:orange', ls='--', lw=1)
     shade(ax, lo, lo + 60)
     ax.set_xlim(lo, lo + 60)
@@ -325,15 +386,15 @@ def qc_figure(res, path):
     if ok:
         ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         ax0, ay0 = res['anchor'][0][n // 2], res['anchor'][1][n // 2]
-        for k, col in zip(BOXES, ('lime', 'magenta', 'orange', 'cyan')):
+        for k, col in zip(BOXES, ('yellow', 'lime', 'magenta', 'orange', 'cyan')):
             x0, y0, x1, y1 = BOXES[k]
-            ax.add_patch(plt.Rectangle((ax0 + x0, ay0 + y0), x1 - x0, y1 - y0, fill=False, ec=col, lw=2))
+            ax.add_patch(plt.Rectangle((ax0 + x0, ay0 + y0), x1 - x0, y1 - y0, fill=False, ec=col, lw=3 if k == WHISKER_BOX else 1))
         ax.plot(ax0, ay0, 'r.', ms=8)
         ax.set_xlim(max(ax0 - 450, 0), min(ax0 + 450, res['size'][0]))
         ax.set_ylim(min(ay0 + 400, res['size'][1]), max(ay0 - 350, 0))
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_title('regions on the middle frame (red = nose anchor)')
+    ax.set_title('regions on the middle frame (thick green = whisking index, red = nose anchor)', fontsize=9)
     ax = fig.add_subplot(gs[2, 2])
     ax.axis('off')
     info = summary(res)
@@ -344,7 +405,8 @@ def qc_figure(res, path):
         'index 5th / median / 95th pct:', '  %.1f / %.1f / %.1f' % (info['index_p5'], info['index_median'], info['index_p95']),
         'artifact (grooming etc.): %.1f%%' % (100 * info['fraction_artifact']),
         'nose anchor: (%d, %d), moved %s px' % (*info['anchor_median_xy_px'], info['anchor_range_px']),
-        'background ME median: %.2f' % info['ctrl_me_median']]),
+        'background ME median: %.2f' % info['ctrl_me_median'],
+        'codec %s, rest (index 1) = %.3f ME' % (info['codec'], res['rest'])]),
         va='top', family='monospace', fontsize=11)
     fig.tight_layout()
     fig.savefig(path, dpi=80)
@@ -354,11 +416,13 @@ def qc_figure(res, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('video')
-    ap.add_argument('face_csv')
+    ap.add_argument('face_csv', help='face csv from analyze_face.py (with --reclassify: the whisker csv of an earlier run)')
     ap.add_argument('--out-dir', required=True)
     ap.add_argument('--name', help='name for the output files (default: the video file name)')
+    ap.add_argument('--reclassify', action='store_true',
+                    help='redo REST / index / artifact / on-off from the ME columns of an earlier whisker csv (no decoding)')
     args = ap.parse_args()
-    res = process(args.video, args.face_csv, args.name)
+    res = reclassify(args.video, args.face_csv, args.name) if args.reclassify else process(args.video, args.face_csv, args.name)
     info = write_outputs(res, args.out_dir)
     print('whisking %.0f%%, %d bouts (median %.1f s), artifact %.1f%%, index 5/50/95 pct %.1f/%.1f/%.1f' % (
         100 * info['fraction_whisking'], info['n_bouts'], info['median_bout_s'] or 0, 100 * info['fraction_artifact'],

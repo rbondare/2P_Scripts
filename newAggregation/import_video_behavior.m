@@ -104,18 +104,31 @@ function import_video_behavior(varargin)
 %
 %   Whisking and face motion (only if whisker_results\<recording>_whisker.csv exists; made by face_motion.py
 %   from the raw face video, the method is described at the top of that file)
-%     WhiskIndex       Nx1  Whisker motion relative to rest, unitless and on the same scale in every session:
-%                           1 = whiskers at rest, larger = faster whisker movement (it follows the speed of
-%                           the whiskers, not their angle). Always a number, but not meaningful on
-%                           WhiskArtifact frames.
+%     WhiskIndex       Nx1  Whisker motion relative to rest, unitless: motion energy of the UPPER whisker region
+%                           (front_top, above the lick spout, so licking does not drive it) divided by its
+%                           resting level. 1 = whiskers at rest, larger = faster whisker movement (it follows the
+%                           speed of the whiskers, not their angle, and cannot tell whisker movement from head
+%                           movement). The resting level is set per video codec (MPEG-4 up to 2026-10-29, H.264
+%                           from 2026-10-30; the H.264 files keep much more sensor noise), see
+%                           VideoParams.Whisker.rest_level / .codec. Always a number, but not meaningful on
+%                           WhiskArtifact frames. Before 2026-11-10 this was the mean of two boxes (one of them
+%                           the jaw): lick-driven and on a different scale from 2026-10-30 on; VideoParams.Whisker
+%                           has the field whisker_box ('front_top') only in the new version.
 %     WhiskAmp         Nx1  WhiskIndex - 1, floored at 0: 0 = at rest, graded amount of whisking.
 %                           NaN on WhiskArtifact frames.
 %     WhiskOn          Nx1  Whisking state: 1 = whisking, 0 = not. WhiskIndex above 1.6 x rest (hysteresis
 %                           +-10%), pauses < 0.3 s inside a bout are closed, bouts < 0.3 s are dropped.
 %                           NaN on WhiskArtifact frames.
 %     WhiskArtifact    Nx1  1 = motion that is not whisking (grooming, a forepaw in front of the face):
-%                           WhiskIndex > 2 x its 95th percentile in the recording, widened by 0.5 s on
-%                           both sides. 0 otherwise.
+%                           WhiskIndex, or the whole-face motion (the former two-box index of the upper whisker
+%                           region and the jaw region), above 2 x its own 95th percentile in the recording,
+%                           widened by 0.5 s on both sides. 0 otherwise. Grooming shows mostly in the jaw / pad
+%                           boxes, hence the second criterion.
+%     JawME            Nx1  Motion energy of the jaw / lick region (chin, lower jaw, tongue and the shafts hanging
+%                           below the pad; the former second whisker region): mean |frame(t) - frame(t-1)| inside
+%                           the region, gray levels per frame, not normalized. Licking and chewing dominate it
+%                           (45% of the variance of the old index was lick-driven, 87% of that through this
+%                           region); use it as the movement covariate for lick-related analyses. Added 2026-11-10.
 %     FacePadME        Nx1  Motion energy of the whisker-pad skin: mean |frame(t) - frame(t-1)| inside the
 %                           pad region, in gray levels per frame. Also moves with chewing and breathing.
 %                           Not normalized to rest.
@@ -145,13 +158,15 @@ function import_video_behavior(varargin)
 %         fraction_artifact                  fraction of all frames with WhiskArtifact = 1
 %         n_bouts, median_bout_s             number and median duration (s) of whisking bouts
 %         index_p5, index_median, index_p95  percentiles of WhiskIndex over the non-artifact frames
-%         rest_level                         resting motion energy of the fan_front and fan_down regions
-%                                            (= WhiskIndex 1)
+%         codec, whisker_box                 video codec ('mpeg4' / 'h264') and the region the index is made from
+%                                            ('front_top'; the field is absent in the version before 2026-11-10)
+%         rest_level                         resting motion energy of that region for this codec, a struct with
+%                                            one field named like the region (= WhiskIndex 1)
 %         threshold_x_rest                   whisking threshold in multiples of rest (1.6)
 %         ctrl_me_median                     median motion energy of the background region (noise level)
 %         anchor_median_xy_px, anchor_range_px   median nose position the regions are placed on, and how far
 %                                            it moved over the recording, full-frame px
-%         boxes_rel_to_nose_px               the four regions [dx0 dy0 dx1 dy1] relative to the nose, px
+%         boxes_rel_to_nose_px               the five regions [dx0 dy0 dx1 dy1] relative to the nose, px
 %         face_track_frames, params          frames of the face-model track used; smoothing/artifact settings
 %     selected_frameIdx      added later by save_preprocessed: the video frames kept to match the triggers
 %
@@ -577,41 +592,6 @@ else
         'Median eyelid opening is %g px; the eyelid criterion of PupilBad is not applied', lid_ref_px);
 end
 bad = movmax(double(bad), 2 * params.pupil_pad_frames + 1) > 0;
-
-end
-
-
-function [Behav, VideoParams] = add_whisker_data(exp_path, exp_name, Behav, VideoParams)
-%ADD_WHISKER_DATA Add whisking on/off, amplitude and face motion from whisker_results\
-%   Every trace is an N-by-1 column (N = video frames) in Behav, so the generic row selection by
-%   selected_frameIdx in save_preprocessed / add_dlc_to_preprocessed keeps it aligned with the eye and
-%   body traces. (A field in DLCSupporting would NOT be selected: only Probability/Pupil/Ball are.)
-
-wfile = fullfile(exp_path, 'whisker_results', [exp_name '_whisker.csv']);
-if ~exist(wfile, 'file')
-    fprintf('      No whisker_results found, skipping whisker import\n');
-    return;
-end
-
-T = readtable(wfile);
-if height(T) ~= numel(Behav.FrameNum)
-    warning('import_video_behavior:whiskerFrames', ...
-        'Whisker csv has %d frames but the DLC csv has %d; whisker data NOT imported', ...
-        height(T), numel(Behav.FrameNum));
-    return;
-end
-
-Behav.WhiskIndex    = T.whisk_index;   % 1 = whiskers at rest, same scale in every session
-Behav.WhiskAmp      = T.whisk_amp;     % index - 1; NaN on artifact frames
-Behav.WhiskOn       = T.whisk_on;      % 0/1; NaN on artifact frames
-Behav.WhiskArtifact = T.artifact;      % 1 = grooming etc.
-Behav.FacePadME     = T.me_pad;        % whisker-pad (face) motion energy
-
-jfile = fullfile(exp_path, 'whisker_results', [exp_name '_whisker.json']);
-if exist(jfile, 'file')
-    VideoParams.Whisker = jsondecode(fileread(jfile));
-end
-fprintf('      Imported whisker data (%d frames)\n', height(T));
 
 end
 
