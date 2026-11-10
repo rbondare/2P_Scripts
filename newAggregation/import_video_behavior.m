@@ -116,9 +116,13 @@ function import_video_behavior(varargin)
 %                           has the field whisker_box ('front_top') only in the new version.
 %     WhiskAmp         Nx1  WhiskIndex - 1, floored at 0: 0 = at rest, graded amount of whisking.
 %                           NaN on WhiskArtifact frames.
-%     WhiskOn          Nx1  Whisking state: 1 = whisking, 0 = not. WhiskIndex above 1.6 x rest (hysteresis
-%                           +-10%), pauses < 0.3 s inside a bout are closed, bouts < 0.3 s are dropped.
-%                           NaN on WhiskArtifact frames.
+%     WhiskOn          Nx1  Whisking state: 1 = whisking, 0 = not. Hysteresis on WhiskIndex, levels per codec: MPEG-4
+%                           on above 1.76 / off below 1.44 (1.6 x rest +-10%), H.264 on above 1.45 / off below 1.40
+%                           (VideoParams.Whisker.whisk_on_above_index / whisk_off_below_index; since 2026-11-10 the
+%                           H.264 levels were set from 51 blind human labels, with 1.76 the state missed sustained
+%                           moderate whisking; before that H.264 sessions also used 1.76 / 1.44). Pauses < 0.3 s inside
+%                           a bout are closed, bouts < 0.3 s are dropped. NaN on WhiskArtifact frames. A binary state
+%                           is a convention: WhiskIndex / WhiskAmp carry the graded information.
 %     WhiskArtifact    Nx1  1 = motion that is not whisking (grooming, a forepaw in front of the face):
 %                           WhiskIndex, or the whole-face motion (the former two-box index of the upper whisker
 %                           region and the jaw region), above 2 x its own 95th percentile in the recording,
@@ -162,7 +166,10 @@ function import_video_behavior(varargin)
 %                                            ('front_top'; the field is absent in the version before 2026-11-10)
 %         rest_level                         resting motion energy of that region for this codec, a struct with
 %                                            one field named like the region (= WhiskIndex 1)
-%         threshold_x_rest                   whisking threshold in multiples of rest (1.6)
+%         whisk_off_below_index, whisk_on_above_index   the WhiskOn hysteresis levels on WhiskIndex (field names of
+%                                            the 2026-11-10 H.264 version; results saved before have threshold_x_rest
+%                                            = 1.6 and params.hysteresis = 0.1, i.e. 1.44 / 1.76, which is what
+%                                            every MPEG-4 session still uses)
 %         ctrl_me_median                     median motion energy of the background region (noise level)
 %         anchor_median_xy_px, anchor_range_px   median nose position the regions are placed on, and how far
 %                                            it moved over the recording, full-frame px

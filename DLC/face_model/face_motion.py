@@ -28,10 +28,15 @@ that have a clear rest period) for the codec of the video, so 1 = whiskers at re
 (~24 Mb/s) up to 2026-10-29 and are H.264 (~50 Mb/s) since 2026-10-30; the H.264 files keep much more sensor noise, so
 the resting ME is about twice as high and each codec has its own REST (see calibrate_rest.py). A per-session floor
 cannot be used: some mice whisk through the whole session and have no rest period.
-whisk_on = hysteresis threshold at THRESH_X * REST (short gaps closed, short bouts dropped). whisk_amp = index - 1
-(0 = rest). Between 'held back' and 'clearly whisking' there is a continuum, so the threshold is a convention:
-whisk_amp carries the graded information. ME follows the speed of the whiskers, not their angle, and cannot tell whisker
-motion from head motion.
+whisk_on = hysteresis threshold on the index, ON_OFF per codec (short gaps closed, short bouts dropped): MPEG-4 on above
+1.76 / off below 1.44 (1.6 x REST +-10 %), H.264 on above 1.45 / off below 1.40. whisk_amp = index - 1 (0 = rest).
+Between 'held back' and 'clearly whisking' there is a continuum, so the threshold is a convention: whisk_amp carries the
+graded information. ME follows the speed of the whiskers, not their angle, and cannot tell whisker motion from head motion.
+The H.264 levels come from blind human labels (51 clips, 30 whisking / 21 still, RB24 H.264 sessions): the MPEG-4 rule
+called 6 of them wrong (all whisking called rest, 0 false), 1.45 / 1.40 calls 3 wrong, and it makes the binary state
+couple to the LC-axon dF/F as well as the continuous index (6 sessions). The H.264 noise floor needs about twice as much
+whisker motion for the same index, so 1.76 was too insensitive there. Not changed for MPEG-4 (22 of 23 blind clips right).
+See axon analysis/whisking_lick_check/fix2_rollout/h264_blind_check/.
 Frames with an implausibly high index (a forepaw in front of the face when grooming) are flagged as artifact and
 left empty in whisk_amp and whisk_on. The flag is raised when either the whisking index or the whole-face motion (the former
 two-box index of fan_front and fan_down) exceeds ARTIFACT_X times its own 95th percentile, because grooming mostly shows in
@@ -70,8 +75,9 @@ WHISKER_BOX = 'front_top'
 # camera file format up to 2026-10-29, H.264 (50 Mb/s, ~2x the sensor noise) from 2026-10-30.
 REST = {'mpeg4': 0.473, 'h264': 0.952}
 SMOOTH_SIGMA_FRAMES = 3  # 60 ms
-THRESH_X = 1.6  # on/off threshold in multiples of the resting level
-HYSTERESIS = 0.1  # on above thr*(1+h), off below thr*(1-h)
+# whisk_on hysteresis on the index (1 = rest) per codec: (off below, on above). MPEG-4: 1.6 x REST +-10 % (unchanged since the
+# first version); H.264: 1.40 / 1.45, set from the blind labels (docstring).
+ON_OFF = {'mpeg4': (1.6 * (1 - 0.1), 1.6 * (1 + 0.1)), 'h264': (1.40, 1.45)}
 MIN_GAP_S = 0.3  # off periods shorter than this inside a bout are closed
 MIN_BOUT_S = 0.3  # on periods shorter than this are dropped
 ARTIFACT_X = 2.0  # smoothed index above this multiple of its 95th percentile is not whisking
@@ -106,6 +112,13 @@ def rest_for(codec):
         raise RuntimeError("no resting level for codec '%s': run calibrate_rest.py on sessions of this codec and add it to REST"
                            % codec)
     return REST[codec]
+
+
+def on_off_for(codec):
+    """(off below, on above) of whisk_on on the index for this codec"""
+    if codec not in ON_OFF:
+        raise RuntimeError("no on/off levels for codec '%s': add it to ON_OFF (and REST)" % codec)
+    return ON_OFF[codec]
 
 
 def keyframes(video):
@@ -243,18 +256,19 @@ def clean_me(me, video):
     return {k: drop_codec_frames(v, is_key) for k, v in me.items()}
 
 
-def classify(me, rest):
-    """From the cleaned ME traces to the whisking index, artifact flags and on/off state. rest = resting ME of WHISKER_BOX."""
+def classify(me, rest, codec):
+    """From the cleaned ME traces to the whisking index, artifact flags and on/off state. rest = resting ME of WHISKER_BOX,
+    codec ('mpeg4' / 'h264') selects the on/off levels (ON_OFF)."""
     sm = {k: gaussian_filter1d(v, SMOOTH_SIGMA_FRAMES) for k, v in me.items()}
     index = sm[WHISKER_BOX] / rest
     motion = np.mean([sm[k] / r for k, r in ARTIFACT_BOXES.items()], axis=0)  # whole-face motion (the former index)
     odd = (index > ARTIFACT_X * np.percentile(index, 95)) | (motion > ARTIFACT_X * np.percentile(motion, 95))
     artifact = binary_dilation(odd, iterations=int(ARTIFACT_PAD_S * FPS))
-    thr = THRESH_X
-    on = hysteresis(index, thr * (1 - HYSTERESIS), thr * (1 + HYSTERESIS))
+    off_below, on_above = on_off_for(codec)
+    on = hysteresis(index, off_below, on_above)
     on = clean_bouts(on, int(MIN_GAP_S * FPS), int(MIN_BOUT_S * FPS))
     on[artifact] = False
-    return dict(smooth=sm, index=index, artifact=artifact, on=on, amp=np.maximum(index - 1, 0))
+    return dict(smooth=sm, index=index, artifact=artifact, on=on, amp=np.maximum(index - 1, 0), on_off=(off_below, on_above))
 
 
 def process(video, face_csv, name=None):
@@ -266,7 +280,7 @@ def process(video, face_csv, name=None):
     rest = rest_for(codec)
     me = anchored_motion_energy(video, anchor)
     me = clean_me(me, video)
-    res = classify(me, rest)
+    res = classify(me, rest, codec)
     res.update(name=name, video=video, size=(width, height), anchor=anchor, me=me, face_frames=len(face), codec=codec, rest=rest)
     return res
 
@@ -281,7 +295,7 @@ def reclassify(video, whisker_csv, name=None):
     _, width, height = video_frames(video)
     codec = video_codec(video)
     rest = rest_for(codec)
-    res = classify(me, rest)
+    res = classify(me, rest, codec)
     res.update(name=name or info['session'], video=video, size=(width, height), anchor=anchor, me=me,
                face_frames=info['face_track_frames'], codec=codec, rest=rest)
     return res
@@ -302,9 +316,10 @@ def summary(res):
         n_bouts=len(bouts), median_bout_s=round(float(np.median([b - a for a, b in bouts])) / FPS, 2) if bouts else None,
         index_p5=round(float(np.percentile(idx, 5)), 2), index_median=round(float(np.median(idx)), 2),
         index_p95=round(float(np.percentile(idx, 95)), 2),
-        rest_level={WHISKER_BOX: res['rest']}, threshold_x_rest=THRESH_X,
+        rest_level={WHISKER_BOX: res['rest']},
+        whisk_off_below_index=round(float(res['on_off'][0]), 4), whisk_on_above_index=round(float(res['on_off'][1]), 4),
         ctrl_me_median=round(float(np.median(res['me']['ctrl'])), 3),
-        params=dict(blur_sigma_px=BLUR_SIGMA_PX, smooth_sigma_frames=SMOOTH_SIGMA_FRAMES, hysteresis=HYSTERESIS,
+        params=dict(blur_sigma_px=BLUR_SIGMA_PX, smooth_sigma_frames=SMOOTH_SIGMA_FRAMES,
                     min_gap_s=MIN_GAP_S, min_bout_s=MIN_BOUT_S, artifact_x_p95=ARTIFACT_X, artifact_pad_s=ARTIFACT_PAD_S,
                     artifact_motion_boxes=dict(ARTIFACT_BOXES)))
 
@@ -350,7 +365,8 @@ def qc_figure(res, path):
     ax = fig.add_subplot(gs[0, :])
     step = max(n // 6000, 1)
     ax.plot(t[::step], idx[::step], lw=.4)
-    ax.axhline(THRESH_X, c='tab:orange', ls='--', lw=1, label='on/off threshold')
+    for lev in res['on_off']:
+        ax.axhline(lev, c='tab:orange', ls='--', lw=1, label='on / off levels' if lev == res['on_off'][0] else None)
     ax.axhline(1, c='gray', ls=':', lw=1, label='rest (=1)')
     shade(ax, 0, t[-1])
     ax.set_ylim(0, np.percentile(idx, 99.8) * 1.1)
@@ -365,7 +381,8 @@ def qc_figure(res, path):
     for k, col, lab in (('fan_down', 'tab:red', 'jaw / lick motion'), ('pad', 'tab:orange', 'pad (face) motion')):
         sm = gaussian_filter1d(res['me'][k], SMOOTH_SIGMA_FRAMES)
         ax.plot(t[seg], sm[seg] / np.percentile(sm, 5), lw=.6, c=col, alpha=.6, label=lab + ' (x its 5th pct)')
-    ax.axhline(THRESH_X, c='tab:orange', ls='--', lw=1)
+    for lev in res['on_off']:
+        ax.axhline(lev, c='tab:orange', ls='--', lw=1)
     shade(ax, lo, lo + 60)
     ax.set_xlim(lo, lo + 60)
     ax.set_ylim(0, np.percentile(idx[seg], 99.5) * 1.1)
@@ -374,7 +391,8 @@ def qc_figure(res, path):
     ax.legend(loc='upper right', ncol=2)
     ax = fig.add_subplot(gs[2, 0])
     ax.hist(np.log10(np.clip(idx[~art], 0.05, None)), 150, color='tab:blue')
-    ax.axvline(np.log10(THRESH_X), c='tab:orange', ls='--')
+    for lev in res['on_off']:
+        ax.axvline(np.log10(lev), c='tab:orange', ls='--')
     ax.axvline(0, c='gray', ls=':')
     ax.set_xlabel('log10 whisking index')
     ax.set_title('distribution (rest dotted, threshold dashed)')

@@ -9,13 +9,16 @@ function refresh_whisker_behavior(sessions, varargin)
 %       <DLCDir>\<session>_DLC_filtered.mat   (Behav, VideoParams; all video frames)
 %       <OutputDir>\<session>_preprocessed.mat (Behav rows selected by VideoParams.selected_frameIdx, VideoParams.Whisker)
 %   and leaves every other variable untouched. The old whisking fields are saved first to
-%   <backup_dir>\<session>_whisk_v1.mat (struct 'old': aggregated Behav fields + VideoParams.Whisker, and the
+%   <backup_dir>\<session>_whisk_<backup_tag>.mat (struct 'old': aggregated Behav fields + VideoParams.Whisker, and the
 %   full-length DLC_filtered Behav fields), so the previous version can be restored.
 %
 %   Name-Value arguments:
 %       'whisker_root' - folder that holds <session>\whisker_results (default: the archived Camera folder of the
 %                        session, <rima_root>\preCamera\<animal>\<session>, then <CameraDir>\<session>)
 %       'backup_dir'   - default C:\Users\rbondarenko\2P_cache\backup_whisk_v1
+%       'backup_tag'   - default 'v1'; the backup file is <session>_whisk_<tag>.mat and is never overwritten. v1 = the
+%                        original two-box version, v2 = front_top version with the 1.6 x REST on/off rule on every codec
+%                        (2026-11-10, before the per-codec ON_OFF levels), backup_whisk_v2\<session>_whisk_v2.mat
 %       'dry_run'      - only check and print what would be changed (default false)
 %
 %   A session is skipped with a message (the others go on) when the aggregated file, the DLC_filtered file or the new
@@ -26,10 +29,12 @@ function refresh_whisker_behavior(sessions, varargin)
 p = inputParser;
 addParameter(p, 'whisker_root', '', @ischar);
 addParameter(p, 'backup_dir', 'C:\Users\rbondarenko\2P_cache\backup_whisk_v1', @ischar);
+addParameter(p, 'backup_tag', 'v1', @ischar);
 addParameter(p, 'dry_run', false, @islogical);
 parse(p, varargin{:});
 whisker_root = p.Results.whisker_root;
 backup_dir = p.Results.backup_dir;
+backup_tag = p.Results.backup_tag;
 dry_run = p.Results.dry_run;
 if ischar(sessions) || isstring(sessions); sessions = cellstr(sessions); end
 if ~exist(backup_dir, 'dir') && ~dry_run; mkdir(backup_dir); end
@@ -41,7 +46,7 @@ for s = 1:numel(sessions)
     session = sessions{s};
     fprintf('--- %s\n', session);
     try
-        refresh_one(session, whisker_root, backup_dir, dry_run, fields);
+        refresh_one(session, whisker_root, backup_dir, backup_tag, dry_run, fields);
         nok = nok + 1;
     catch ME
         fprintf('    SKIPPED: %s\n', ME.message);
@@ -56,7 +61,7 @@ end
 end
 
 
-function refresh_one(session, whisker_root, backup_dir, dry_run, fields)
+function refresh_one(session, whisker_root, backup_dir, backup_tag, dry_run, fields)
 
 tok = regexp(session, '^(.+?)_\d{6}_\d{4}$', 'tokens', 'once');
 if isempty(tok); error('cannot read the animal name from %s', session); end
@@ -118,17 +123,17 @@ end
 if isfield(VPa, 'Whisker'); old.aggregated_VideoParams_Whisker = VPa.Whisker; end
 if isfield(D.VideoParams, 'Whisker'); old.dlc_VideoParams_Whisker = D.VideoParams.Whisker; end
 
-fprintf('    codec %s, REST %.3f, whisking %.0f%%, artifact %.1f%%, index p5/50/95 = %.2f / %.2f / %.2f   (old p5/50/95 of the aggregated trace: %.2f / %.2f / %.2f)\n', ...
-    VP2.Whisker.codec, VP2.Whisker.rest_level.front_top, 100 * VP2.Whisker.fraction_whisking, 100 * VP2.Whisker.fraction_artifact, ...
+fprintf('    codec %s, REST %.3f, whisking %.0f%% (old %.0f%% of the aggregated WhiskOn), artifact %.1f%%, index p5/50/95 = %.2f / %.2f / %.2f   (old p5/50/95 of the aggregated trace: %.2f / %.2f / %.2f)\n', ...
+    VP2.Whisker.codec, VP2.Whisker.rest_level.front_top, 100 * VP2.Whisker.fraction_whisking, 100 * mean(A.WhiskOn, 'omitnan'), 100 * VP2.Whisker.fraction_artifact, ...
     VP2.Whisker.index_p5, VP2.Whisker.index_median, VP2.Whisker.index_p95, ...
     prctile(A.WhiskIndex, 5), prctile(A.WhiskIndex, 50), prctile(A.WhiskIndex, 95));
 if dry_run
     return;
 end
 
-bfile = fullfile(backup_dir, [session '_whisk_v1.mat']);
+bfile = fullfile(backup_dir, [session '_whisk_' backup_tag '.mat']);
 if exist(bfile, 'file')
-    fprintf('    backup %s exists already (first backup kept: it is the original v1)\n', bfile);
+    fprintf('    backup %s exists already (first backup kept)\n', bfile);
 else
     save(bfile, 'old', '-v7.3');
     fprintf('    backed up the old whisking fields to %s\n', bfile);

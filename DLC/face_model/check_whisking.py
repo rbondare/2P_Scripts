@@ -63,6 +63,7 @@ def render(video, start, anchor, index, path, label, show_trace=False):
     out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), PLAY_FPS, (w, h + (TRACE_H if show_trace else 0)))
     half = int(TRACE_S * fm.FPS)
     top = max(float(np.percentile(index[start:start + n], 99)), 3.0) * 1.1
+    levels = fm.on_off_for(fm.video_codec(video)) if show_trace else ()  # on / off levels drawn in the trace strip
     k = 0
     while k < n:
         buf = proc.stdout.read(w * h * 3)
@@ -80,8 +81,9 @@ def render(video, start, anchor, index, path, label, show_trace=False):
             xs = (np.arange(max(t0, 0), max(t0, 0) + len(seg)) - t0) / (2 * half) * (w - 1)
             ys = TRACE_H - 4 - np.clip(seg / top, 0, 1) * (TRACE_H - 10)
             cv2.polylines(strip, [np.stack([xs, ys], 1).astype(np.int32)], False, (255, 200, 120), 1, cv2.LINE_AA)
-            yt = int(TRACE_H - 4 - min(fm.THRESH_X / top, 1) * (TRACE_H - 10))
-            cv2.line(strip, (0, yt), (w - 1, yt), (0, 140, 255), 1)
+            for lev in levels:
+                yt = int(TRACE_H - 4 - min(lev / top, 1) * (TRACE_H - 10))
+                cv2.line(strip, (0, yt), (w - 1, yt), (0, 140, 255), 1)
             cv2.line(strip, (w // 2, 0), (w // 2, TRACE_H - 1), (255, 255, 255), 1)
             img = np.vstack([img, strip])
         out.write(img)

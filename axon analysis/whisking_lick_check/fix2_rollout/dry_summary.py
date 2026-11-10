@@ -10,7 +10,7 @@ for jf in sorted(glob.glob(os.path.join(here, 'pass1', '*', '*_whisker.json'))):
     info = json.load(open(jf))
     T = pd.read_csv(jf.replace('.json', '.csv'))
     me = {k: T['me_' + k].values.astype(float) for k in fm.BOXES}
-    res = fm.classify(me, fm.REST[info['codec']])
+    res = fm.classify(me, fm.REST[info['codec']], info['codec'])
     idx, art, on = res['index'], res['artifact'], res['on']
     old = pd.read_csv(os.path.join(r'C:\Users\rbondarenko\DLC\work', s, 'whisker_results', s + '_whisker.csv'))
     oart = old.artifact.values.astype(bool)

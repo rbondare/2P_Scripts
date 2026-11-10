@@ -1,0 +1,469 @@
+set,clip,session,you,y,mean,med,p75,p90
+set1,"<bound method NDFrame.clip of clip                         clip_01
+code_says                   whisking
+session       AnimalRB24_261030_1744
+start_s                        233.1
+mean_index                      1.89
+rendered                        True
+you                                y
+Name: 0, dtype: object>",AnimalRB24_261030_1744,y,1,1.8944879999999997,1.899,1.95475,2.0263999999999998
+set1,"<bound method NDFrame.clip of clip                         clip_02
+code_says                       rest
+session       AnimalRB24_261106_1317
+start_s                        240.4
+mean_index                      1.28
+rendered                        True
+you                                y
+Name: 1, dtype: object>",AnimalRB24_261106_1317,y,1,1.282176,1.31,1.37,1.4605
+set1,"<bound method NDFrame.clip of clip                         clip_03
+code_says                   whisking
+session       AnimalRB24_261104_1640
+start_s                        176.3
+mean_index                      1.84
+rendered                        True
+you                                y
+Name: 2, dtype: object>",AnimalRB24_261104_1640,y,1,1.838636,1.8370000000000002,1.90075,1.941
+set1,"<bound method NDFrame.clip of clip                         clip_04
+code_says                   whisking
+session       AnimalRB24_261104_1651
+start_s                        253.4
+mean_index                      1.84
+rendered                        True
+you                                y
+Name: 3, dtype: object>",AnimalRB24_261104_1651,y,1,1.8423760000000002,1.852,1.9085,1.9731
+set1,"<bound method NDFrame.clip of clip                         clip_05
+code_says                       rest
+session       AnimalRB24_261104_1651
+start_s                        417.8
+mean_index                      1.03
+rendered                        True
+you                                n
+Name: 4, dtype: object>",AnimalRB24_261104_1651,n,0,1.029528,0.923,1.1115,1.3981999999999999
+set1,"<bound method NDFrame.clip of clip                         clip_06
+code_says                   whisking
+session       AnimalRB24_261106_1555
+start_s                         81.8
+mean_index                       1.6
+rendered                        True
+you                                y
+Name: 5, dtype: object>",AnimalRB24_261106_1555,y,1,1.6018119999999998,1.589,1.6545,1.6961
+set1,"<bound method NDFrame.clip of clip                         clip_09
+code_says                   whisking
+session       AnimalRB24_261106_1317
+start_s                       5993.5
+mean_index                      1.74
+rendered                        True
+you                                y
+Name: 8, dtype: object>",AnimalRB24_261106_1317,y,1,1.741564,1.744,1.7847499999999998,1.8481
+set1,"<bound method NDFrame.clip of clip                         clip_10
+code_says                       rest
+session       AnimalRB24_261106_1555
+start_s                        155.3
+mean_index                      1.23
+rendered                        True
+you                                n
+Name: 9, dtype: object>",AnimalRB24_261106_1555,n,0,1.2297040000000001,1.199,1.3195000000000001,1.4062999999999999
+set1,"<bound method NDFrame.clip of clip                         clip_11
+code_says                       rest
+session       AnimalRB24_261105_1520
+start_s                        161.9
+mean_index                      1.27
+rendered                        True
+you                                n
+Name: 10, dtype: object>",AnimalRB24_261105_1520,n,0,1.26688,1.269,1.33425,1.3791
+set1,"<bound method NDFrame.clip of clip                         clip_12
+code_says                   whisking
+session       AnimalRB24_261106_1529
+start_s                       1117.3
+mean_index                      1.67
+rendered                        True
+you                                y
+Name: 11, dtype: object>",AnimalRB24_261106_1529,y,1,1.6695479999999998,1.645,1.73875,1.8385
+set1,"<bound method NDFrame.clip of clip                         clip_14
+code_says                       rest
+session       AnimalRB24_261105_1549
+start_s                       1168.5
+mean_index                      1.07
+rendered                        True
+you                                n
+Name: 13, dtype: object>",AnimalRB24_261105_1549,n,0,1.069592,1.046,1.08175,1.1702
+set1,"<bound method NDFrame.clip of clip                         clip_15
+code_says                       rest
+session       AnimalRB24_261104_1540
+start_s                       2195.6
+mean_index                      1.14
+rendered                        True
+you                                n
+Name: 14, dtype: object>",AnimalRB24_261104_1540,n,0,1.1415119999999999,1.1179999999999999,1.2475,1.3402
+set1,"<bound method NDFrame.clip of clip                         clip_16
+code_says                       rest
+session       AnimalRB24_261030_1744
+start_s                       1950.0
+mean_index                      1.34
+rendered                        True
+you                                n
+Name: 15, dtype: object>",AnimalRB24_261030_1744,n,0,1.336808,1.39,1.49275,1.6302999999999999
+set1,"<bound method NDFrame.clip of clip                         clip_17
+code_says                   whisking
+session       AnimalRB24_261106_1604
+start_s                        367.0
+mean_index                      1.91
+rendered                        True
+you                                y
+Name: 16, dtype: object>",AnimalRB24_261106_1604,y,1,1.9127359999999998,1.9064999999999999,1.96275,2.0467999999999997
+set1,"<bound method NDFrame.clip of clip                         clip_18
+code_says                       rest
+session       AnimalRB24_261106_1604
+start_s                        217.7
+mean_index                      1.19
+rendered                        True
+you                                n
+Name: 17, dtype: object>",AnimalRB24_261106_1604,n,0,1.188124,1.226,1.287,1.3372
+set1,"<bound method NDFrame.clip of clip                         clip_19
+code_says                   whisking
+session       AnimalRB24_261105_1423
+start_s                       2350.6
+mean_index                      1.82
+rendered                        True
+you                                y
+Name: 18, dtype: object>",AnimalRB24_261105_1423,y,1,1.820384,1.825,1.93475,2.0071
+set1,"<bound method NDFrame.clip of clip                         clip_20
+code_says                       rest
+session       AnimalRB24_261109_1506
+start_s                       3779.1
+mean_index                      1.39
+rendered                        True
+you                                n
+Name: 19, dtype: object>",AnimalRB24_261109_1506,n,0,1.39656,1.46,1.5595,1.6401
+set1,"<bound method NDFrame.clip of clip                         clip_21
+code_says                   whisking
+session       AnimalRB24_261105_1520
+start_s                       1210.1
+mean_index                      1.82
+rendered                        True
+you                                y
+Name: 20, dtype: object>",AnimalRB24_261105_1520,y,1,1.8225839999999998,1.823,1.9017499999999998,1.9772
+set1,"<bound method NDFrame.clip of clip                         clip_22
+code_says                   whisking
+session       AnimalRB24_261109_1506
+start_s                       5219.9
+mean_index                      1.84
+rendered                        True
+you                                y
+Name: 21, dtype: object>",AnimalRB24_261109_1506,y,1,1.8399839999999998,1.845,1.8955,1.972
+set1,"<bound method NDFrame.clip of clip                         clip_23
+code_says                   whisking
+session       AnimalRB24_261104_1540
+start_s                       1841.5
+mean_index                      1.74
+rendered                        True
+you                                y
+Name: 22, dtype: object>",AnimalRB24_261104_1540,y,1,1.745028,1.7534999999999998,1.8007499999999999,1.8400999999999998
+set1,"<bound method NDFrame.clip of clip                         clip_24
+code_says                   whisking
+session       AnimalRB24_261105_1549
+start_s                        281.5
+mean_index                       1.7
+rendered                        True
+you                                y
+Name: 23, dtype: object>",AnimalRB24_261105_1549,y,1,1.6990520000000002,1.6985000000000001,1.79875,1.851
+strat,"<bound method NDFrame.clip of clip                          clip_01
+code_says                        rest
+session        AnimalRB24_261030_1744
+start_s                        2023.0
+mean_index                       1.13
+rendered                         True
+on_fraction                      0.19
+bin                         0.00-1.15
+you                                 n
+Name: 0, dtype: object>",AnimalRB24_261030_1744,n,0,1.13138,0.978,1.028,1.7368
+strat,"<bound method NDFrame.clip of clip                          clip_02
+code_says                        rest
+session        AnimalRB24_261104_1540
+start_s                        2203.0
+mean_index                       1.06
+rendered                         True
+on_fraction                       0.0
+bin                         0.00-1.15
+you                                 n
+Name: 1, dtype: object>",AnimalRB24_261104_1540,n,0,1.0643066666666665,1.0065,1.0394999999999999,1.312
+strat,"<bound method NDFrame.clip of clip                          clip_03
+code_says                        rest
+session        AnimalRB24_261105_1520
+start_s                         909.0
+mean_index                       1.31
+rendered                         True
+on_fraction                      0.19
+bin                         1.30-1.45
+you                                 n
+Name: 2, dtype: object>",AnimalRB24_261105_1520,n,0,1.3066266666666666,1.0715,1.62975,1.7723
+strat,"<bound method NDFrame.clip of clip                          clip_04
+code_says                        rest
+session        AnimalRB24_261105_1549
+start_s                         771.0
+mean_index                       1.12
+rendered                         True
+on_fraction                       0.0
+bin                         0.00-1.15
+you                                 n
+Name: 3, dtype: object>",AnimalRB24_261105_1549,n,0,1.1182666666666665,1.0715,1.166,1.3203999999999998
+strat,"<bound method NDFrame.clip of clip                          clip_05
+code_says                    whisking
+session        AnimalRB24_261109_1506
+start_s                        4814.0
+mean_index                       1.78
+rendered                         True
+on_fraction                       1.0
+bin                        1.75-99.00
+you                                 y
+Name: 4, dtype: object>",AnimalRB24_261109_1506,y,1,1.7799066666666665,1.7770000000000001,1.83525,1.8882999999999999
+strat,"<bound method NDFrame.clip of clip                          clip_06
+code_says                    whisking
+session        AnimalRB24_261105_1520
+start_s                         374.0
+mean_index                       1.85
+rendered                         True
+on_fraction                       1.0
+bin                        1.75-99.00
+you                                 y
+Name: 5, dtype: object>",AnimalRB24_261105_1520,y,1,1.8468400000000005,1.8545,1.9255,1.9795
+strat,"<bound method NDFrame.clip of clip                          clip_07
+code_says                        rest
+session        AnimalRB24_261030_1744
+start_s                        1940.0
+mean_index                       1.31
+rendered                         True
+on_fraction                      0.29
+bin                         1.30-1.45
+you                                 n
+Name: 6, dtype: object>",AnimalRB24_261030_1744,n,0,1.3114133333333333,1.33,1.4905000000000002,1.6224
+strat,"<bound method NDFrame.clip of clip                          clip_08
+code_says                        rest
+session        AnimalRB24_261105_1549
+start_s                         559.0
+mean_index                       1.26
+rendered                         True
+on_fraction                      0.12
+bin                         1.15-1.30
+you                                 n
+Name: 7, dtype: object>",AnimalRB24_261105_1549,n,0,1.2629199999999998,1.174,1.42225,1.6616
+strat,"<bound method NDFrame.clip of clip                          clip_09
+code_says                        rest
+session        AnimalRB24_261104_1651
+start_s                         363.0
+mean_index                       1.07
+rendered                         True
+on_fraction                       0.0
+bin                         0.00-1.15
+you                                 n
+Name: 8, dtype: object>",AnimalRB24_261104_1651,n,0,1.0727600000000002,0.9795,1.08375,1.5942999999999998
+strat,"<bound method NDFrame.clip of clip                          clip_10
+code_says                        rest
+session        AnimalRB24_261105_1423
+start_s                        1216.0
+mean_index                        1.3
+rendered                         True
+on_fraction                      0.25
+bin                         1.15-1.30
+you                                 n
+Name: 9, dtype: object>",AnimalRB24_261105_1423,n,0,1.2952266666666665,1.2145000000000001,1.529,1.6601
+strat,"<bound method NDFrame.clip of clip                          clip_11
+code_says                    whisking
+session        AnimalRB24_261105_1423
+start_s                        3179.0
+mean_index                       2.01
+rendered                         True
+on_fraction                       1.0
+bin                        1.75-99.00
+you                                 y
+Name: 10, dtype: object>",AnimalRB24_261105_1423,y,1,2.0107066666666666,2.011,2.08775,2.1663
+strat,"<bound method NDFrame.clip of clip                          clip_12
+code_says                        rest
+session        AnimalRB24_261105_1423
+start_s                        1915.0
+mean_index                       1.34
+rendered                         True
+on_fraction                      0.19
+bin                         1.30-1.45
+you                                 n
+Name: 11, dtype: object>",AnimalRB24_261105_1423,n,0,1.3413466666666667,1.379,1.5147499999999998,1.6091
+strat,"<bound method NDFrame.clip of clip                          clip_13
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        5893.0
+mean_index                       1.49
+rendered                         True
+on_fraction                      0.55
+bin                         1.45-1.60
+you                                 y
+Name: 12, dtype: object>",AnimalRB24_261106_1317,y,1,1.4856866666666668,1.5990000000000002,1.72325,1.76
+strat,"<bound method NDFrame.clip of clip                          clip_14
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        2888.0
+mean_index                       1.68
+rendered                         True
+on_fraction                       1.0
+bin                         1.60-1.75
+you                                 y
+Name: 13, dtype: object>",AnimalRB24_261106_1317,y,1,1.68252,1.6905000000000001,1.738,1.7891
+strat,"<bound method NDFrame.clip of clip                          clip_15
+code_says                        rest
+session        AnimalRB24_261104_1651
+start_s                         249.0
+mean_index                       1.29
+rendered                         True
+on_fraction                      0.13
+bin                         1.15-1.30
+you                                 y
+Name: 14, dtype: object>",AnimalRB24_261104_1651,y,1,1.29234,1.2475,1.33675,1.8978
+strat,"<bound method NDFrame.clip of clip                          clip_16
+code_says                        rest
+session        AnimalRB24_261030_1744
+start_s                         109.0
+mean_index                       1.21
+rendered                         True
+on_fraction                       0.0
+bin                         1.15-1.30
+you                                 n
+Name: 15, dtype: object>",AnimalRB24_261030_1744,n,0,1.2075466666666665,1.2095,1.32925,1.4561
+strat,"<bound method NDFrame.clip of clip                          clip_17
+code_says                        rest
+session        AnimalRB24_261030_1744
+start_s                        1782.0
+mean_index                       1.45
+rendered                         True
+on_fraction                       0.0
+bin                         1.30-1.45
+you                                 y
+Name: 16, dtype: object>",AnimalRB24_261030_1744,y,1,1.4470399999999999,1.447,1.612,1.6915
+strat,"<bound method NDFrame.clip of clip                          clip_18
+code_says                        rest
+session        AnimalRB24_261105_1549
+start_s                         641.0
+mean_index                       1.17
+rendered                         True
+on_fraction                       0.0
+bin                         1.15-1.30
+you                                 n
+Name: 17, dtype: object>",AnimalRB24_261105_1549,n,0,1.1676000000000002,1.0625,1.1735,1.5761
+strat,"<bound method NDFrame.clip of clip                          clip_19
+code_says                    whisking
+session        AnimalRB24_261105_1520
+start_s                         485.0
+mean_index                       1.91
+rendered                         True
+on_fraction                       1.0
+bin                        1.75-99.00
+you                                 y
+Name: 18, dtype: object>",AnimalRB24_261105_1520,y,1,1.9144599999999998,1.911,2.00075,2.0902
+strat,"<bound method NDFrame.clip of clip                          clip_20
+code_says                        rest
+session        AnimalRB24_261105_1423
+start_s                         776.0
+mean_index                        1.1
+rendered                         True
+on_fraction                      0.01
+bin                         0.00-1.15
+you                                 n
+Name: 19, dtype: object>",AnimalRB24_261105_1423,n,0,1.0978533333333333,1.0635,1.13825,1.2064
+strat,"<bound method NDFrame.clip of clip                          clip_21
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        1681.0
+mean_index                       1.64
+rendered                         True
+on_fraction                      0.81
+bin                         1.60-1.75
+you                                 y
+Name: 20, dtype: object>",AnimalRB24_261106_1317,y,1,1.64476,1.646,1.71075,1.7564
+strat,"<bound method NDFrame.clip of clip                          clip_22
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        4426.0
+mean_index                        1.6
+rendered                         True
+on_fraction                      0.76
+bin                         1.45-1.60
+you                                 y
+Name: 21, dtype: object>",AnimalRB24_261106_1317,y,1,1.5977933333333334,1.636,1.6957499999999999,1.7412
+strat,"<bound method NDFrame.clip of clip                          clip_23
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        4836.0
+mean_index                       1.66
+rendered                         True
+on_fraction                       1.0
+bin                         1.60-1.75
+you                                 y
+Name: 22, dtype: object>",AnimalRB24_261106_1317,y,1,1.6569066666666667,1.6345,1.7389999999999999,1.779
+strat,"<bound method NDFrame.clip of clip                          clip_24
+code_says                    whisking
+session        AnimalRB24_261105_1549
+start_s                         235.0
+mean_index                       1.78
+rendered                         True
+on_fraction                       1.0
+bin                        1.75-99.00
+you                                 y
+Name: 23, dtype: object>",AnimalRB24_261105_1549,y,1,1.7814333333333332,1.7679999999999998,1.8605,1.9651
+strat,"<bound method NDFrame.clip of clip                          clip_25
+code_says                        rest
+session        AnimalRB24_261104_1540
+start_s                         724.0
+mean_index                       1.47
+rendered                         True
+on_fraction                      0.31
+bin                         1.45-1.60
+you                                 y
+Name: 24, dtype: object>",AnimalRB24_261104_1540,y,1,1.4745866666666665,1.4295,1.6295,1.6989999999999998
+strat,"<bound method NDFrame.clip of clip                          clip_26
+code_says                    whisking
+session        AnimalRB24_261104_1540
+start_s                        1804.0
+mean_index                       1.74
+rendered                         True
+on_fraction                       1.0
+bin                         1.60-1.75
+you                                 y
+Name: 25, dtype: object>",AnimalRB24_261104_1540,y,1,1.7360733333333334,1.749,1.7805,1.8061
+strat,"<bound method NDFrame.clip of clip                          clip_27
+code_says                        rest
+session        AnimalRB24_261106_1317
+start_s                         592.0
+mean_index                       1.58
+rendered                         True
+on_fraction                      0.45
+bin                         1.45-1.60
+you                                 y
+Name: 26, dtype: object>",AnimalRB24_261106_1317,y,1,1.58482,1.5865,1.655,1.697
+strat,"<bound method NDFrame.clip of clip                          clip_28
+code_says                    whisking
+session        AnimalRB24_261106_1317
+start_s                        2958.0
+mean_index                       1.64
+rendered                         True
+on_fraction                       1.0
+bin                         1.60-1.75
+you                                 y
+Name: 27, dtype: object>",AnimalRB24_261106_1317,y,1,1.63718,1.6255,1.70075,1.763
+strat,"<bound method NDFrame.clip of clip                          clip_29
+code_says                        rest
+session        AnimalRB24_261105_1423
+start_s                        1879.0
+mean_index                       1.34
+rendered                         True
+on_fraction                      0.05
+bin                         1.30-1.45
+you                                 n
+Name: 28, dtype: object>",AnimalRB24_261105_1423,n,0,1.3374400000000002,1.2530000000000001,1.53325,1.6347999999999998
+strat,"<bound method NDFrame.clip of clip                          clip_30
+code_says                        rest
+session        AnimalRB24_261106_1529
+start_s                          49.0
+mean_index                       1.47
+rendered                         True
+on_fraction                      0.41
+bin                         1.45-1.60
+you                                 y
+Name: 29, dtype: object>",AnimalRB24_261106_1529,y,1,1.4656266666666666,1.4745,1.633,1.767

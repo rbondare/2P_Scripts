@@ -1,0 +1,446 @@
+################ AnimalRB24_261105_1423
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261105_1423: 63 ROIs (47 signal-like, 16 noise-like, 0 neuropil-limited), 53.1 min, fs 30.00 Hz, 376 rejected ROIs
+bouts: current 306 (5.8/min, on 69% of unflagged time), cand 350 (6.6/min, on 82% of unflagged time), cand_slow 136 (2.6/min, on 76% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+63 accepted ROIs (47 signal-like), 376 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.2 s (r 0.542)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.2 s) ====
+  signal-like:
+    index      r 0.542   (continuous log index, reference)
+    current    r 0.468   (peak over lags 0.470)
+    cand       r 0.519   (peak over lags 0.519)
+    cand_slow  r 0.501   (peak over lags 0.501)
+    r(cand) - r(current) = +0.051  block-bootstrap 95% CI [+0.014, +0.087]
+    r(cand_slow) - r(current) = +0.033  block-bootstrap 95% CI [-0.005, +0.072]
+  all accepted:
+    index      r 0.534   (continuous log index, reference)
+    current    r 0.455   (peak over lags 0.458)
+    cand       r 0.511   (peak over lags 0.511)
+    cand_slow  r 0.489   (peak over lags 0.489)
+    r(cand) - r(current) = +0.056  block-bootstrap 95% CI [+0.019, +0.093]
+    r(cand_slow) - r(current) = +0.034  block-bootstrap 95% CI [-0.006, +0.070]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r 0.308 (57 pos / 6 neg of 63);  rejected: median 0.016 (194 pos / 182 neg of 376)
+    current    accepted: median r 0.292 (55 pos / 8 neg);  rejected: median 0.011 (192 pos / 184 neg)
+    cand       accepted: median r 0.294 (57 pos / 6 neg);  rejected: median 0.032 (198 pos / 178 neg)
+    cand_slow  accepted: median r 0.300 (54 pos / 9 neg);  rejected: median 0.011 (196 pos / 180 neg)
+    paired over accepted ROIs, cand - current: median +0.034, higher in 48 of 63 ROIs
+    paired over accepted ROIs, cand_slow - current: median +0.016, higher in 52 of 63 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 10630 (67%), added by the candidate 2016 (13%), off under both 2760 (17%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both         0.251          0.369        0.345          0.415      0.596
+    added          -0.045          0.275       -0.530         -0.263      0.428
+    off both       -0.982         -1.759       -0.788         -1.333      0.161
+    pop dF/F z in on both  0.251  [0.157, 0.360]
+    pop dF/F z in added    -0.045  [-0.185, 0.096]
+    pop dF/F z in off both -0.982  [-1.111, -0.848]
+    added - off both = 0.937 z  =  76 % of (on both - off both = 1.233 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames 0.158, of on-both -0.131 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 0.334
+    state current                                    R2 0.243
+    state cand                                       R2 0.343
+    state cand_slow                                  R2 0.274
+    index + state current                            R2 0.329
+    index + state cand                               R2 0.360
+    index + state cand_slow                          R2 0.344
+    face+pupil(+ball)                                R2 0.358
+    face+pupil(+ball)+index                          R2 0.406
+    face+pupil(+ball)+index+state current            R2 0.404
+    face+pupil(+ball)+index+state cand               R2 0.410
+    face+pupil(+ball)+index+state cand_slow          R2 0.403
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current      97 isolated bouts: peak (0..+3 s) 0.641 z, mean of +0..+3 s 0.464 z
+    cand         70 isolated bouts: peak (0..+3 s) 0.094 z, mean of +0..+3 s -0.098 z
+    cand_slow    73 isolated bouts: peak (0..+3 s) 1.264 z, mean of +0..+3 s 1.011 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 92% of time on, r 0.439
+    on above 1.40: 89% of time on, r 0.496
+    on above 1.50: 86% of time on, r 0.524
+    on above 1.60: 82% of time on, r 0.522
+    on above 1.70: 75% of time on, r 0.495
+    on above 1.80: 65% of time on, r 0.436
+    on above 1.90: 51% of time on, r 0.310
+    on above 2.00: 30% of time on, r 0.188
+    on above 2.20: 10% of time on, r 0.087
+################ AnimalRB24_261105_1520
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261105_1520: 85 ROIs (44 signal-like, 40 noise-like, 1 neuropil-limited), 22.9 min, fs 30.00 Hz, 387 rejected ROIs
+bouts: current 89 (3.9/min, on 76% of unflagged time), cand 113 (5.0/min, on 83% of unflagged time), cand_slow 33 (1.4/min, on 79% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+85 accepted ROIs (44 signal-like), 387 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.2 s (r 0.517)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.2 s) ====
+  signal-like:
+    index      r 0.517   (continuous log index, reference)
+    current    r 0.433   (peak over lags 0.442)
+    cand       r 0.510   (peak over lags 0.510)
+    cand_slow  r 0.470   (peak over lags 0.470)
+    r(cand) - r(current) = +0.077  block-bootstrap 95% CI [+0.042, +0.111]
+    r(cand_slow) - r(current) = +0.037  block-bootstrap 95% CI [+0.001, +0.075]
+  all accepted:
+    index      r 0.542   (continuous log index, reference)
+    current    r 0.451   (peak over lags 0.459)
+    cand       r 0.534   (peak over lags 0.534)
+    cand_slow  r 0.501   (peak over lags 0.501)
+    r(cand) - r(current) = +0.083  block-bootstrap 95% CI [+0.049, +0.117]
+    r(cand_slow) - r(current) = +0.050  block-bootstrap 95% CI [+0.013, +0.090]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r 0.249 (76 pos / 9 neg of 85);  rejected: median 0.045 (207 pos / 180 neg of 387)
+    current    accepted: median r 0.209 (73 pos / 12 neg);  rejected: median 0.045 (207 pos / 180 neg)
+    cand       accepted: median r 0.243 (77 pos / 8 neg);  rejected: median 0.044 (211 pos / 176 neg)
+    cand_slow  accepted: median r 0.228 (74 pos / 11 neg);  rejected: median 0.031 (207 pos / 180 neg)
+    paired over accepted ROIs, cand - current: median +0.039, higher in 76 of 85 ROIs
+    paired over accepted ROIs, cand_slow - current: median +0.023, higher in 68 of 85 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 5080 (74%), added by the candidate 515 (8%), off under both 1137 (17%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both         0.181          0.382        0.366          0.411      0.604
+    added           0.021          0.290       -0.594         -0.649      0.428
+    off both       -1.007         -1.887       -1.235         -1.481      0.141
+    pop dF/F z in on both  0.181  [0.071, 0.316]
+    pop dF/F z in added    0.021  [-0.248, 0.296]
+    pop dF/F z in off both -1.007  [-1.230, -0.745]
+    added - off both = 1.028 z  =  87 % of (on both - off both = 1.188 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames 0.065, of on-both -0.670 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 0.280
+    state current                                    R2 0.193
+    state cand                                       R2 0.278
+    state cand_slow                                  R2 0.212
+    index + state current                            R2 0.275
+    index + state cand                               R2 0.317
+    index + state cand_slow                          R2 0.292
+    face+pupil(+ball)                                R2 0.339
+    face+pupil(+ball)+index                          R2 0.383
+    face+pupil(+ball)+index+state current            R2 0.382
+    face+pupil(+ball)+index+state cand               R2 0.388
+    face+pupil(+ball)+index+state cand_slow          R2 0.379
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current      36 isolated bouts: peak (0..+3 s) 0.646 z, mean of +0..+3 s 0.308 z
+    cand         26 isolated bouts: peak (0..+3 s) 0.485 z, mean of +0..+3 s 0.284 z
+    cand_slow    21 isolated bouts: peak (0..+3 s) 1.770 z, mean of +0..+3 s 1.300 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 92% of time on, r 0.424
+    on above 1.40: 88% of time on, r 0.503
+    on above 1.50: 85% of time on, r 0.510
+    on above 1.60: 83% of time on, r 0.498
+    on above 1.70: 79% of time on, r 0.480
+    on above 1.80: 73% of time on, r 0.408
+    on above 1.90: 66% of time on, r 0.328
+    on above 2.00: 46% of time on, r 0.222
+    on above 2.20:  2% of time on, r 0.051
+################ AnimalRB24_261030_1744
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261030_1744: 11 ROIs (8 signal-like, 3 noise-like, 0 neuropil-limited), 41.0 min, fs 30.00 Hz, 147 rejected ROIs
+bouts: current 369 (9.0/min, on 45% of unflagged time), cand 488 (11.9/min, on 61% of unflagged time), cand_slow 50 (1.2/min, on 42% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+11 accepted ROIs (8 signal-like), 147 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.2 s (r 0.758)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.2 s) ====
+  signal-like:
+    index      r 0.758   (continuous log index, reference)
+    current    r 0.568   (peak over lags 0.568)
+    cand       r 0.646   (peak over lags 0.646)
+    cand_slow  r 0.519   (peak over lags 0.523)
+    r(cand) - r(current) = +0.078  block-bootstrap 95% CI [+0.038, +0.122]
+    r(cand_slow) - r(current) = -0.050  block-bootstrap 95% CI [-0.109, +0.002]
+  all accepted:
+    index      r 0.755   (continuous log index, reference)
+    current    r 0.564   (peak over lags 0.564)
+    cand       r 0.642   (peak over lags 0.642)
+    cand_slow  r 0.527   (peak over lags 0.530)
+    r(cand) - r(current) = +0.078  block-bootstrap 95% CI [+0.037, +0.120]
+    r(cand_slow) - r(current) = -0.037  block-bootstrap 95% CI [-0.101, +0.016]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r 0.546 (10 pos / 1 neg of 11);  rejected: median 0.130 (80 pos / 67 neg of 147)
+    current    accepted: median r 0.431 (10 pos / 1 neg);  rejected: median 0.124 (80 pos / 67 neg)
+    cand       accepted: median r 0.453 (10 pos / 1 neg);  rejected: median 0.139 (80 pos / 67 neg)
+    cand_slow  accepted: median r 0.397 (10 pos / 1 neg);  rejected: median 0.021 (79 pos / 68 neg)
+    paired over accepted ROIs, cand - current: median +0.062, higher in 10 of 11 ROIs
+    paired over accepted ROIs, cand_slow - current: median -0.003, higher in 5 of 11 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 5460 (44%), added by the candidate 1971 (16%), off under both 4743 (39%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both         0.523          0.594        0.518          0.680      0.541
+    added           0.247          0.539       -0.256          0.102      0.416
+    off both       -0.701         -0.934       -0.511         -0.823      0.111
+    pop dF/F z in on both  0.523  [0.357, 0.715]
+    pop dF/F z in added    0.247  [0.111, 0.367]
+    pop dF/F z in off both -0.701  [-0.824, -0.593]
+    added - off both = 0.948 z  =  77 % of (on both - off both = 1.224 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames -0.121, of on-both -0.381 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 0.654
+    state current                                    R2 0.375
+    state cand                                       R2 0.529
+    state cand_slow                                  R2 0.291
+    index + state current                            R2 0.658
+    index + state cand                               R2 0.654
+    index + state cand_slow                          R2 0.655
+    face+pupil(+ball)                                R2 0.613
+    face+pupil(+ball)+index                          R2 0.681
+    face+pupil(+ball)+index+state current            R2 0.684
+    face+pupil(+ball)+index+state cand               R2 0.680
+    face+pupil(+ball)+index+state cand_slow          R2 0.681
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current      42 isolated bouts: peak (0..+3 s) 0.709 z, mean of +0..+3 s 0.332 z
+    cand         18 isolated bouts: peak (0..+3 s) 0.265 z, mean of +0..+3 s -0.139 z
+    cand_slow    37 isolated bouts: peak (0..+3 s) 1.516 z, mean of +0..+3 s 1.334 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 79% of time on, r 0.619
+    on above 1.40: 75% of time on, r 0.641
+    on above 1.50: 71% of time on, r 0.653
+    on above 1.60: 63% of time on, r 0.645
+    on above 1.70: 53% of time on, r 0.611
+    on above 1.80: 39% of time on, r 0.532
+    on above 1.90: 23% of time on, r 0.403
+    on above 2.00:  7% of time on, r 0.293
+    on above 2.20:  0% of time on, r 0.086
+################ AnimalRB24_261104_1651
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261104_1651: 103 ROIs (50 signal-like, 53 noise-like, 0 neuropil-limited), 14.5 min, fs 5.00 Hz, 397 rejected ROIs
+bouts: current 46 (3.2/min, on 33% of unflagged time), cand 84 (5.8/min, on 39% of unflagged time), cand_slow 10 (0.7/min, on 33% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+103 accepted ROIs (50 signal-like), 397 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.2 s (r 0.580)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.2 s) ====
+  signal-like:
+    index      r 0.580   (continuous log index, reference)
+    current    r 0.534   (peak over lags 0.534)
+    cand       r 0.577   (peak over lags 0.577)
+    cand_slow  r 0.559   (peak over lags 0.559)
+    r(cand) - r(current) = +0.043  block-bootstrap 95% CI [+0.004, +0.095]
+    r(cand_slow) - r(current) = +0.025  block-bootstrap 95% CI [+0.008, +0.043]
+  all accepted:
+    index      r 0.624   (continuous log index, reference)
+    current    r 0.568   (peak over lags 0.568)
+    cand       r 0.617   (peak over lags 0.617)
+    cand_slow  r 0.595   (peak over lags 0.595)
+    r(cand) - r(current) = +0.049  block-bootstrap 95% CI [+0.014, +0.104]
+    r(cand_slow) - r(current) = +0.027  block-bootstrap 95% CI [+0.009, +0.046]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r 0.431 (86 pos / 17 neg of 103);  rejected: median 0.086 (214 pos / 183 neg of 397)
+    current    accepted: median r 0.390 (85 pos / 18 neg);  rejected: median 0.060 (209 pos / 188 neg)
+    cand       accepted: median r 0.433 (87 pos / 16 neg);  rejected: median 0.073 (214 pos / 183 neg)
+    cand_slow  accepted: median r 0.403 (85 pos / 18 neg);  rejected: median 0.069 (208 pos / 189 neg)
+    paired over accepted ROIs, cand - current: median +0.036, higher in 88 of 103 ROIs
+    paired over accepted ROIs, cand_slow - current: median +0.019, higher in 82 of 103 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 1424 (33%), added by the candidate 247 (6%), off under both 2671 (61%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both         0.624          1.121        0.768          1.240      0.597
+    added           0.379          0.918        0.012         -0.126      0.419
+    off both       -0.368         -0.682       -0.410         -0.649      0.025
+    pop dF/F z in on both  0.624  [0.351, 0.949]
+    pop dF/F z in added    0.379  [0.016, 0.782]
+    pop dF/F z in off both -0.368  [-0.612, -0.161]
+    added - off both = 0.747 z  =  75 % of (on both - off both = 0.992 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames 0.501, of on-both 0.644 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 0.392
+    state current                                    R2 0.280
+    state cand                                       R2 0.376
+    state cand_slow                                  R2 0.290
+    index + state current                            R2 0.400
+    index + state cand                               R2 0.387
+    index + state cand_slow                          R2 0.391
+    face+pupil(+ball)                                R2 0.370
+    face+pupil(+ball)+index                          R2 0.397
+    face+pupil(+ball)+index+state current            R2 0.387
+    face+pupil(+ball)+index+state cand               R2 0.410
+    face+pupil(+ball)+index+state cand_slow          R2 0.400
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current      25 isolated bouts: peak (0..+3 s) 0.847 z, mean of +0..+3 s 0.622 z
+    cand         24 isolated bouts: peak (0..+3 s) 0.634 z, mean of +0..+3 s 0.385 z
+    cand_slow     9 isolated bouts: peak (0..+3 s) 1.958 z, mean of +0..+3 s 1.598 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 50% of time on, r 0.504
+    on above 1.40: 45% of time on, r 0.555
+    on above 1.50: 41% of time on, r 0.575
+    on above 1.60: 37% of time on, r 0.578
+    on above 1.70: 34% of time on, r 0.545
+    on above 1.80: 32% of time on, r 0.530
+    on above 1.90: 27% of time on, r 0.466
+    on above 2.00: 16% of time on, r 0.340
+    on above 2.20:  2% of time on, r 0.121
+################ AnimalRB24_261106_1317
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261106_1317: 135 ROIs (34 signal-like, 91 noise-like, 10 neuropil-limited), 102.3 min, fs 30.00 Hz, 392 rejected ROIs
+bouts: current 219 (2.1/min, on 93% of unflagged time), cand 88 (0.9/min, on 98% of unflagged time), cand_slow 26 (0.3/min, on 99% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+135 accepted ROIs (34 signal-like), 392 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.2 s (r 0.084)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.2 s) ====
+  signal-like:
+    index      r 0.084   (continuous log index, reference)
+    current    r -0.034   (peak over lags 0.024)
+    cand       r 0.103   (peak over lags 0.103)
+    cand_slow  r 0.116   (peak over lags 0.124)
+    r(cand) - r(current) = +0.137  block-bootstrap 95% CI [+0.091, +0.187]
+    r(cand_slow) - r(current) = +0.150  block-bootstrap 95% CI [+0.083, +0.223]
+  all accepted:
+    index      r 0.107   (continuous log index, reference)
+    current    r -0.016   (peak over lags 0.044)
+    cand       r 0.127   (peak over lags 0.127)
+    cand_slow  r 0.155   (peak over lags 0.163)
+    r(cand) - r(current) = +0.144  block-bootstrap 95% CI [+0.096, +0.193]
+    r(cand_slow) - r(current) = +0.171  block-bootstrap 95% CI [+0.102, +0.241]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r 0.015 (81 pos / 54 neg of 135);  rejected: median 0.003 (203 pos / 189 neg of 392)
+    current    accepted: median r -0.006 (60 pos / 75 neg);  rejected: median -0.003 (185 pos / 207 neg)
+    cand       accepted: median r 0.026 (95 pos / 40 neg);  rejected: median 0.003 (205 pos / 187 neg)
+    cand_slow  accepted: median r 0.036 (102 pos / 33 neg);  rejected: median 0.000 (197 pos / 195 neg)
+    paired over accepted ROIs, cand - current: median +0.027, higher in 116 of 135 ROIs
+    paired over accepted ROIs, cand_slow - current: median +0.044, higher in 110 of 135 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 28430 (93%), added by the candidate 1592 (5%), off under both 503 (2%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both        -0.020          0.036        0.002          0.078      0.537
+    added           0.362          0.486        0.019         -0.515      0.454
+    off both       -0.739         -3.927       -0.345         -2.351      0.223
+    pop dF/F z in on both  -0.020  [-0.060, 0.025]
+    pop dF/F z in added    0.362  [0.183, 0.538]
+    pop dF/F z in off both -0.739  [-1.184, -0.256]
+    added - off both = 1.101 z  =  153 % of (on both - off both = 0.719 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames -0.425, of on-both -1.493 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 -0.008
+    state current                                    R2 -0.009
+    state cand                                       R2 0.004
+    state cand_slow                                  R2 0.014
+    index + state current                            R2 0.000
+    index + state cand                               R2 0.005
+    index + state cand_slow                          R2 0.013
+    face+pupil(+ball)                                R2 0.033
+    face+pupil(+ball)+index                          R2 0.035
+    face+pupil(+ball)+index+state current            R2 0.044
+    face+pupil(+ball)+index+state cand               R2 0.036
+    face+pupil(+ball)+index+state cand_slow          R2 0.030
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current     146 isolated bouts: peak (0..+3 s) 0.524 z, mean of +0..+3 s 0.252 z
+    cand         45 isolated bouts: peak (0..+3 s) 0.735 z, mean of +0..+3 s 0.500 z
+    cand_slow    17 isolated bouts: peak (0..+3 s) 1.809 z, mean of +0..+3 s 1.605 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 100% of time on, r 0.119
+    on above 1.40: 99% of time on, r 0.130
+    on above 1.50: 99% of time on, r 0.110
+    on above 1.60: 98% of time on, r 0.097
+    on above 1.70: 97% of time on, r 0.034
+    on above 1.80: 84% of time on, r -0.050
+    on above 1.90: 34% of time on, r -0.010
+    on above 2.00:  3% of time on, r 0.065
+    on above 2.20:  0% of time on, r -0.005
+################ AnimalRB24_261106_1529
+  c /= stddev[:, None]
+  c /= stddev[None, :]
+check: current rule vs csv whisk_on agreement 1.0000
+AnimalRB24_261106_1529: 144 ROIs (49 signal-like, 80 noise-like, 15 neuropil-limited), 21.3 min, fs 30.00 Hz, 397 rejected ROIs
+bouts: current 104 (4.9/min, on 85% of unflagged time), cand 41 (1.9/min, on 96% of unflagged time), cand_slow 19 (0.9/min, on 97% of unflagged time)
+behaviour on the grid: face True, pupil True, ball coverage 100%
+144 accepted ROIs (49 signal-like), 397 rejected ROIs
+
+lag of the continuous index: population dF/F follows whisking by 0.0 s (r 0.024)
+
+==== 1. population coupling (r of 30 s high-passed dF/F with the whisking descriptor, descriptor leading by the index lag 0.0 s) ====
+  signal-like:
+    index      r 0.024   (continuous log index, reference)
+    current    r -0.059   (peak over lags -0.018)
+    cand       r 0.062   (peak over lags 0.064)
+    cand_slow  r 0.045   (peak over lags 0.047)
+    r(cand) - r(current) = +0.121  block-bootstrap 95% CI [+0.048, +0.179]
+    r(cand_slow) - r(current) = +0.103  block-bootstrap 95% CI [+0.027, +0.166]
+  all accepted:
+    index      r 0.062   (continuous log index, reference)
+    current    r -0.036   (peak over lags -0.011)
+    cand       r 0.083   (peak over lags 0.087)
+    cand_slow  r 0.061   (peak over lags 0.065)
+    r(cand) - r(current) = +0.119  block-bootstrap 95% CI [+0.051, +0.176]
+    r(cand_slow) - r(current) = +0.097  block-bootstrap 95% CI [+0.028, +0.156]
+
+==== 2. per ROI (accepted vs rejected control), r at the fixed lag ====
+    index      accepted: median r -0.001 (72 pos / 72 neg of 144);  rejected: median -0.002 (193 pos / 204 neg of 397)
+    current    accepted: median r -0.011 (58 pos / 86 neg);  rejected: median -0.003 (196 pos / 201 neg)
+    cand       accepted: median r 0.002 (74 pos / 70 neg);  rejected: median -0.003 (188 pos / 209 neg)
+    cand_slow  accepted: median r 0.004 (75 pos / 69 neg);  rejected: median -0.005 (190 pos / 207 neg)
+    paired over accepted ROIs, cand - current: median +0.011, higher in 90 of 144 ROIs
+    paired over accepted ROIs, cand_slow - current: median +0.010, higher in 88 of 144 ROIs
+
+==== 3. which frames does the lower threshold add? three states on the 0.2 s grid (shifted by the lag), pop signal-like dF/F, z-scored ====
+    bins: on under both 5274 (83%), added by the candidate 675 (11%), off under both 283 (4%)
+               pop dF/F z face (z log ME)    pupil (z) ball log speed  log index
+    on both        -0.022          0.033        0.072          0.160      0.533
+    added           0.318          0.196       -0.094         -0.250      0.448
+    off both       -0.186         -1.949       -0.563         -1.742      0.223
+    pop dF/F z in on both  -0.022  [-0.137, 0.095]
+    pop dF/F z in added    0.318  [0.134, 0.522]
+    pop dF/F z in off both -0.186  [-0.401, 0.130]
+    added - off both = 0.504 z  =  307 % of (on both - off both = 0.164 z)
+    after regressing face / pupil / index (fit on off-both bins only): residual of added frames -0.348, of on-both -1.054 (off-both 0 by construction)
+
+==== 4. held-out ridge R2 of the population dF/F, 10 contiguous folds, predictor lags -1..+5 s ====
+    index                                            R2 -0.018
+    state current                                    R2 0.007
+    state cand                                       R2 -0.015
+    state cand_slow                                  R2 -0.017
+    index + state current                            R2 0.016
+    index + state cand                               R2 -0.029
+    index + state cand_slow                          R2 -0.025
+    face+pupil(+ball)                                R2 -0.009
+    face+pupil(+ball)+index                          R2 -0.024
+    face+pupil(+ball)+index+state current            R2 0.005
+    face+pupil(+ball)+index+state cand               R2 -0.034
+    face+pupil(+ball)+index+state cand_slow          R2 -0.032
+
+==== 5. bout-onset-triggered average (pop dF/F z, mean of -5..0 s subtracted), onsets > 10 s from an artifact and from the previous bout ====
+    current      43 isolated bouts: peak (0..+3 s) 0.378 z, mean of +0..+3 s 0.208 z
+    cand         27 isolated bouts: peak (0..+3 s) 0.664 z, mean of +0..+3 s 0.314 z
+    cand_slow    11 isolated bouts: peak (0..+3 s) 0.995 z, mean of +0..+3 s 0.605 z
+
+==== 6. sensitivity (NOT for choosing a rule): pop r at the fixed lag and fraction of time on vs on-threshold, off = 0.82 x on ====
+    on above 1.30: 99% of time on, r 0.061
+    on above 1.40: 98% of time on, r 0.076
+    on above 1.50: 97% of time on, r 0.088
+    on above 1.60: 96% of time on, r 0.051
+    on above 1.70: 92% of time on, r -0.014
+    on above 1.80: 73% of time on, r -0.056
+    on above 1.90: 29% of time on, r 0.006
+    on above 2.00:  2% of time on, r -0.013
+    on above 2.20:  0% of time on, r nan
