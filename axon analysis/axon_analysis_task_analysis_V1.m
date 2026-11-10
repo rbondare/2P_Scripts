@@ -53,6 +53,8 @@
 %     the first red-frame time of every trial (redFrames) against the 2P time of that frame. Per-trial anchoring is wrong for a few trials
 %     (red-frame log delayed by 80 ms, entries swapped in trial 50), see the sync check in section 3.
 %   - lickData holds 242 rows per trial: the three trials before the 2-min breaks can hit that cap, but only after the trial is over.
+%   - lickData can have FEWER trial columns than the trial record (RB24_261109_1506: 119 columns, 120 trials; the log of the last trial was never written). The trials without a lick
+%     column are left out of the whole analysis (section 2, check 'licks: lick log covers all trials'): they would read as "no lick" = a false miss without reward.
 %   - WhiskOn is 1 in every frame (the mouse runs most of the session): no whisking bouts; WhiskIndex is used as a continuous measure.
 %   - dF/F is the V3 definition (Fc - p8) ./ movmedian(Fc - p8, +-15 s) - 1, not (F - F0)/F0; do not judge ROI quality from std(dFF) (section 5).
 
@@ -231,6 +233,14 @@ end
 % Trials: rows of TimeStimulusFrame are wait1 | stim | wait2; FrameValid marks the frames that really were presented (the rest is padding)
 nTr    = size(S.TimeStimulusFrame, 2);                                     % completed trials (an aborted session has fewer than trials x subsessions)
 assert(nTr <= S.trials * S.subsessions && nTr > (S.subsessions - 1) * S.trials, 'TimeStimulusFrame has %d trial columns for %d x %d planned trials', nTr, S.subsessions, S.trials);
+% the lick log can hold FEWER trial columns than the trial record (RB24_261109_1506: 120 trials, 119 lickData columns: the log of the last trial was never written). Such a trial has
+% no lick information at all, so it would read as "no lick" (a false miss, no reward) -> trials without a lick column are left out of the whole analysis.
+n_rec = nTr;
+if has_lick && lick_sz(2) < nTr; nTr = lick_sz(2); end
+if has_lick
+    chk = addchk(chk, 'licks: lick log covers all trials', grade(nTr == n_rec, 1), iff(nTr == n_rec, sprintf('lickData has a column for each of the %d trials', n_rec), ...
+        sprintf('lickData has %d trial columns but the trial record has %d trials: the last %d trial(s) have no lick log and are LEFT OUT of this analysis (they would count as misses without reward)', lick_sz(2), n_rec, n_rec - nTr)));
+end
 sub_of = ceil((1:nTr)' / S.trials);
 Fi     = S.Frameinfo;
 n_w1 = size(Fi.frame_count_wait1, 1);  n_st = size(Fi.frame_count_stim, 1);  n_w2 = size(Fi.frame_count_wait2, 1);
@@ -286,10 +296,11 @@ chk = addchk(chk, 'trials: inside imaging', grade(tr_t0(1) >= tCa(1) && tr_t1(en
 chk = addchk(chk, 'trials: square duration', grade(all(abs(st_dur - lw(2)) < 0.1), 1), sprintf('%.3f-%.3f s (lickWindowMax %g s)', min(st_dur), max(st_dur), lw(2)));
 chk = addchk(chk, 'trials: wait before square', grade(all(abs(w1_dur - wait_s) < 0.15), 1), sprintf('frame times vs logged waitTimes: max |difference| %.3f s; waits %.0f-%.0f s, %d trials with time-outs (%d time-outs)', max(abs(w1_dur - wait_s)), min(wait_s), max(wait_s), sum(n_to > 0), sum(n_to)));
 chk = addchk(chk, 'trials: grey period after square', grade(all(abs(w2_dur - S.Tend) < 0.15), 1), sprintf('%.2f-%.2f s (Tend %g s)', min(w2_dur), max(w2_dur), S.Tend));
-b_sync = S.RedFrameSynchronizedTrial(:);
+b_sync = S.RedFrameSynchronizedTrial(:);  b_sync = b_sync(1:min(nTr, numel(b_sync)));
 if isfield(S, 'RedSyncInfo')
-    b_lost = arrayfun(@(s) s.n_lost / max(s.n_expected, 1), S.RedSyncInfo(:));
-    b_off  = arrayfun(@(s) s.offset_median_ms, S.RedSyncInfo(:));
+    rsi    = S.RedSyncInfo(:);  rsi = rsi(1:min(nTr, numel(rsi)));
+    b_lost = arrayfun(@(s) s.n_lost / max(s.n_expected, 1), rsi);
+    b_off  = arrayfun(@(s) s.offset_median_ms, rsi);
 else
     b_lost = nan(nTr, 1);  b_off = nan(nTr, 1);
 end
@@ -315,7 +326,7 @@ printchk(chk, n0);  n0 = size(chk, 1);
 % 3a  licks. lickData{row, trial} = Arduino ms (string); the column of trial t starts at its first (red) frame. Arduino clock -> 2P clock with one
 % line through (first red-frame time of every trial, 2P time of that frame); trials deviating by > 30 ms are left out of the fit and checked.
 if has_lick
-    rf1 = str2double(S.redFrames(1, :))' / 1000;
+    rf1 = str2double(S.redFrames(1, 1:nTr))' / 1000;
     rf2 = nan(nTr, 1);
     if size(S.redFrames, 1) > 1; for t = 1:nTr; if ~isempty(S.redFrames{2, t}); rf2(t) = str2double(S.redFrames{2, t}) / 1000; end; end; end
     no_rf = ~any(rf1 > 1);       % redFrames holds only the placeholder 0 (stimulus code of 2026-10-29, RB23_261029_1704): no per-trial anchor in the log
