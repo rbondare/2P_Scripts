@@ -8,14 +8,20 @@ function export_session_meta(out_dir, varargin)
 %   m_sessions.csv  one row per DATA_2P session: stimulus folder, aggregated file status, #planes, #aggregated ROIs, duration,
 %                   timing / sync / ball / camera QC taken from the aggregated file, task type + reward settings
 %   m_blocks.csv    one row per stimulus block (stim*.mat): type, key, loom direction, trials, wall-clock start, duration,
-%                   interrupted, 2P-clock span + red-sync status (aggregated sessions only), compact parameter string
+%                   interrupted, 2P-clock span + red-sync status (aggregated sessions only), compact parameter string,
+%                   a readable description (stim_desc / stim_short) and, for the square (training) blocks, the task facts:
+%                   stimulus shape / contrast / size / location, GUI level (2.5 = adaptive) + the level of every trial (levelHistory),
+%                   reward mode / delay / lick window, and SPOUT yes/no = whether any lick was logged in lickData at all
+%
+% Also (option 'xs', default true): the ROI classes of the FOV pictures (signal-like / noise-like / neuropil-limited) are computed from the xs export
+% of cross_session/export_xs.m, so every aggregated session without an xs file gets one made here. Existing xs files are never overwritten.
 % Blocks are read from the RAW stim*.mat of every session (so un-aggregated sessions are covered too) and enriched from the
 % aggregated Stimuli struct when it exists. Block key / loom direction / trial-onset logic is the one of
 % axon analysis/cross_session/export_xs.m (same onsets as the analyses, so the trial counts agree with session_qc.csv).
 % Incremental: a session is re-read only when its aggregated file or a stim file changed since the last run ('force' overrides).
 % Read-only on all data; the only thing written is <out_dir>.
 
-p = inputParser;  addParameter(p, 'sessions', {});  addParameter(p, 'force', false);  parse(p, varargin{:});
+p = inputParser;  addParameter(p, 'sessions', {});  addParameter(p, 'force', false);  addParameter(p, 'xs', true);  parse(p, varargin{:});
 here = fileparts(mfilename('fullpath'));  repo = fileparts(fileparts(here));
 addpath(repo, fullfile(repo, 'newAggregation'), fullfile(repo, 'analysis_functions'));
 cfg = get_user_config('AnimalRB24');                       % only for the root paths (Z: share, DATA_2P, Stimulus_Axons, Aggregated)
@@ -64,6 +70,21 @@ end
 
 writetable(rows_to_table_(rowsS), fS);  writetable(rows_to_table_(rowsB), fB);
 fprintf('EXPORT_SESSION_META done: %d sessions, %d blocks -> %s\n', numel(rowsS), numel(rowsB), out_dir);
+
+% ---- xs exports for the ROI classes (aggregated sessions that have none yet; never overwrites)
+if p.Results.xs
+    xs_dir = 'C:\Users\rbondarenko\2P_cache\xs';
+    addpath(fullfile(repo, 'axon analysis', 'cross_session'));
+    for i = 1:numel(names)
+        nm = names{i};
+        if ~isfile(fullfile(cfg.OutputDir, [nm '_preprocessed.mat'])) || isfile(fullfile(xs_dir, [nm '_xs.mat'])); continue; end
+        try
+            t0 = tic;  export_xs(nm, xs_dir);  fprintf('  xs export made for %s (%.0f s)\n', nm, toc(t0));
+        catch ME
+            warning('xs export of %s FAILED (its FOV picture stays unclassified): %s', nm, strtrim(ME.message));
+        end
+    end
+end
 end
 
 
@@ -134,6 +155,7 @@ for k = 1:numel(files)
     if isfield(opt, 'projectortype'); bl.projector = char(string(opt.projectortype)); end
     if isfield(opt, 'SetUp'); bl.setup = double(opt.SetUp(1)); end
     bl.params = params_str_(bl.type, sp);
+    if strcmp(bl.type, 'training'); bl = training_fields_(bl, R, sp); end
     Fi = [];  if isfield(R, 'Frameinfo'); Fi = R.Frameinfo; end
     s = [];
     if ~isempty(agg_blocks) && numel(agg_blocks) == numel(files); s = agg_blocks(k); end
@@ -149,16 +171,24 @@ for k = 1:numel(files)
         bl.note = ['trial count failed: ' strtrim(ME.message)];
     end
     if strcmp(bl.key, 'square') && isfield(R, 'RewardMode'); S = task_fields_(S, sp, R); end
+    bl.stim_desc = describe_block_(bl, sp, false);  bl.stim_short = describe_block_(bl, sp, true);
     B{end+1} = bl; %#ok<AGROW>
 end
 S.n_blocks = numel(B);
 if ~isempty(B)
     S.n_blocks_interrupted = nansum_(cellfun(@(b) b.interrupted, B));
     keys = cellfun(@(b) b.key, B, 'UniformOutput', false);  nt = cellfun(@(b) b.n_trials, B);
-    u = unique(keys, 'stable');  parts = cell(1, numel(u));
-    for j = 1:numel(u); parts{j} = sprintf('%s x%d', u{j}, nansum_(nt(strcmp(keys, u{j})))); if all(isnan(nt(strcmp(keys, u{j})))); parts{j} = u{j}; end; end
-    S.stimuli = strjoin(parts, ', ');
+    % session summary of the stimuli: one entry per distinct short description (blocks that look alike are pooled), with the completed trials
+    shorts = cellfun(@(b) b.stim_short, B, 'UniformOutput', false);
+    nt_s = nt;  for q = 1:numel(B); if isnan(nt_s(q)) && strcmp(B{q}.key, 'square'); nt_s(q) = B{q}.trials_logged; end; end    % raw-only session: trials in the stim file
+    u = unique(shorts, 'stable');  parts = cell(1, numel(u));
+    for j = 1:numel(u)
+        sel = strcmp(shorts, u{j});  parts{j} = sprintf('%s x%d', u{j}, nansum_(nt_s(sel)));
+        if all(isnan(nt_s(sel))); parts{j} = u{j}; end
+    end
+    S.stimuli = strjoin(parts, '; ');
     S.block_sequence = strjoin(keys, ' > ');
+    S = square_session_fields_(S, B);
     rs = cellfun(@(b) b.red_sync_ok, B);  S.n_blocks_red_sync_ok = nansum_(rs);  S.n_blocks_red_sync_checked = sum(~isnan(rs));
     S.task_type = task_type_(keys, S);
 end
@@ -168,9 +198,178 @@ end
 function S = task_fields_(S, sp, R)
 % lick task vs passive square: RewardMode 1 = spout + reward, 0 = square without reward (axon_analysis_task_analysis_V1.m:270)
 if isfield(sp, 'RewardMode'); S.reward_mode = double(sp.RewardMode); elseif isfield(R, 'RewardMode'); S.reward_mode = double(R.RewardMode(1)); end
-if isfield(sp, 'level'); S.reward_level = double(sp.level); end
 if isfield(sp, 'RewardDelay'); S.reward_delay_s = double(sp.RewardDelay); end
 if isfield(sp, 'StimulusContrast'); S.square_contrast = double(sp.StimulusContrast); end
+% the level is NOT taken from specParams.level here: in the adaptive mode (GUI level 2.5) it is only the level of the LAST trial (see square_session_fields_)
+end
+
+
+function bl = training_fields_(bl, R, sp)
+% task facts of a training (square) block, read from the raw stim file (so un-aggregated sessions are covered too)
+bl.stim_shape = char(string(pick_(sp, R, 'stimulusType', '')));
+bl.stim_contrast_pct = num_(pick_(sp, R, 'StimulusContrast', NaN));
+bl.stim_size = num_(pick_(sp, R, 'StimSize', NaN));
+bl.stim_location = char(string(pick_(sp, R, 'locationMode', '')));
+bl.reward_mode = num_(pick_(sp, R, 'RewardMode', NaN));
+bl.reward_delay_s = num_(pick_(sp, R, 'RewardDelay', NaN));
+lw = [num_(pick_(sp, R, 'lickWindowMin', NaN)) num_(pick_(sp, R, 'lickWindowMax', NaN))];  if all(isfinite(lw)); bl.lick_window_s = sprintf('%g-%g', lw); end
+mw = [num_(pick_(sp, R, 'minWait', NaN)) num_(pick_(sp, R, 'maxWait', NaN))];  if all(isfinite(mw)); bl.wait_range_s = sprintf('%g-%g', mw); end
+
+% level: the GUI level is the top-level variable `level` (1, 2, 3, or 2.5 = ADAPTIVE: every trial runs level 2 or 3, drawn from the agent state; the level of each trial is in levelHistory).
+% specParams.level is only the level of the last trial, so it must not be used as the session level (axon_analysis_task_analysis_V1.m, reward section).
+gui = num_(pick_(struct(), R, 'level', NaN));  if ~isfinite(gui); gui = num_(pick_(sp, struct(), 'level', NaN)); end
+bl.gui_level = gui;
+lh = [];  if isfield(R, 'levelHistory') && isnumeric(R.levelHistory); lh = double(R.levelHistory(:)); lh = lh(isfinite(lh)); end
+nts = {};
+if ~isempty(lh)
+    bl.level_mode = 'adaptive';  bl.trials_logged = numel(lh);
+    bl.n_L1 = sum(lh == 1);  bl.n_L2 = sum(lh == 2);  bl.n_L3 = sum(lh == 3);
+    if gui ~= 2.5; nts{end+1} = sprintf('levelHistory present but GUI level is %g', gui); end %#ok<AGROW>
+else
+    bl.level_mode = 'fixed';  nt = NaN;
+    if isfield(R, 'timestart') && isdatetime(R.timestart); nt = numel(R.timestart); end
+    bl.trials_logged = nt;
+    if ismember(gui, [1 2 3]) && isfinite(nt); bl.(sprintf('n_L%d', gui)) = nt; end
+    if gui == 2.5; nts{end+1} = 'GUI level 2.5 (adaptive) but no levelHistory: per-trial levels unknown'; end %#ok<AGROW>
+end
+
+% spout = a lick was detected at all: lickData (cell of Arduino ms strings, one column per trial) holds at least one finite entry. No spout / reward mode 0: lickData is empty (0 x 0).
+n_l = 0;  n_lt = 0;  ncol = 0;
+if isfield(R, 'lickData') && ~isempty(R.lickData)
+    L = R.lickData;  ncol = size(L, 2);
+    if isnumeric(L) || islogical(L); v = double(L); else; v = str2double(L); end
+    fin = isfinite(v);  n_l = sum(fin(:));  n_lt = sum(any(fin, 1));
+end
+bl.n_lick_entries = n_l;  bl.n_trials_with_licks = n_lt;  bl.lick_log_trials = ncol;
+if n_l > 0; bl.spout = 'yes'; else; bl.spout = 'no'; end
+if bl.reward_mode == 1 && n_l == 0; nts{end+1} = 'RewardMode 1 but no lick in the log'; end %#ok<AGROW>
+if bl.reward_mode == 0 && n_l > 0; nts{end+1} = 'RewardMode 0 but licks in the log'; end %#ok<AGROW>
+if n_l > 0 && isfinite(bl.trials_logged) && ncol ~= bl.trials_logged; nts{end+1} = sprintf('lick log has %d trial columns for %d trials', ncol, bl.trials_logged); end %#ok<AGROW>
+bl.spout_note = strjoin(nts, '; ');
+end
+
+
+function v = pick_(sp, R, name, dflt)
+% parameter `name` from specParams, else from the top level of the stim file, else the default
+if isfield(sp, name) && ~isempty(sp.(name)); v = sp.(name); elseif isfield(R, name) && ~isempty(R.(name)); v = R.(name); else; v = dflt; end
+end
+
+
+function x = num_(v)
+if (isnumeric(v) || islogical(v)) && ~isempty(v); x = double(v(1)); else; x = NaN; end
+end
+
+
+function s = describe_block_(bl, sp, short)
+% readable one-line description of a block: short = for the session summary (`stimuli`), else the full one (blocks.csv stim_desc). Only facts that are in the stim file.
+SEP = ' | ';
+switch bl.key
+    case 'square'
+        shape = bl.stim_shape;  if isempty(shape); shape = 'square'; end
+        lvl = '';
+        if isfinite(bl.gui_level)
+            lvl = sprintf('level %g', bl.gui_level);
+            if strcmp(bl.level_mode, 'adaptive'); lvl = sprintf('%s adaptive (%s)', lvl, level_counts_(bl)); end
+        end
+        if strcmp(bl.spout, 'yes'); sp_s = 'spout'; elseif strcmp(bl.spout, 'no'); sp_s = 'no spout'; else; sp_s = ''; end
+        if short
+            head = shape;  if isfinite(bl.stim_contrast_pct); head = sprintf('%s %g%%', shape, bl.stim_contrast_pct); end
+            parts = {head, bl.stim_location, lvl, sp_s};
+            s = strjoin(parts(~cellfun(@isempty, parts)), SEP);
+        else
+            parts = {shape};
+            if isfinite(bl.stim_contrast_pct); parts{end+1} = sprintf('%g%% contrast', bl.stim_contrast_pct); end %#ok<AGROW>
+            if ~isempty(bl.stim_location); parts{end+1} = bl.stim_location; end %#ok<AGROW>
+            if isfinite(bl.stim_size); parts{end+1} = sprintf('size %g', bl.stim_size); end %#ok<AGROW>
+            parts{end+1} = lvl;  %#ok<AGROW>
+            if bl.reward_mode == 0; parts{end+1} = 'reward mode 0 (square shown without reward)';  %#ok<AGROW>
+            elseif bl.reward_mode == 1; parts{end+1} = sprintf('reward mode 1 (reward delay %g s)', bl.reward_delay_s); end %#ok<AGROW>
+            if ~isempty(bl.lick_window_s); parts{end+1} = ['lick window ' bl.lick_window_s ' s']; end %#ok<AGROW>
+            if ~isempty(bl.wait_range_s); parts{end+1} = ['wait ' bl.wait_range_s ' s before the square']; end %#ok<AGROW>
+            if strcmp(bl.spout, 'yes'); parts{end+1} = sprintf('spout (%d lick entries in %d trials)', bl.n_lick_entries, bl.n_trials_with_licks); %#ok<AGROW>
+            elseif strcmp(bl.spout, 'no'); parts{end+1} = 'no spout (no lick in the log)'; end %#ok<AGROW>
+            s = strjoin(parts(~cellfun(@isempty, parts)), SEP);
+        end
+    case {'loom_expand', 'loom_recede'}
+        if strcmp(bl.key, 'loom_expand'); nm = 'expanding loom'; else; nm = 'receding loom'; end
+        has_grey = isfield(sp, 'pre_grey_t') || isfield(sp, 'post_grey_t');
+        if short
+            s = bl.key;  if has_grey; s = [s ' (+grey)']; end
+        else
+            parts = {nm};
+            v = fld_(sp, 'loom_start_radius');  if ~isempty(v); parts{end+1} = sprintf('start radius %g', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'loom_maxexpand');  if ~isempty(v); parts{end+1} = sprintf('max expand %g', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'loom_speed');  if ~isempty(v); parts{end+1} = sprintf('speed %g', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'loom_origin');  if ~isempty(v); parts{end+1} = ['origin ' strtrim(sprintf('%g ', v))]; end %#ok<AGROW>
+            if has_grey; parts{end+1} = sprintf('grey %g s before / %g s after (outside the stimulus frames)', num_(pick_(sp, struct(), 'pre_grey_t', NaN)), num_(pick_(sp, struct(), 'post_grey_t', NaN))); end %#ok<AGROW>
+            s = strjoin(parts, SEP);
+        end
+    case 'flash'
+        s = bl.key;
+        if ~short
+            parts = {'flash (sparse local/global)'};
+            v = fld_(sp, 'duration');  if ~isempty(v); parts{end+1} = sprintf('%g s duration', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'interval');  if ~isempty(v); parts{end+1} = sprintf('every %s s', strjoin(arrayfun(@(x) sprintf('%g', x), v, 'UniformOutput', false), '-')); end %#ok<AGROW>
+            s = strjoin(parts, SEP);
+        end
+    case 'fff'
+        s = bl.key;
+        if ~short
+            parts = {'full-field flash (luminance modulation)'};
+            v = fld_(sp, 'fff_sineamp');  if ~isempty(v); parts{end+1} = sprintf('sine amplitude %g', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'fff_freq_factor');  if ~isempty(v); parts{end+1} = sprintf('frequency factor %g', v(1)); end %#ok<AGROW>
+            s = strjoin(parts, SEP);
+        end
+    case 'bar'
+        s = bl.key;
+        if ~short
+            parts = {'moving bar'};
+            v = fld_(sp, 'bar_width');  if ~isempty(v); parts{end+1} = sprintf('width %g', v(1)); end %#ok<AGROW>
+            v = fld_(sp, 'bar_moving_duration');  if ~isempty(v); parts{end+1} = sprintf('%g s per sweep', v(1)); end %#ok<AGROW>
+            if ~isempty(bl.addnote); parts{end+1} = ['note: ' bl.addnote]; end %#ok<AGROW>
+            s = strjoin(parts, SEP);
+        end
+    case 'spont'
+        s = bl.key;  if ~short; s = 'spontaneous (grey screen)'; end
+    case 'alleyCL'
+        s = bl.key;  if ~short && ~isempty(bl.addnote); s = ['alleyCL | ' bl.addnote]; end
+    otherwise
+        s = bl.key;
+end
+s = strrep(s, ',', ' ');
+end
+
+
+function v = fld_(sp, name)
+if isfield(sp, name) && isnumeric(sp.(name)) && ~isempty(sp.(name)); v = double(sp.(name)); else; v = []; end
+end
+
+
+function t = level_counts_(bl)
+parts = {};
+for l = 1:3
+    n = bl.(sprintf('n_L%d', l));
+    if isfinite(n) && n > 0; parts{end+1} = sprintf('L%d %d', l, n); end %#ok<AGROW>
+end
+t = strjoin(parts, ' / ');
+end
+
+
+function S = square_session_fields_(S, B)
+% session-level summary of the square (training) blocks: level, spout, lick entries
+sq = B(cellfun(@(b) strcmp(b.key, 'square'), B));
+if isempty(sq); return; end
+sps = cellfun(@(b) b.spout, sq, 'UniformOutput', false);
+if all(strcmp(sps, 'yes')); S.spout = 'yes'; elseif all(strcmp(sps, 'no')); S.spout = 'no'; else; S.spout = 'mixed'; end
+S.n_lick_entries = nansum_(cellfun(@(b) b.n_lick_entries, sq));
+lv = cellfun(@(b) b.gui_level, sq);  md = cellfun(@(b) b.level_mode, sq, 'UniformOutput', false);
+if all(lv == lv(1)); S.task_level = lv(1); else; S.task_level = NaN; end
+if all(strcmp(md, md{1})); S.level_mode = md{1}; else; S.level_mode = 'mixed'; end
+n = zeros(1, 3);  for l = 1:3; n(l) = nansum_(cellfun(@(b) b.(sprintf('n_L%d', l)), sq)); end
+parts = arrayfun(@(l) sprintf('L%d %d', l, n(l)), find(n > 0), 'UniformOutput', false);
+S.level_counts = strjoin(parts, ' / ');
+nts = cellfun(@(b) b.spout_note, sq, 'UniformOutput', false);  nts = nts(~cellfun(@isempty, nts));
+S.spout_note = strjoin(unique(nts, 'stable'), '; ');
 end
 
 
@@ -258,7 +457,7 @@ sig = sprintf('s%08x', mod(sum(double(strjoin(parts, '|')) .* (1:numel(strjoin(p
 end
 
 
-function v = SCHEMA_VERSION_(); v = 'schema3'; end
+function v = SCHEMA_VERSION_(); v = 'schema4'; end     % schema4: block descriptions + task level / spout fields (2026-11-11)
 
 
 function n = nansum_(x); x = x(~isnan(x)); if isempty(x); n = 0; else; n = sum(x); end; end
@@ -267,7 +466,8 @@ function n = nansum_(x); x = x(~isnan(x)); if isempty(x); n = 0; else; n = sum(x
 function S = empty_session_(nm, sf, sig)
 S = struct('session', nm, 'stim_folder', sf, 'stim_folder_found', NaN, 'n_stim_files', NaN, 'has_aggregated', 0, 'agg_mtime', '', 'agg_size_mb', NaN, ...
     'n_planes', NaN, 'n_agg_rois', NaN, 'n_frames_2p', NaN, 'duration_min_2p', NaN, 'clock_start', '', 'n_blocks', NaN, 'n_blocks_interrupted', NaN, ...
-    'stimuli', '', 'block_sequence', '', 'task_type', '', 'reward_mode', NaN, 'reward_level', NaN, 'reward_delay_s', NaN, 'square_contrast', NaN, ...
+    'stimuli', '', 'block_sequence', '', 'task_type', '', 'reward_mode', NaN, 'task_level', NaN, 'level_mode', '', 'level_counts', '', 'reward_delay_s', NaN, 'square_contrast', NaN, ...
+    'spout', '', 'n_lick_entries', NaN, 'spout_note', '', ...
     'timing_problems', NaN, 'n_blocks_red_sync_ok', NaN, 'n_blocks_red_sync_checked', NaN, 'n_cam_triggers', NaN, 'video_codec', '', 'video_fps', NaN, ...
     'pupil_frac_bad', NaN, 'whisk_fraction', NaN, 'whisk_artifact_fraction', NaN, 'ball_n_entries', NaN, 'ball_readings', NaN, 'ball_triggers', NaN, 'ball_sync_ok', NaN, ...
     'meta_error', '', 'signature', sig);
@@ -277,7 +477,9 @@ end
 function bl = empty_block_(nm, k, fname)
 bl = struct('session', nm, 'block', k, 'file', fname, 'type', '', 'key', '', 'loom_dir', NaN, 'addnote', '', 'trials_requested', NaN, 'n_trials', NaN, ...
     'start_wallclock', '', 'duration_s', NaN, 'interrupted', NaN, 't_start_2p', NaN, 't_end_2p', NaN, 'red_sync_ok', NaN, 'red_sync_method', '', ...
-    'projector', '', 'setup', NaN, 'params', '', 'note', '');
+    'projector', '', 'setup', NaN, 'params', '', 'note', '', 'stim_desc', '', 'stim_short', '', ...
+    'stim_shape', '', 'stim_contrast_pct', NaN, 'stim_size', NaN, 'stim_location', '', 'gui_level', NaN, 'level_mode', '', 'n_L1', NaN, 'n_L2', NaN, 'n_L3', NaN, 'trials_logged', NaN, ...
+    'reward_mode', NaN, 'reward_delay_s', NaN, 'lick_window_s', '', 'wait_range_s', '', 'spout', '', 'n_lick_entries', NaN, 'n_trials_with_licks', NaN, 'lick_log_trials', NaN, 'spout_note', '');
 end
 
 

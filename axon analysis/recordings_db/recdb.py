@@ -13,6 +13,7 @@ select() filters (all optional, combined with AND):
     tags=['loom','task']  all of these in all_tags      any_tags=[...]  at least one      exclude_tags=['stale','interrupted']
     has_block='loom_expand' (key of blocks.csv; with min_trials=10: at least that many completed trials in total)
     min_rois=30 (accepted ROIs)      min_minutes=10      date_from='2026-10-27'  date_to='2026-11-06'      aggregated=True      where=lambda row: ...
+    spout=True | False   square sessions with / without a spout (= a lick was logged at all; other sessions never match)      level=2.5 | [2, 2.5]   GUI level of the square task (2.5 = adaptive)
 The database folder is Z:\\Group Members\\Rima\\Recordings_DB (override with the environment variable RECDB_DIR; falls back to the git snapshot when Z: is not mounted).
 """
 import os, csv
@@ -60,7 +61,7 @@ def _as_list(x): return [] if x is None else ([x] if isinstance(x, str) else lis
 
 
 def select(animal=None, status=None, task_type=None, pool=None, tags=None, any_tags=None, exclude_tags=None, has_block=None, min_trials=None, min_rois=None, min_minutes=None,
-           date_from=None, date_to=None, aggregated=None, where=None):
+           date_from=None, date_to=None, aggregated=None, spout=None, level=None, where=None):
     rows = table('sessions'); blk = table('blocks') if (has_block or min_trials) else []
     an, st = ['Animal' + a if not a.startswith('Animal') else a for a in _as_list(animal)], _as_list(status)
     out = []
@@ -71,6 +72,9 @@ def select(animal=None, status=None, task_type=None, pool=None, tags=None, any_t
         if task_type and r['task_type'] != task_type: continue
         if pool is True and r['pool'] != 'yes': continue
         if pool is False and r['pool'] != 'no': continue
+        if spout is True and r['spout'] != 'yes': continue            # square sessions: a lick was logged at all
+        if spout is False and r['spout'] != 'no': continue
+        if level is not None and r['task_level'] not in ([level] if isinstance(level, (int, float)) else list(level)): continue        # GUI level of the square task: 1, 2, 2.5 (adaptive), 3
         if tags and not set(_as_list(tags)) <= tg: continue
         if any_tags and not (set(_as_list(any_tags)) & tg): continue
         if exclude_tags and (set(_as_list(exclude_tags)) & tg): continue

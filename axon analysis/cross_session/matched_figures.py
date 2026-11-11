@@ -157,11 +157,16 @@ def fig_m2(res):
                 for a_ in (ax, axb): a_.axis('off')
                 ax.text(0.5, 0.5, 'not testable:\nno behaviour-matched\ncontrol windows', ha='center', va='center', transform=ax.transAxes, fontsize=5.6, color='#C0392B'); continue
             trace_panel(ax, T, C_SIG, spec)
+            if col == 0:
+                ax.legend(handles=[Line2D([], [], color=C_SIG, lw=1.1, label='axon at the events (square onset = 0)'), Line2D([], [], color=C_CTRL, lw=1.1, label='axon at their behaviour-matched controls')],
+                          loc='lower right', fontsize=4.6, frameon=False, handlelength=1.4, borderaxespad=0.1)
             for bn in ('face', 'whisk'):
                 Tb = pooled_traces(res, key, sess, bn)
                 if Tb is not None: axb.plot(Tb['tau'], Tb['F'], color=C_BEH[bn], lw=0.9); axb.plot(Tb['tau'], Tb['R'], color=C_BEH[bn], lw=0.9, ls=':')
             axb.axvspan(spec[0], spec[1], color='#F3F4F6', zorder=0); axb.axhline(0, color=FAINT, lw=0.5); axb.axvline(0, color=MUTED, lw=0.5, ls=':'); axb.set_xlabel('time from square onset (s)', fontsize=5.5)
-            if col == 0: axb.text(0.02, 0.97, 'face motion', color=C_BEH['face'], transform=axb.transAxes, fontsize=5.0, va='top'); axb.text(0.02, 0.80, 'whisking', color=C_BEH['whisk'], transform=axb.transAxes, fontsize=5.0, va='top')
+            if col == 0:
+                axb.text(0.02, 0.97, 'face motion', color=C_BEH['face'], transform=axb.transAxes, fontsize=5.0, va='top'); axb.text(0.02, 0.80, 'whisking', color=C_BEH['whisk'], transform=axb.transAxes, fontsize=5.0, va='top')
+                axb.text(0.98, 0.97, 'solid = events, dotted = matched controls', transform=axb.transAxes, fontsize=4.4, va='top', ha='right', color=MUTED)
     fig.text(0.115, 0.915 - 0.0, '', fontsize=5)
     # forests: rows = task / passive, columns = cue / post (each 2 grid columns wide)
     for r, (gk, gname, sess, c0) in enumerate(groups):

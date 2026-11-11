@@ -1,0 +1,224 @@
+AnimalRB24_261109_1506: behaviours ['face', 'whisk', 'jaw', 'lick', 'loco'], 15 contrasts
+  P       brk_vs_wait_early          n  21 valid  21 matched  10 | naive -0.001 matched -0.033 (shift z -1.3 p 0.194 | bench z -0.6 p 0.614)
+  P       pre_brk_vs_wait_early      n  21 valid  21 matched  12 | naive +0.053 matched +0.020 (shift z +0.6 p 0.483 | bench z +0.6 p 0.644)
+  P       brk_vs_ant_to              n  21 valid  21 matched   3 | naive -0.005 matched -0.075 (shift z -2.7 p 0.005 | bench z -0.8 p 0.475)
+  P       pre_brk_vs_ant_to          n  21 valid  21 matched   8 | naive +0.061 matched +0.009 (shift z +0.1 p 0.876 | bench z +0.2 p 0.802)
+  P       brk_vs_ant_sq              n  21: too few matched windows
+  P       pre_brk_vs_ant_sq          n  21: too few matched windows
+  P       brk_vs_rew                 n  21 valid  21 matched   3 | naive -0.028 matched -0.070 (shift z -1.6 p 0.095 | bench z -0.8 p 0.505)
+  P       pre_brk_vs_rew             n  21 valid  21 matched   6 | naive +0.022 matched +0.091 (shift z +2.8 p 0.005 | bench z +1.4 p 0.149)
+  P       brk_vs_post_a              n  21: too few matched windows
+  P       pre_brk_vs_post_a          n  21 valid  21 matched   5 | naive +0.068 matched +0.135 (shift z +2.4 p 0.005 | bench z +1.4 p 0.158)
+  P       brk_vs_post_b              n  21 valid  21 matched   3 | naive -0.032 matched -0.076 (shift z -2.3 p 0.035 | bench z -1.0 p 0.347)
+  P       pre_brk_vs_post_b          n  21 valid  21 matched   4 | naive +0.019 matched -0.020 (shift z -0.4 p 0.652 | bench z -0.2 p 0.861)
+  P       brkLate_vs_wait_early      n  15 valid  15 matched   9 | naive +0.012 matched -0.020 (shift z -0.6 p 0.568 | bench z -0.0 p 0.970)
+  P       pre_brkLate_vs_wait_early  n  15 valid  15 matched   9 | naive +0.059 matched +0.039 (shift z +0.8 p 0.393 | bench z +0.7 p 0.485)
+  P       brk_state_10s              n  21 valid  21 matched  15 | naive +0.019 matched -0.007 (shift z -0.3 p 0.741 | bench z -0.3 p 0.881)
+  control brk_vs_wait_early          n  21 valid  21 matched  10 | naive +0.002 matched -0.032 (shift z -2.1 p 0.065 | bench z +nan p nan)
+  control pre_brk_vs_wait_early      n  21 valid  21 matched  12 | naive +0.024 matched -0.002 (shift z -0.1 p 0.920 | bench z +nan p nan)
+  control brk_vs_ant_to              n  21 valid  21 matched   3 | naive -0.003 matched -0.021 (shift z -1.9 p 0.070 | bench z +nan p nan)
+  control pre_brk_vs_ant_to          n  21 valid  21 matched   8 | naive +0.025 matched -0.003 (shift z -0.4 p 0.607 | bench z +nan p nan)
+  control brk_vs_ant_sq              n  21: too few matched windows
+  control pre_brk_vs_ant_sq          n  21: too few matched windows
+  control brk_vs_rew                 n  21 valid  21 matched   3 | naive -0.011 matched -0.017 (shift z -0.9 p 0.453 | bench z +nan p nan)
+  control pre_brk_vs_rew             n  21 valid  21 matched   6 | naive +0.014 matched +0.025 (shift z +2.0 p 0.070 | bench z +nan p nan)
+  control brk_vs_post_a              n  21: too few matched windows
+  control pre_brk_vs_post_a          n  21 valid  21 matched   5 | naive +0.030 matched +0.037 (shift z +2.6 p 0.005 | bench z +nan p nan)
+  control brk_vs_post_b              n  21 valid  21 matched   3 | naive -0.016 matched -0.018 (shift z -1.7 p 0.119 | bench z +nan p nan)
+  control pre_brk_vs_post_b          n  21 valid  21 matched   4 | naive +0.011 matched +0.002 (shift z +0.0 p 1.000 | bench z +nan p nan)
+  control brkLate_vs_wait_early      n  15 valid  15 matched   9 | naive +0.009 matched -0.021 (shift z -1.2 p 0.131 | bench z +nan p nan)
+  control pre_brkLate_vs_wait_early  n  15 valid  15 matched   9 | naive +0.033 matched -0.000 (shift z -0.1 p 0.891 | bench z +nan p nan)
+  control brk_state_10s              n  21 valid  21 matched  15 | naive +0.011 matched -0.002 (shift z -0.4 p 0.687 | bench z +nan p nan)
+  25 s
+AnimalRB24_261105_1423: behaviours ['face', 'whisk', 'jaw', 'lick', 'loco'], 30 contrasts
+  P       brk_vs_wait_early          n  32 valid  32 matched  11 | naive -0.027 matched -0.012 (shift z -0.5 p 0.607 | bench z -0.1 p 0.931)
+  P       pre_brk_vs_wait_early      n  32 valid  32 matched   9 | naive +0.035 matched -0.009 (shift z -0.2 p 0.821 | bench z -0.1 p 0.911)
+  P       brk_vs_ant_to              n  32 valid  32 matched   5 | naive +0.002 matched +0.039 (shift z +2.7 p 0.005 | bench z +0.4 p 0.663)
+  P       pre_brk_vs_ant_to          n  32 valid  32 matched   3 | naive +0.057 matched -0.003 (shift z +0.4 p 0.851 | bench z +0.2 p 0.881)
+  P       brk_vs_ant_sq              n  32 valid  32 matched   5 | naive +0.003 matched +0.057 (shift z +2.3 p 0.005 | bench z +0.6 p 0.584)
+  P       pre_brk_vs_ant_sq          n  32 valid  32 matched   4 | naive +0.089 matched -0.041 (shift z -1.6 p 0.134 | bench z -0.3 p 0.743)
+  P       brk_vs_rew                 n  32 valid  32 matched   6 | naive +0.012 matched +0.144 (shift z +5.2 p 0.005 | bench z +1.9 p 0.059)
+  P       pre_brk_vs_rew             n  32: too few matched windows
+  P       brk_vs_post_a              n  32 valid  32 matched   9 | naive -0.036 matched -0.049 (shift z -1.6 p 0.090 | bench z -0.7 p 0.525)
+  P       pre_brk_vs_post_a          n  32: too few matched windows
+  P       brk_vs_post_b              n  32 valid  32 matched   9 | naive -0.070 matched -0.017 (shift z -0.1 p 0.955 | bench z -0.1 p 0.851)
+  P       pre_brk_vs_post_b          n  32 valid  32 matched   6 | naive +0.019 matched -0.008 (shift z +0.0 p 0.990 | bench z -0.0 p 0.990)
+  P       tail_vs_wait_early         n  19 valid  19 matched  15 | naive -0.023 matched -0.025 (shift z -0.5 p 0.513 | bench z -0.5 p 0.653)
+  P       pre_tail_vs_wait_early     n  19 valid  19 matched   7 | naive +0.011 matched -0.117 (shift z -1.3 p 0.130 | bench z -1.4 p 0.168)
+  P       tail_vs_ant_to             n  19 valid  19 matched   8 | naive +0.006 matched -0.067 (shift z -2.9 p 0.005 | bench z -0.9 p 0.366)
+  P       pre_tail_vs_ant_to         n  19 valid  19 matched   4 | naive +0.033 matched -0.210 (shift z -3.3 p 0.005 | bench z -2.0 p 0.079)
+  P       tail_vs_ant_sq             n  19 valid  19 matched   4 | naive +0.007 matched -0.001 (shift z -0.0 p 1.000 | bench z -0.1 p 0.921)
+  P       pre_tail_vs_ant_sq         n  19 valid  19 matched   5 | naive +0.066 matched -0.124 (shift z -5.6 p 0.005 | bench z -1.6 p 0.109)
+  P       tail_vs_rew                n  19 valid  19 matched   5 | naive +0.017 matched -0.101 (shift z -3.6 p 0.005 | bench z -1.4 p 0.158)
+  P       pre_tail_vs_rew            n  19: too few matched windows
+  P       tail_vs_post_a             n  19 valid  19 matched   9 | naive -0.031 matched -0.165 (shift z -3.7 p 0.005 | bench z -2.6 p 0.020)
+  P       pre_tail_vs_post_a         n  19 valid  19 matched   6 | naive +0.029 matched -0.107 (shift z -2.7 p 0.035 | bench z -1.1 p 0.267)
+  P       tail_vs_post_b             n  19 valid  19 matched  12 | naive -0.066 matched -0.093 (shift z -2.1 p 0.050 | bench z -1.6 p 0.109)
+  P       pre_tail_vs_post_b         n  19 valid  19 matched   8 | naive -0.004 matched -0.152 (shift z -2.8 p 0.005 | bench z -1.8 p 0.099)
+  P       brkLate_vs_wait_early      n  22 valid  22 matched   8 | naive -0.036 matched -0.050 (shift z -1.2 p 0.174 | bench z -0.5 p 0.663)
+  P       pre_brkLate_vs_wait_early  n  22 valid  22 matched   7 | naive +0.026 matched -0.043 (shift z -0.8 p 0.363 | bench z -0.5 p 0.554)
+  P       brkEarly_vs_wait_early     n  10 valid  10 matched   3 | naive -0.008 matched +0.152 (shift z +1.8 p 0.105 | bench z +1.5 p 0.119)
+  P       pre_brkEarly_vs_wait_early n  10: too few matched windows
+  P       brk_state_10s              n  15 valid  15 matched  10 | naive +0.001 matched -0.061 (shift z -1.7 p 0.100 | bench z -1.1 p 0.317)
+  P       tail_state_10s             n   8 valid   8 matched   6 | naive -0.053 matched -0.036 (shift z -0.6 p 0.459 | bench z -0.4 p 0.663)
+  control brk_vs_wait_early          n  32 valid  32 matched  11 | naive +0.010 matched -0.016 (shift z -0.7 p 0.517 | bench z +nan p nan)
+  control pre_brk_vs_wait_early      n  32 valid  32 matched   9 | naive +0.041 matched +0.060 (shift z +2.7 p 0.015 | bench z +nan p nan)
+  control brk_vs_ant_to              n  32 valid  32 matched   5 | naive +0.021 matched -0.081 (shift z -3.1 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_ant_to          n  32 valid  32 matched   3 | naive +0.051 matched -0.014 (shift z -0.1 p 0.900 | bench z +nan p nan)
+  control brk_vs_ant_sq              n  32 valid  32 matched   5 | naive +0.015 matched -0.008 (shift z -0.3 p 0.637 | bench z +nan p nan)
+  control pre_brk_vs_ant_sq          n  32 valid  32 matched   4 | naive +0.055 matched -0.007 (shift z -0.5 p 0.592 | bench z +nan p nan)
+  control brk_vs_rew                 n  32 valid  32 matched   6 | naive +0.016 matched +0.032 (shift z +2.6 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_rew             n  32: too few matched windows
+  control brk_vs_post_a              n  32 valid  32 matched   9 | naive +0.019 matched -0.079 (shift z -3.3 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_post_a          n  32: too few matched windows
+  control brk_vs_post_b              n  32 valid  32 matched   9 | naive +0.008 matched +0.020 (shift z +0.8 p 0.433 | bench z +nan p nan)
+  control pre_brk_vs_post_b          n  32 valid  32 matched   6 | naive +0.045 matched -0.065 (shift z -2.5 p 0.010 | bench z +nan p nan)
+  control tail_vs_wait_early         n  19 valid  19 matched  15 | naive +0.001 matched -0.002 (shift z -0.1 p 0.827 | bench z +nan p nan)
+  control pre_tail_vs_wait_early     n  19 valid  19 matched   7 | naive +0.016 matched -0.007 (shift z -0.1 p 0.851 | bench z +nan p nan)
+  control tail_vs_ant_to             n  19 valid  19 matched   8 | naive +0.012 matched -0.007 (shift z -0.8 p 0.547 | bench z +nan p nan)
+  control pre_tail_vs_ant_to         n  19 valid  19 matched   4 | naive +0.027 matched -0.011 (shift z -0.3 p 0.612 | bench z +nan p nan)
+  control tail_vs_ant_sq             n  19 valid  19 matched   4 | naive +0.006 matched -0.015 (shift z -0.0 p 1.000 | bench z +nan p nan)
+  control pre_tail_vs_ant_sq         n  19 valid  19 matched   5 | naive +0.031 matched +0.018 (shift z +0.1 p 0.980 | bench z +nan p nan)
+  control tail_vs_rew                n  19 valid  19 matched   5 | naive +0.007 matched -0.041 (shift z -2.5 p 0.005 | bench z +nan p nan)
+  control pre_tail_vs_rew            n  19: too few matched windows
+  control tail_vs_post_a             n  19 valid  19 matched   9 | naive +0.010 matched -0.037 (shift z -1.7 p 0.100 | bench z +nan p nan)
+  control pre_tail_vs_post_a         n  19 valid  19 matched   6 | naive +0.026 matched +0.008 (shift z -0.4 p 0.731 | bench z +nan p nan)
+  control tail_vs_post_b             n  19 valid  19 matched  12 | naive -0.000 matched +0.001 (shift z +0.0 p 0.965 | bench z +nan p nan)
+  control pre_tail_vs_post_b         n  19 valid  19 matched   8 | naive +0.021 matched -0.015 (shift z -0.1 p 0.905 | bench z +nan p nan)
+  control brkLate_vs_wait_early      n  22 valid  22 matched   8 | naive +0.001 matched -0.069 (shift z -2.8 p 0.025 | bench z +nan p nan)
+  control pre_brkLate_vs_wait_early  n  22 valid  22 matched   7 | naive +0.033 matched +0.049 (shift z +1.9 p 0.070 | bench z +nan p nan)
+  control brkEarly_vs_wait_early     n  10 valid  10 matched   3 | naive +0.030 matched +0.153 (shift z +3.3 p 0.005 | bench z +nan p nan)
+  control pre_brkEarly_vs_wait_early n  10: too few matched windows
+  control brk_state_10s              n  15 valid  15 matched  10 | naive +0.004 matched -0.039 (shift z -2.0 p 0.050 | bench z +nan p nan)
+  control tail_state_10s             n   8 valid   8 matched   6 | naive +0.005 matched +0.014 (shift z +0.6 p 0.452 | bench z +nan p nan)
+  25 s
+AnimalRB24_261030_1744: behaviours ['face', 'whisk', 'jaw', 'lick', 'loco'], 18 contrasts
+  P       brk_vs_wait_early          n  39 valid  39 matched  12 | naive -0.012 matched -0.022 (shift z -1.2 p 0.229 | bench z +0.4 p 0.644)
+  P       pre_brk_vs_wait_early      n  39 valid  39 matched   8 | naive -0.066 matched -0.060 (shift z -2.6 p 0.005 | bench z -1.0 p 0.327)
+  P       brk_vs_ant_to              n  39: too few matched windows
+  P       pre_brk_vs_ant_to          n  39: too few matched windows
+  P       brk_vs_ant_sq              n  39 valid  39 matched   5 | naive +0.039 matched +0.036 (shift z -0.1 p 1.000 | bench z +0.4 p 0.653)
+  P       pre_brk_vs_ant_sq          n  39 valid  39 matched   4 | naive +0.066 matched +0.006 (shift z -0.9 p 0.448 | bench z +0.4 p 0.624)
+  P       brk_vs_rew                 n  39 valid  39 matched   5 | naive -0.075 matched +0.074 (shift z +5.7 p 0.005 | bench z +1.3 p 0.188)
+  P       pre_brk_vs_rew             n  39 valid  39 matched   4 | naive +0.035 matched +0.086 (shift z +3.7 p 0.005 | bench z +1.8 p 0.079)
+  P       brk_vs_post_a              n  39 valid  39 matched   5 | naive -0.107 matched +0.011 (shift z +0.2 p 0.856 | bench z +0.3 p 0.911)
+  P       pre_brk_vs_post_a          n  39: too few matched windows
+  P       brk_vs_post_b              n  39 valid  39 matched  12 | naive -0.080 matched -0.036 (shift z -1.1 p 0.358 | bench z -0.2 p 0.871)
+  P       pre_brk_vs_post_b          n  39: too few matched windows
+  P       brkLate_vs_wait_early      n  29 valid  29 matched   7 | naive +0.001 matched -0.021 (shift z -0.9 p 0.279 | bench z +0.9 p 0.386)
+  P       pre_brkLate_vs_wait_early  n  29 valid  29 matched   4 | naive -0.047 matched -0.060 (shift z -2.5 p 0.040 | bench z -0.5 p 0.535)
+  P       brkEarly_vs_wait_early     n  10 valid  10 matched   5 | naive -0.048 matched -0.023 (shift z -0.8 p 0.473 | bench z -0.7 p 0.465)
+  P       pre_brkEarly_vs_wait_early n  10 valid  10 matched   4 | naive -0.121 matched -0.078 (shift z -1.9 p 0.085 | bench z -0.5 p 0.604)
+  P       brk_state_10s              n  16: too few matched windows
+  P       tail_state_10s             n   8: too few matched windows
+  control brk_vs_wait_early          n  39 valid  39 matched  12 | naive -0.004 matched -0.001 (shift z -0.5 p 0.592 | bench z +nan p nan)
+  control pre_brk_vs_wait_early      n  39 valid  39 matched   8 | naive -0.020 matched -0.018 (shift z -2.8 p 0.015 | bench z +nan p nan)
+  control brk_vs_ant_to              n  39: too few matched windows
+  control pre_brk_vs_ant_to          n  39: too few matched windows
+  control brk_vs_ant_sq              n  39 valid  39 matched   5 | naive +0.010 matched +0.025 (shift z +3.7 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_ant_sq          n  39 valid  39 matched   4 | naive +0.003 matched +0.014 (shift z +5.3 p 0.005 | bench z +nan p nan)
+  control brk_vs_rew                 n  39 valid  39 matched   5 | naive +0.001 matched +0.029 (shift z +2.8 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_rew             n  39 valid  39 matched   4 | naive -0.006 matched -0.023 (shift z -5.7 p 0.005 | bench z +nan p nan)
+  control brk_vs_post_a              n  39 valid  39 matched   5 | naive -0.006 matched +0.006 (shift z +0.7 p 0.642 | bench z +nan p nan)
+  control pre_brk_vs_post_a          n  39: too few matched windows
+  control brk_vs_post_b              n  39 valid  39 matched  12 | naive -0.006 matched +0.000 (shift z -0.0 p 0.975 | bench z +nan p nan)
+  control pre_brk_vs_post_b          n  39: too few matched windows
+  control brkLate_vs_wait_early      n  29 valid  29 matched   7 | naive +0.000 matched +0.003 (shift z +0.1 p 0.930 | bench z +nan p nan)
+  control pre_brkLate_vs_wait_early  n  29 valid  29 matched   4 | naive -0.010 matched -0.003 (shift z -0.4 p 0.761 | bench z +nan p nan)
+  control brkEarly_vs_wait_early     n  10 valid  10 matched   5 | naive -0.016 matched -0.006 (shift z -0.5 p 0.628 | bench z +nan p nan)
+  control pre_brkEarly_vs_wait_early n  10 valid  10 matched   4 | naive -0.049 matched -0.033 (shift z -1.6 p 0.124 | bench z +nan p nan)
+  control brk_state_10s              n  16: too few matched windows
+  control tail_state_10s             n   8: too few matched windows
+  7 s
+AnimalRB24_261029_1752: behaviours ['face', 'whisk', 'jaw', 'lick'], 16 contrasts
+  P       brk_vs_wait_early          n  42 valid  42 matched  30 | naive +0.032 matched -0.031 (shift z -1.3 p 0.199 | bench z -0.6 p 0.465)
+  P       pre_brk_vs_wait_early      n  42 valid  42 matched  29 | naive -0.103 matched -0.040 (shift z -1.2 p 0.254 | bench z -0.8 p 0.416)
+  P       brk_vs_ant_sq              n  42 valid  42 matched  17 | naive +0.051 matched -0.009 (shift z +0.1 p 0.891 | bench z -0.3 p 0.703)
+  P       pre_brk_vs_ant_sq          n  42 valid  42 matched  26 | naive -0.053 matched -0.036 (shift z -1.3 p 0.289 | bench z -0.9 p 0.396)
+  P       brk_vs_rew                 n  42 valid  42 matched  20 | naive +0.035 matched -0.002 (shift z -0.4 p 0.612 | bench z +0.0 p 1.000)
+  P       pre_brk_vs_rew             n  42 valid  42 matched  24 | naive -0.027 matched -0.031 (shift z -1.4 p 0.144 | bench z -0.5 p 0.564)
+  P       brk_vs_post_a              n  42 valid  42 matched  10 | naive -0.010 matched -0.046 (shift z -0.7 p 0.592 | bench z -1.2 p 0.218)
+  P       pre_brk_vs_post_a          n  42 valid  42 matched  11 | naive -0.143 matched -0.035 (shift z -0.9 p 0.338 | bench z -0.9 p 0.436)
+  P       brk_vs_post_b              n  42 valid  42 matched  19 | naive -0.006 matched -0.087 (shift z -2.9 p 0.005 | bench z -1.0 p 0.337)
+  P       pre_brk_vs_post_b          n  42 valid  42 matched  31 | naive -0.149 matched -0.029 (shift z -1.5 p 0.149 | bench z -0.4 p 0.703)
+  P       brkLate_vs_wait_early      n  32 valid  32 matched  23 | naive +0.022 matched -0.014 (shift z -0.4 p 0.682 | bench z +0.1 p 0.980)
+  P       pre_brkLate_vs_wait_early  n  32 valid  32 matched  21 | naive -0.124 matched -0.102 (shift z -2.6 p 0.010 | bench z -2.4 p 0.020)
+  P       brkEarly_vs_wait_early     n  10 valid  10 matched   8 | naive +0.063 matched -0.092 (shift z -1.5 p 0.164 | bench z -1.5 p 0.109)
+  P       pre_brkEarly_vs_wait_early n  10 valid  10 matched  10 | naive -0.036 matched -0.011 (shift z -0.3 p 0.808 | bench z -0.2 p 0.871)
+  P       brk_state_10s              n  24: too few matched windows
+  P       tail_state_10s             n  11: too few matched windows
+  control brk_vs_wait_early          n  42 valid  42 matched  30 | naive +0.005 matched -0.005 (shift z -0.5 p 0.637 | bench z +nan p nan)
+  control pre_brk_vs_wait_early      n  42 valid  42 matched  29 | naive -0.030 matched -0.016 (shift z -1.6 p 0.080 | bench z +nan p nan)
+  control brk_vs_ant_sq              n  42 valid  42 matched  17 | naive +0.017 matched -0.004 (shift z -0.2 p 0.801 | bench z +nan p nan)
+  control pre_brk_vs_ant_sq          n  42 valid  42 matched  26 | naive -0.014 matched -0.013 (shift z -1.5 p 0.129 | bench z +nan p nan)
+  control brk_vs_rew                 n  42 valid  42 matched  20 | naive +0.024 matched -0.001 (shift z -0.4 p 0.637 | bench z +nan p nan)
+  control pre_brk_vs_rew             n  42 valid  42 matched  24 | naive -0.001 matched -0.012 (shift z -2.0 p 0.030 | bench z +nan p nan)
+  control brk_vs_post_a              n  42 valid  42 matched  10 | naive +0.008 matched -0.036 (shift z -1.8 p 0.005 | bench z +nan p nan)
+  control pre_brk_vs_post_a          n  42 valid  42 matched  11 | naive -0.023 matched +0.011 (shift z +1.7 p 0.090 | bench z +nan p nan)
+  control brk_vs_post_b              n  42 valid  42 matched  19 | naive +0.012 matched -0.022 (shift z -1.6 p 0.119 | bench z +nan p nan)
+  control pre_brk_vs_post_b          n  42 valid  42 matched  31 | naive -0.025 matched +0.005 (shift z +0.6 p 0.557 | bench z +nan p nan)
+  control brkLate_vs_wait_early      n  32 valid  32 matched  23 | naive +0.004 matched +0.002 (shift z +0.2 p 0.861 | bench z +nan p nan)
+  control pre_brkLate_vs_wait_early  n  32 valid  32 matched  21 | naive -0.030 matched -0.019 (shift z -1.7 p 0.085 | bench z +nan p nan)
+  control brkEarly_vs_wait_early     n  10 valid  10 matched   8 | naive +0.008 matched -0.025 (shift z -1.1 p 0.244 | bench z +nan p nan)
+  control pre_brkEarly_vs_wait_early n  10 valid  10 matched  10 | naive -0.029 matched -0.018 (shift z -0.7 p 0.503 | bench z +nan p nan)
+  control brk_state_10s              n  24: too few matched windows
+  control tail_state_10s             n  11: too few matched windows
+  8 s
+AnimalRB24_261106_1317: behaviours ['face', 'whisk', 'jaw', 'lick'], 14 contrasts
+  P       brk_vs_wait_early          n  16: too few matched windows
+  P       pre_brk_vs_wait_early      n  16 valid  16 matched   3 | naive -0.005 matched -0.154 (shift z -4.1 p 0.005 | bench z -1.4 p 0.198)
+  P       brk_vs_ant_to              n  16: too few matched windows
+  P       pre_brk_vs_ant_to          n  16: too few matched windows
+  P       brk_vs_rew                 n  16: too few matched windows
+  P       pre_brk_vs_rew             n  16: too few matched windows
+  P       brk_vs_post_a              n  16: too few matched windows
+  P       pre_brk_vs_post_a          n  16: too few matched windows
+  P       brk_vs_post_b              n  16: too few matched windows
+  P       pre_brk_vs_post_b          n  16 valid  16 matched   3 | naive +0.012 matched -0.077 (shift z -1.2 p 0.327 | bench z -0.6 p 0.535)
+  P       brkLate_vs_wait_early      n   9: too few matched windows
+  P       pre_brkLate_vs_wait_early  n   9: too few matched windows
+  P       brk_state_10s              n  19 valid  19 matched   9 | naive -0.009 matched -0.045 (shift z -1.5 p 0.129 | bench z -1.1 p 0.257)
+  P       tail_state_10s             n   8 valid   8 matched   6 | naive +0.121 matched +0.293 (shift z +6.7 p 0.005 | bench z +6.2 p 0.010)
+  control brk_vs_wait_early          n  16: too few matched windows
+  control pre_brk_vs_wait_early      n  16 valid  16 matched   3 | naive +0.005 matched -0.030 (shift z -3.0 p 0.005 | bench z +nan p nan)
+  control brk_vs_ant_to              n  16: too few matched windows
+  control pre_brk_vs_ant_to          n  16: too few matched windows
+  control brk_vs_rew                 n  16: too few matched windows
+  control pre_brk_vs_rew             n  16: too few matched windows
+  control brk_vs_post_a              n  16: too few matched windows
+  control pre_brk_vs_post_a          n  16: too few matched windows
+  control brk_vs_post_b              n  16: too few matched windows
+  control pre_brk_vs_post_b          n  16 valid  16 matched   3 | naive +0.011 matched -0.006 (shift z -0.5 p 0.548 | bench z +nan p nan)
+  control brkLate_vs_wait_early      n   9: too few matched windows
+  control pre_brkLate_vs_wait_early  n   9: too few matched windows
+  control brk_state_10s              n  19 valid  19 matched   9 | naive -0.004 matched -0.010 (shift z -1.4 p 0.159 | bench z +nan p nan)
+  control tail_state_10s             n   8 valid   8 matched   6 | naive +0.018 matched +0.041 (shift z +4.7 p 0.005 | bench z +nan p nan)
+  27 s
+AnimalRB23_261029_1704: behaviours ['face', 'whisk', 'jaw', 'lick'], 13 contrasts
+  P       brk_vs_wait_early          n  20: too few matched windows
+  P       pre_brk_vs_wait_early      n  20: too few matched windows
+  P       brk_vs_ant_sq              n  20: too few matched windows
+  P       pre_brk_vs_ant_sq          n  20: too few matched windows
+  P       brk_vs_rew                 n  20: too few matched windows
+  P       pre_brk_vs_rew             n  20 valid  20 matched   5 | naive +0.052 matched +0.017 (shift z +0.8 p 0.353 | bench z +0.3 p 0.782)
+  P       brk_vs_post_a              n  20: too few matched windows
+  P       pre_brk_vs_post_a          n  20: too few matched windows
+  P       brk_vs_post_b              n  20 valid  20 matched   4 | naive -0.041 matched +0.047 (shift z +1.5 p 0.205 | bench z +nan p nan)
+  P       pre_brk_vs_post_b          n  20 valid  20 matched   4 | naive -0.022 matched +0.006 (shift z -0.0 p 1.000 | bench z +nan p nan)
+  P       brkLate_vs_wait_early      n  15: too few matched windows
+  P       pre_brkLate_vs_wait_early  n  15: too few matched windows
+  P       brk_state_10s              n  24: too few matched windows
+  control brk_vs_wait_early          n  20: too few matched windows
+  control pre_brk_vs_wait_early      n  20: too few matched windows
+  control brk_vs_ant_sq              n  20: too few matched windows
+  control pre_brk_vs_ant_sq          n  20: too few matched windows
+  control brk_vs_rew                 n  20: too few matched windows
+  control pre_brk_vs_rew             n  20 valid  20 matched   5 | naive +0.004 matched +0.009 (shift z +1.6 p 0.174 | bench z +nan p nan)
+  control brk_vs_post_a              n  20: too few matched windows
+  control pre_brk_vs_post_a          n  20: too few matched windows
+  control brk_vs_post_b              n  20 valid  20 matched   4 | naive -0.004 matched +0.012 (shift z +1.4 p 0.194 | bench z +nan p nan)
+  control pre_brk_vs_post_b          n  20 valid  20 matched   4 | naive -0.001 matched -0.002 (shift z -0.2 p 0.915 | bench z +nan p nan)
+  control brkLate_vs_wait_early      n  15: too few matched windows
+  control pre_brkLate_vs_wait_early  n  15: too few matched windows
+  control brk_state_10s              n  24: too few matched windows
+  7 s

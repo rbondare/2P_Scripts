@@ -12,7 +12,7 @@ sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(os.path.dirname(HERE),
 import matched_behaviour as mb
 from fig_common import hboot, animal, is_flagged, FLAG
 
-TASK = ['AnimalRB24_261029_1752', 'AnimalRB24_261030_1744', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261106_1317', 'AnimalRB23_261029_1704']
+TASK = ['AnimalRB24_261029_1752', 'AnimalRB24_261030_1744', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261106_1317', 'AnimalRB23_261029_1704', 'AnimalRB24_261109_1506']
 PASSIVE = ['AnimalRB24_261027_1456', 'AnimalRB24_261104_1651', 'AnimalRB23_261027_1423', 'AnimalRB24_261106_1529']
 VISUAL = ['AnimalRB24_261021_1630', 'AnimalRB24_261023_1538', 'AnimalRB24_261027_1534', 'AnimalRB23_261023_1642', 'AnimalRB22_261027_1138', 'AnimalRB22_261023_1427',
           'AnimalRB24_261023_1527', 'AnimalRB24_261104_1640', 'AnimalRB24_261106_1604', 'AnimalRB23_261027_1306']
@@ -46,9 +46,10 @@ def testable(c):
     return c is not None and c['obs']['n_matched'] >= MIN_MATCHED and c['obs']['n_matched'] / max(c['obs']['n_focal'], 1) >= MIN_COV
 
 
-def pooled(res, key, sessions, field='matched', norm=False, include_flagged=False, n_boot=5000, only_testable=True):
-    ss = [s for s in sessions if get(res, s, key) is not None and (include_flagged or not is_flagged(s)) and (testable(get(res, s, key)) or not only_testable)]
-    if len(ss) == 0: return None
+def pooled(res, key, sessions, field='matched', norm=False, include_flagged=False, n_boot=5000, only_testable=True, min_sessions=2):
+    ss = [s for s in sessions if get(res, s, key) is not None and (include_flagged or not is_flagged(s)) and (testable(get(res, s, key)) or not only_testable)
+          and np.isfinite(get(res, s, key)['stats'][field]['p'])]          # a degenerate shift null (< 8 distinct draws) gives p = nan: that session is not pooled
+    if len(ss) < min_sessions: return None
     C = [get(res, s, key) for s in ss]; sc = np.array([_scale(res, s, norm) for s in ss])
     vals = np.array([c['obs'][field] for c in C]) / sc; out = dict(sessions=ss, vals=vals, key=key, field=field, norm=norm)
     h = hboot(vals, ss, n_boot=n_boot); out.update(est=h['est'], lo=h['lo'], hi=h['hi'], k_pos=h['k_pos'], n_animals=h['n_animals'], per_animal=h['per_animal'])

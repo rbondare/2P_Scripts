@@ -14,6 +14,9 @@ LICK CLASSES (bout level, a bout = >= 3 licks with gaps < 0.5 s, first lick = bo
   win_other   other bouts that start 0.1-3 s after the onset
   post_a      bout onset 3-6 s after the onset (after the square, reward already delivered / collected)
   post_b      bout onset 6 s after the onset to the end of the trial
+  brk         bout onset in a GREY BREAK between two subsessions (added 2026-11-11): the stimulus is grey, no trial runs and nothing is ever rewarded; imaging continues up to the
+              acquisition gap.  The lick log of the last trial of a subsession keeps recording through the break (see Task._breaks for the window and the log-capacity caveat)
+  tail        the same after the LAST trial of the session (96-135 s of imaging after it in 1317 / 1423 / 1744 / 1752; the lick log of 1506's last trial is missing)
 """
 import os, sys, numpy as np, scipy.io as sio
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +26,9 @@ XS_V2 = os.environ.get('TASK_OUT', r'C:\Users\rbondarenko\2P_cache\xs_v2')
 xc.XS_DIR = XS_V2
 DT = xc.DT
 ANT_S = 3.0
+BRK_GUARD_S = 0.5            # a break starts this long after the end of the last trial's post-square grey
+BRK_MIN_S = 20.0             # shorter stretches (RB24_261105_1520: 3 s) are not breaks
+LOG_CAP = 242                # rows per trial of lickData (V1 script): a trial that reaches it lost its later licks
 OUTDIR = r'c:\Users\rbondarenko\projects\2P_Scripts\axon analysis\plots\task_deep_dive'
 os.makedirs(OUTDIR, exist_ok=True)
 
@@ -60,7 +66,38 @@ class Task:
         self.has_timeouts = bool(np.any(self.n_to > 0))
         self.t_first, self.t_last = float(T['t_first']), float(T['t_last'])
         self.sub_t0 = f('sub_t0'); self.sub_t1 = f('sub_t1')
-        self._segments(); self._classify_bouts()
+        self._breaks(); self._segments(); self._classify_bouts()
+
+    # ------------------------------------------------------------------ grey breaks between the subsessions (+ the tail after the last trial)
+    def _breaks(self):
+        """windows of the grey breaks: from the end of the last trial of a subsession (+ BRK_GUARD_S) to the start of the next imaging gap (the acquisition is restarted there; for the
+        tail: the end of the imaging).  The lick log of the last trial of a subsession keeps recording through the break; if it reached its capacity (LOG_CAP rows) the window ends at its
+        last lick (later licks were lost: unobservable, NOT 'no licking').  kind = 'brk' (between subsessions) | 'tail' (after the last trial)"""
+        gaps = np.atleast_1d(np.asarray(self.d.get('imaging_gap_t', []), float)); n_sub = len(self.sub_t0)
+        self.brk = []
+        for b in range(n_sub):
+            tr_in = np.where(self.sub == b + 1)[0]
+            if len(tr_in) == 0: continue
+            t_end = float(self.sub_t1[b]); last = tr_in[-1] + 1
+            if b < n_sub - 1: g = gaps[gaps > t_end - 1.0]; t_stop = float(g[0]) if len(g) else float(self.sub_t0[b + 1]); kind = 'brk'
+            else: t_stop = self.t_last; kind = 'tail'
+            nl = int((self.lick_tr == last).sum()); capped = nl >= LOG_CAP
+            lk = self.lick[self.lick_tr == last]
+            if capped: t_stop = min(t_stop, float(lk.max()))
+            if kind == 'tail' and self.n < int(self.d['n_rec']): continue      # a trial after the last logged one ran without a lick log (1506): the tail is not observed
+            t0 = t_end + BRK_GUARD_S
+            logged = bool(nl > 0) and (last <= self.n)
+            if t_stop - t0 < BRK_MIN_S: continue
+            self.brk.append(dict(b=b + 1, kind=kind, t0=t0, t1=t_stop, last_trial=int(last), n_logged_last=nl, capped=capped, log_ok=logged))
+        self.brk_t0 = np.array([x['t0'] for x in self.brk]); self.brk_t1 = np.array([x['t1'] for x in self.brk]); self.brk_kind = np.array([x['kind'] for x in self.brk], dtype=object)
+
+    def in_break(self, t_ev, kind=None):
+        """index of the break window holding each event time (-1 = none); kind restricts to 'brk' or 'tail'"""
+        t_ev = np.asarray(t_ev, float); out = np.full(len(t_ev), -1)
+        for j, x in enumerate(self.brk):
+            if kind is not None and x['kind'] != kind: continue
+            out[(t_ev >= x['t0']) & (t_ev < x['t1'])] = j
+        return out
 
     # ------------------------------------------------------------------ wait segments
     def _segments(self):
@@ -94,7 +131,9 @@ class Task:
         tri = np.full(n, -1); phase = np.full(n, 'other', dtype=object); tte = np.full(n, np.nan); endk = np.full(n, '', dtype=object); tau = np.full(n, np.nan); seg_i = np.full(n, -1)
         # trial = the one whose [tr0, next tr0) contains the event
         idx = np.searchsorted(self.tr0, t_ev, side='right') - 1
+        jb = self.in_break(t_ev)
         for i in range(n):
+            if jb[i] >= 0: phase[i] = 'break' if self.brk[jb[i]]['kind'] == 'brk' else 'tail'; continue
             t = idx[i]
             if t < 0 or t >= self.n: continue
             if t_ev[i] > self.tr1[t] + 0.5: continue                 # in the break after the last trial of a subsession
@@ -118,6 +157,7 @@ class Task:
         cls[(ph == 'win') & (tau < self.lw[0])] = 'win_early'            # < 0.1 s after the onset: before the lick window opens (not a hit lick)
         cls[(ph == 'post') & (tau < self.lw[1] + 3.0)] = 'post_a'
         cls[(ph == 'post') & (tau >= self.lw[1] + 3.0)] = 'post_b'
+        cls[ph == 'break'] = 'brk'; cls[ph == 'tail'] = 'tail'
         return cls, L
 
     def _classify_bouts(self):

@@ -38,6 +38,7 @@ from xs_common import DT
 from stim_response import hp as _hp30
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
+if os.environ.get('MB_XS'): xc.XS_DIR = os.environ['MB_XS']      # e.g. C:\Users\rbondarenko\2P_cache\xs_v2: xs + task exports with the 2026-11-10 whisking index / JawME (default: ...\xs, 2026-11-08 export)
 
 OUT = os.environ.get('MB_OUT', r'c:\Users\rbondarenko\projects\2P_Scripts\axon analysis\plots\matched_behaviour')
 VARIANT = os.environ.get('MB_VARIANT', '')
@@ -47,8 +48,8 @@ os.makedirs(CACHE, exist_ok=True)
 SESSIONS = ['AnimalRB24_261021_1630', 'AnimalRB24_261023_1538', 'AnimalRB24_261027_1456', 'AnimalRB24_261027_1534', 'AnimalRB24_261029_1752', 'AnimalRB24_261030_1744',
             'AnimalRB24_261104_1651', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB23_261023_1642', 'AnimalRB23_261027_1423', 'AnimalRB22_261027_1138',
             'AnimalRB22_261023_1427',
-            'AnimalRB24_261023_1527', 'AnimalRB24_261104_1640', 'AnimalRB24_261106_1317', 'AnimalRB24_261106_1529', 'AnimalRB24_261106_1604', 'AnimalRB23_261027_1306', 'AnimalRB23_261029_1704']
-TASK_SESSIONS = {'AnimalRB24_261029_1752', 'AnimalRB24_261030_1744', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261106_1317', 'AnimalRB23_261029_1704'}
+            'AnimalRB24_261023_1527', 'AnimalRB24_261104_1640', 'AnimalRB24_261106_1317', 'AnimalRB24_261106_1529', 'AnimalRB24_261106_1604', 'AnimalRB23_261027_1306', 'AnimalRB23_261029_1704', 'AnimalRB24_261109_1506']
+TASK_SESSIONS = {'AnimalRB24_261029_1752', 'AnimalRB24_261030_1744', 'AnimalRB24_261105_1423', 'AnimalRB24_261105_1520', 'AnimalRB24_261106_1317', 'AnimalRB23_261029_1704', 'AnimalRB24_261109_1506'}
 
 # ---- default parameters (VARIANTS change one at a time)
 DEFAULT = dict(hp_s=30.0, lead=0.0, lag=0.0, lagfit=True, n_sur=200, pupil='pre', pupil_pre=(5.0, 1.0), hist=10.0, mincov=0.8, step=1.0, cal=0.5, k=2, fset='mean', beh=('face', 'whisk', 'loco'), n_null=300, lam=0.01,
@@ -333,7 +334,7 @@ def run_contrast(R, c, n_null, rng, with_extras=True):
 
 def run_session(name, par=None, n_null=None, verbose=True, with_extras=True):
     t0 = time.time(); R = Rec(name, par); p = R.par; n_null = n_null or p['n_null']
-    out = dict(name=name, n_sig=R.n_sig, n_roi=R.S.nroi, dur_min=R.S.dur / 60, behaviours=R.names, loco_ok=R.S.loco_ok, par=p, contrasts={})
+    out = dict(name=name, xs_dir=xc.XS_DIR, n_sig=R.n_sig, n_roi=R.S.nroi, dur_min=R.S.dur / 60, behaviours=R.names, loco_ok=R.S.loco_ok, par=p, contrasts={})
     if not R.ok: out['why'] = 'fewer than 3 signal-like ROIs'; return out
     if len(R.names) < 2: out['why'] = 'fewer than 2 behaviours'; return out
     out['sd_P'] = float(np.nanstd(R.P))

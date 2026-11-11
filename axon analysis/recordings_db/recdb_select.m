@@ -14,12 +14,15 @@ function [names, T] = recdb_select(varargin)
 %   has_block     key in blocks.csv: flash fff bar loom_expand loom_recede square spont alleyCL;  min_trials: total completed trials >= this
 %   min_rois      accepted ROIs >= this        min_minutes      recording length >= this
 %   date_from / date_to   'yyyy-mm-dd'          aggregated  true | false
+%   spout         true = square sessions in which a lick was logged at all, false = square sessions without (other sessions never match)
+%   level         GUI level of the square task: 1 | 2 | 2.5 (adaptive, every trial runs level 2 or 3) | 3, or a vector of them
 % Database folder: Z:\Group Members\Rima\Recordings_DB (environment variable RECDB_DIR overrides; falls back to the git snapshot).
 % Use recdb_load('rois') / recdb_load('blocks') for the ROI and stimulus-block tables of the selected sessions.
 
 p = inputParser;
 for f = {'animal', 'status', 'task_type', 'tags', 'any_tags', 'exclude_tags', 'has_block', 'date_from', 'date_to'}; addParameter(p, f{1}, {}); end
 addParameter(p, 'pool', []);  addParameter(p, 'min_trials', []);  addParameter(p, 'min_rois', []);  addParameter(p, 'min_minutes', []);  addParameter(p, 'aggregated', []);
+addParameter(p, 'spout', []);  addParameter(p, 'level', []);
 parse(p, varargin{:});  q = p.Results;
 
 T = recdb_load('sessions');
@@ -29,6 +32,8 @@ if ~isempty(q.animal);       keep = keep & ismember(T.animal, cellstr(strrep(str
 if ~isempty(q.status);       keep = keep & ismember(T.status, cellstr(q.status)); end
 if ~isempty(q.task_type);    keep = keep & strcmp(T.task_type, char(q.task_type)); end
 if ~isempty(q.pool);         keep = keep & strcmp(T.pool, ternary_(q.pool, 'yes', 'no')); end
+if ~isempty(q.spout);        keep = keep & strcmp(T.spout, ternary_(q.spout, 'yes', 'no')); end
+if ~isempty(q.level);        keep = keep & ismember(T.task_level, q.level); end
 if ~isempty(q.tags);         need = cellstr(q.tags);        keep = keep & cellfun(@(t) all(ismember(need, t)), tagsets); end
 if ~isempty(q.any_tags);     any_ = cellstr(q.any_tags);    keep = keep & cellfun(@(t) any(ismember(any_, t)), tagsets); end
 if ~isempty(q.exclude_tags); ex = cellstr(q.exclude_tags);  keep = keep & ~cellfun(@(t) any(ismember(ex, t)), tagsets); end

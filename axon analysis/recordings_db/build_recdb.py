@@ -183,7 +183,8 @@ def fov_png(nm, s2, acc_cls, out_path, um_per_px_x, um_per_px_y, title):
     ax.set_xlabel('um' if um_per_px_x else 'px'); ax.set_ylabel('um' if um_per_px_y else 'px'); ax.set_title(title, fontsize=8)
     for s in ax.spines.values(): s.set_visible(False)
     ax.tick_params(labelsize=7)
-    ax.text(0.995, 0.005, 'cyan signal-like | yellow noise-like | red neuropil-limited | green unclassified', transform=ax.transAxes, ha='right', va='bottom', fontsize=5.5, color='w')
+    legend = 'cyan signal-like | yellow noise-like | red neuropil-limited' if acc_cls is not None else 'green = accepted ROIs, signal/noise class not available'
+    ax.text(0.995, 0.005, legend, transform=ax.transAxes, ha='right', va='bottom', fontsize=5.5, color='w')
     fig.tight_layout(); fig.savefig(out_path); plt.close(fig)
 
 
@@ -229,7 +230,8 @@ def ensure_animals(animals):
 # ---------------------------------------------------------------------------------------------------- main
 SESSION_COLS = ['session', 'animal', 'date', 'time', 'short', 'date_actual', 'name_date_mismatch', 'stim_folder',
                 'status', 'stale', 'stale_reason', 'has_stim', 'has_tif', 'has_suite2p', 'has_fall', 'has_camera', 'has_dlc', 'has_aggregated', 'in_session_qc', 'agg_mtime', 'iscell_mtime',
-                'task_type', 'stimuli', 'block_sequence', 'n_blocks', 'n_blocks_interrupted', 'reward_mode', 'reward_level', 'reward_delay_s', 'square_contrast',
+                'task_type', 'stimuli', 'block_sequence', 'n_blocks', 'n_blocks_interrupted', 'spout', 'n_lick_entries', 'spout_note', 'task_level', 'level_mode', 'level_counts',
+                'reward_mode', 'reward_delay_s', 'square_contrast',
                 'n_tifs', 'minutes', 'n_planes', 'multi_plane', 'frame_rate', 'n_frames', 'zoom', 'fov_x_um', 'fov_y_um', 'nx', 'ny', 'um_per_px_x', 'um_per_px_y', 'power',
                 'axes_x', 'axes_y', 'axes_z', 'fastz_pos', 'sample_dx', 'sample_dy', 'pose_placed', 'pose_y_um', 'pose_x_um', 'pose_confidence',
                 'n_roi_total', 'n_roi_accepted', 'n_agg_rois', 'accepted_fraction', 'n_signal', 'n_noise', 'n_neuropil', 'n_master_axons', 'curation_files',
@@ -239,8 +241,12 @@ SESSION_COLS = ['session', 'animal', 'date', 'time', 'short', 'date_actual', 'na
                 'pool', 'flag_reason', 'curation', 'tags', 'all_tags', 'quality', 'visible_activity', 'comments',
                 'notion_planes', 'notion_quality', 'notion_visible_activity', 'notion_comments', 'notion_suite2p', 'notion_stimuli_camera',
                 'fov_png', 'built']
-BLOCK_COLS = ['session', 'block', 'file', 'type', 'key', 'loom_dir', 'addnote', 'trials_requested', 'n_trials', 'start_wallclock', 'duration_s', 'interrupted',
-              't_start_2p', 't_end_2p', 'red_sync_ok', 'red_sync_method', 'projector', 'setup', 'params', 'note']
+BLOCK_COLS = ['session', 'block', 'file', 'type', 'key', 'stim_desc', 'stim_short', 'loom_dir', 'addnote', 'trials_requested', 'n_trials', 'start_wallclock', 'duration_s', 'interrupted',
+              't_start_2p', 't_end_2p', 'red_sync_ok', 'red_sync_method', 'projector', 'setup',
+              # square (training) blocks only, from the raw stim file; blank for the other stimuli
+              'stim_shape', 'stim_contrast_pct', 'stim_size', 'stim_location', 'gui_level', 'level_mode', 'n_L1', 'n_L2', 'n_L3', 'trials_logged',
+              'reward_mode', 'reward_delay_s', 'lick_window_s', 'wait_range_s', 'spout', 'n_lick_entries', 'n_trials_with_licks', 'lick_log_trials', 'spout_note',
+              'params', 'note']
 ROI_COLS = ['session', 'roi', 'accepted', 'iscell_prob', 'agg_row', 'class', 'y_px', 'x_px', 'y_um', 'x_um', 'npix', 'skew', 'master_axon', 'master_cls']
 
 
@@ -275,7 +281,8 @@ def main():
         if hd.get('tif_first_mtime'): r['date_actual'] = hd['tif_first_mtime'][:10]; r['name_date_mismatch'] = (r['date_actual'] != r['date'])
         r['acq_note'] = hd.get('acq_note', '')
         # -- from the MATLAB stage
-        for k in ('stim_folder', 'task_type', 'stimuli', 'block_sequence', 'n_blocks', 'n_blocks_interrupted', 'reward_mode', 'reward_level', 'reward_delay_s', 'square_contrast',
+        for k in ('stim_folder', 'task_type', 'stimuli', 'block_sequence', 'n_blocks', 'n_blocks_interrupted', 'spout', 'n_lick_entries', 'spout_note', 'task_level', 'level_mode', 'level_counts',
+                  'reward_mode', 'reward_delay_s', 'square_contrast',
                   'timing_problems', 'n_cam_triggers', 'video_codec', 'pupil_frac_bad', 'whisk_fraction', 'whisk_artifact_fraction', 'ball_readings', 'ball_triggers', 'ball_sync_ok', 'agg_mtime', 'meta_error', 'n_agg_rois'):
             v = mrow.get(k, ''); r[k] = '' if str(v).lower() == 'nan' else v
         if mrow.get('n_blocks_red_sync_checked') not in (None, '', 'NaN') and num(mrow.get('n_blocks_red_sync_checked')):
@@ -346,6 +353,8 @@ def main():
         if any(k.startswith('loom') for k in keys): tg.append('loom')
         if r['task_type'] == 'lick task': tg.append('task')
         if r['task_type'] == 'passive square': tg.append('passive')
+        if r.get('spout') in ('yes', 'no'): tg.append('spout' if r['spout'] == 'yes' else 'no_spout')       # square sessions only: spout = a lick was logged at all (blank for the other sessions)
+        if r.get('level_mode') == 'adaptive': tg.append('adaptive_level')
         if r['multi_plane'] == 'yes': tg.append('multi_plane')
         if r['video_codec']: tg.append(str(r['video_codec']))
         if any('pre_grey_t' in b.get('params', '') or 'post_grey_t' in b.get('params', '') for b in blocks if b['key'].startswith('loom')): tg.append('loom_grey_param')
@@ -388,7 +397,7 @@ def main():
 # ---------------------------------------------------------------------------------------------------- browse page + README
 def make_index(rows):
     import html
-    cols = [('session', 'session'), ('status', 'status'), ('task_type', 'type'), ('stimuli', 'stimuli'), ('minutes', 'min'), ('n_planes', 'planes'), ('n_roi_accepted', 'acc ROIs'),
+    cols = [('session', 'session'), ('status', 'status'), ('task_type', 'type'), ('stimuli', 'stimuli'), ('spout', 'spout'), ('minutes', 'min'), ('n_planes', 'planes'), ('n_roi_accepted', 'acc ROIs'),
             ('n_signal', 'signal-like'), ('pool', 'pool'), ('stale', 'stale'), ('flag_reason', 'flag / reason'), ('all_tags', 'tags')]
     h = ['<!doctype html><html><head><meta charset="utf-8"><title>RB22-24 recordings</title><style>',
          'body{font:13px system-ui,sans-serif;margin:16px;background:#fff;color:#222}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:3px 6px;vertical-align:top}',
