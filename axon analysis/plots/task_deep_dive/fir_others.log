@@ -1,0 +1,58 @@
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\cross_session\xs_common.py:188: RuntimeWarning: Mean of empty slice
+  return np.nanmean(D[m], axis=0)
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py:117: RuntimeWarning: Mean of empty slice
+  for gi, g in enumerate(groups): outcomes['g%d' % (gi + 1)] = hp(np.nanmean(S.dff[g], 0))
+AnimalRB24_261106_1317: design 30680 x 341 (jaw,face,whisk,pupil,shift), lambda 1e-01, held-out R2 P 0.087
+   P       wait_early -0.0025 ant_to -0.0008 ant_sq -0.0000 win -0.0006 post_a -0.0014 post_b -0.0006 sq -0.0000 sq_hit +0.0001 pump_free -0.0000 pump_lick +0.0000 timeout +0.0007
+   g1      wait_early -0.0029 ant_to -0.0009 ant_sq -0.0007 win -0.0007 post_a -0.0012 post_b -0.0010 sq +0.0001 sq_hit +0.0000 pump_free -0.0000 pump_lick +0.0001 timeout +0.0009
+   g2      wait_early -0.0030 ant_to -0.0011 ant_sq +0.0006 win -0.0002 post_a -0.0026 post_b -0.0008 sq -0.0002 sq_hit +0.0001 pump_free -0.0000 pump_lick +0.0001 timeout +0.0003
+   g3      wait_early -0.0005 ant_to -0.0004 ant_sq +0.0019 win -0.0000 post_a +0.0007 post_b +0.0010 sq +0.0002 sq_hit +0.0003 pump_free -0.0000 pump_lick -0.0002 timeout -0.0005
+   g4      wait_early -0.0018 ant_to +0.0001 ant_sq +0.0011 win -0.0019 post_a -0.0038 post_b -0.0001 sq -0.0010 sq_hit -0.0000 pump_free -0.0001 pump_lick -0.0003 timeout +0.0015
+   control wait_early -0.0003 ant_to -0.0000 ant_sq +0.0002 win -0.0001 post_a -0.0003 post_b -0.0001 sq +0.0001 sq_hit +0.0001 pump_free -0.0000 pump_lick -0.0000 timeout +0.0000
+  195 s
+AnimalRB24_261105_1520: design 6860 x 352 (jaw,face,whisk,pupil,shift,loco), lambda 1e-01, held-out R2 P 0.258
+   P       wait_early -0.0002 ant_to -0.0016 ant_sq -0.0014 win -0.0046 post_a -0.0062 post_b -0.0028 sq -0.0003 sq_hit +0.0006 pump_free +0.0000 pump_lick -0.0004 timeout -0.0003
+   g1      wait_early +0.0002 ant_to +0.0012 ant_sq -0.0039 win -0.0019 post_a -0.0085 post_b -0.0004 sq -0.0008 sq_hit -0.0000 pump_free -0.0001 pump_lick -0.0003 timeout -0.0001
+   g2      wait_early +0.0011 ant_to -0.0024 ant_sq +0.0002 win -0.0068 post_a -0.0041 post_b -0.0053 sq -0.0006 sq_hit +0.0008 pump_free -0.0003 pump_lick -0.0006 timeout -0.0002
+   g3      wait_early -0.0024 ant_to -0.0079 ant_sq +0.0033 win -0.0111 post_a -0.0049 post_b -0.0071 sq +0.0011 sq_hit +0.0019 pump_free +0.0008 pump_lick -0.0008 timeout -0.0011
+   g4      wait_early -0.0009 ant_to -0.0024 ant_sq -0.0010 win -0.0011 post_a -0.0005 post_b -0.0008 sq +0.0002 sq_hit +0.0002 pump_free -0.0001 pump_lick +0.0002 timeout +0.0005
+   control wait_early +0.0003 ant_to -0.0014 ant_sq +0.0003 win -0.0014 post_a -0.0000 post_b -0.0006 sq -0.0001 sq_hit -0.0001 pump_free -0.0001 pump_lick -0.0001 timeout -0.0003
+  49 s
+AnimalRB24_261105_1423: design 15919 x 352 (jaw,face,whisk,pupil,shift,loco), lambda 1e-01, held-out R2 P 0.309
+   P       wait_early +0.0000 ant_to -0.0031 ant_sq +0.0027 win -0.0030 post_a -0.0001 post_b +0.0043 sq -0.0000 sq_hit -0.0000 pump_free -0.0000 pump_lick +0.0001 timeout -0.0001
+   g1      wait_early +0.0004 ant_to -0.0038 ant_sq +0.0054 win -0.0057 post_a +0.0023 post_b +0.0084 sq -0.0003 sq_hit -0.0001 pump_free -0.0000 pump_lick -0.0002 timeout -0.0003
+   g2      wait_early -0.0004 ant_to -0.0029 ant_sq -0.0012 win +0.0004 post_a -0.0031 post_b +0.0011 sq -0.0000 sq_hit +0.0002 pump_free -0.0000 pump_lick +0.0002 timeout +0.0001
+   g3      wait_early +0.0001 ant_to -0.0008 ant_sq +0.0029 win +0.0011 post_a +0.0001 post_b +0.0023 sq +0.0005 sq_hit +0.0001 pump_free -0.0000 pump_lick +0.0010 timeout -0.0005
+   g4      wait_early -0.0005 ant_to -0.0038 ant_sq +0.0012 win -0.0057 post_a -0.0024 post_b -0.0011 sq +0.0002 sq_hit -0.0003 pump_free -0.0000 pump_lick -0.0003 timeout +0.0008
+   control wait_early -0.0003 ant_to -0.0011 ant_sq +0.0011 win +0.0001 post_a -0.0002 post_b +0.0003 sq +0.0001 sq_hit +0.0001 pump_free -0.0001 pump_lick +0.0004 timeout -0.0003
+  97 s
+AnimalRB24_261030_1744: design 12308 x 352 (jaw,face,whisk,pupil,shift,loco), lambda 1e-02, held-out R2 P 0.688
+   P       wait_early +0.0029 ant_to -0.0024 ant_sq -0.0057 win +0.0051 post_a +0.0055 post_b +0.0077 sq -0.0046 sq_hit -0.0008 pump_free +0.0000 pump_lick +0.0000 timeout +0.0009
+   g1      wait_early +0.0052 ant_to -0.0021 ant_sq -0.0052 win +0.0115 post_a +0.0121 post_b +0.0134 sq -0.0073 sq_hit -0.0019 pump_free +0.0000 pump_lick +0.0000 timeout -0.0007
+   g2      wait_early -0.0006 ant_to -0.0014 ant_sq -0.0027 win -0.0017 post_a -0.0007 post_b +0.0018 sq +0.0007 sq_hit -0.0013 pump_free +0.0000 pump_lick +0.0000 timeout +0.0018
+   g3      wait_early +0.0006 ant_to -0.0024 ant_sq -0.0048 win +0.0009 post_a -0.0016 post_b +0.0011 sq -0.0037 sq_hit +0.0018 pump_free +0.0000 pump_lick +0.0000 timeout +0.0026
+   g4      wait_early +0.0028 ant_to -0.0058 ant_sq -0.0150 win -0.0026 post_a -0.0015 post_b +0.0029 sq -0.0050 sq_hit +0.0019 pump_free +0.0000 pump_lick +0.0000 timeout +0.0039
+   control wait_early -0.0000 ant_to -0.0009 ant_sq -0.0022 win -0.0015 post_a -0.0008 post_b -0.0001 sq +0.0004 sq_hit +0.0012 pump_free +0.0000 pump_lick +0.0000 timeout +0.0010
+Traceback (most recent call last):
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py", line 180, in <module>
+    r = run_session(nm); pickle.dump(r, open(f, 'wb')); print('  %.0f s' % r['sec'])
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py", line 111, in run_session
+    t0 = time.time(); S, T = dd.load_session(name)
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 143, in load_session
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 58, in __init__
+    self.E = mat(T['errorLicks']) if 'errorLicks' in T else None
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 69, in _segments
+    w = self.W[t][self.W[t] > 0]
+IndexError: index 100 is out of bounds for axis 1 with size 100
+Traceback (most recent call last):
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py", line 180, in <module>
+    r = run_session(nm); pickle.dump(r, open(f, 'wb')); print('  %.0f s' % r['sec'])
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py", line 111, in run_session
+    t0 = time.time(); S, T = dd.load_session(name)
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 143, in load_session
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 58, in __init__
+    self.E = mat(T['errorLicks']) if 'errorLicks' in T else None
+  File "C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_common.py", line 64, in _segments
+IndexError: index 1 is out of bounds for axis 0 with size 1
+  80 s
+FIR_DONE

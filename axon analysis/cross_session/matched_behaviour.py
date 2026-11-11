@@ -92,6 +92,7 @@ def _wstat(cum, i1, i2, mincov, sd=False):
 
 class Rec:
     """one session prepared for matching (series on the 5 Hz grid, cumulative sums for fast window statistics)"""
+    BEH_ALL = ('pupil', 'face', 'whisk', 'loco')      # behaviours taken from the session (task_deep_dive extends it by 'jaw' and 'lick' via a subclass)
 
     def __init__(self, name, par=None, S=None):
         self.par = dict(DEFAULT, **(par or {})); p = self.par; self.name = name
@@ -99,7 +100,7 @@ class Rec:
         hpf = (lambda x: x - xc.nsmooth(x, p['hp_s'] / DT)) if p['hp_s'] else (lambda x: x - np.nanmean(x))
         self.P = hpf(S.population('sig')) if self.ok else None
         self.D = np.stack([hpf(r.astype(float)) for r in S.dff[S.sig]]) if self.ok else None
-        self.beh = {b: hpf(zs(S.beh[b])) for b in ('pupil', 'face', 'whisk', 'loco') if b in S.beh and (b != 'loco' or S.loco_ok) and np.isfinite(S.beh[b]).mean() > 0.3}
+        self.beh = {b: hpf(zs(S.beh[b])) for b in self.BEH_ALL if b in S.beh and (b != 'loco' or S.loco_ok) and np.isfinite(S.beh[b]).mean() > 0.3}
         self.names = [b for b in (tuple(p['beh']) + (('pupil',) if p['pupil'] == 'in' else ())) if b in self.beh]       # behaviours matched on inside the window (+ the pupil only if pupil == 'in')
         core = [self.beh[b] / np.nanstd(self.beh[b]) for b in ('pupil', 'face', 'whisk') if b in self.beh]
         self.beh['arousal'] = np.nanmean(np.stack(core), 0) if core else None
@@ -268,7 +269,7 @@ def run_contrast(R, c, n_null, rng, with_extras=True):
         allb = np.concatenate([A, B]); lab = np.concatenate([np.ones(len(A), bool), np.zeros(len(B), bool)]); o = np.argsort(allb, kind='stable'); allb, lab = allb[o], lab[o]
         def one(shift, keep_pairs=False, yv=None, okv=None):
             yv = y if yv is None else yv; okv = ok if okv is None else okv
-            lb = np.roll(lab, shift); fa, ra = allb[lb], allb[~lb]; fa = fa[okv[fa]]; ra = ra[okv[ra]]
+            lb = np.roll(lab, shift) if np.isscalar(shift) else shift; fa, ra = allb[lb], allb[~lb]; fa = fa[okv[fa]]; ra = ra[okv[ra]]
             if len(fa) == 0 or len(ra) == 0: return None, fa, ra
             return estimate(F[fa], yv[fa], F[ra], yv[ra], p, keep_pairs, fs), fa, ra
     obs, fa, pool = one(0, True)
@@ -281,8 +282,14 @@ def run_contrast(R, c, n_null, rng, with_extras=True):
         shifts = rng.integers(int(60 / DT), nb - int(60 / DT), n_null)
     else:
         Nn = len(lab); lo = max(3, min(len(A), len(B))); shifts = rng.integers(lo, max(Nn - lo, lo + 1), n_null)
+        if c.get('strata_edges') is not None:      # optional (task_deep_dive): labels permuted INSIDE strata (e.g. subsessions) instead of rolled along the sequence (balanced classes leave a roll almost no distinct shifts)
+            sid = np.searchsorted(np.asarray(c['strata_edges']), allb, side='right'); shifts = []
+            for _ in range(n_null):
+                lp = lab.copy()
+                for s_ in np.unique(sid): ii = np.where(sid == s_)[0]; lp[ii] = rng.permutation(lab[ii])
+                shifts.append(lp)
     for sft in shifts:
-        e, _, _ = one(int(sft))
+        e, _, _ = one(sft if not np.isscalar(sft) else int(sft))
         if e is None or not np.isfinite(e.get('matched', np.nan)): continue
         for k in nul: nul[k].append(e[k] if k != 'n_matched' else e['n_matched'])
     res['null'] = {k: np.array(v, float) for k, v in nul.items()}

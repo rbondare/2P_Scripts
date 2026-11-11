@@ -1,0 +1,28 @@
+AnimalRB24_261105_1423: behaviours ['face', 'whisk', 'jaw', 'lick', 'loco'], 25 contrasts, outcomes ['control']
+  control ant_to_vs_wait_early       n  83 valid  83 matched  57 | naive -0.011 matched +0.003 (shift z -0.0 p 0.980 | bench z +0.1 p 0.951) | max|SMD| 0.53->0.07
+  control pre_ant_to_vs_wait_early   n  83 valid  79 matched  56 | naive -0.011 matched -0.018 (shift z -1.8 p 0.053 | bench z -2.0 p 0.098) | max|SMD| 0.54->0.07
+  control ant_sq_vs_wait_early       n  55 valid  55 matched  39 | naive -0.005 matched +0.006 (shift z +0.2 p 0.850 | bench z +0.9 p 0.512) | max|SMD| 0.29->0.06
+  control pre_ant_sq_vs_wait_early   n  55 valid  55 matched  41 | naive -0.015 matched +0.015 (shift z +1.1 p 0.292 | bench z +0.9 p 0.366) | max|SMD| 1.02->0.04
+  control ant_sq_vs_ant_to           n  55 valid  55 matched  20 | naive +0.005 matched -0.006 (shift z -0.3 p 0.721 | bench z -0.1 p 0.927) | max|SMD| 0.45->0.12
+  control pre_ant_sq_vs_ant_to       n  55 valid  55 matched  22 | naive -0.004 matched -0.001 (shift z +0.4 p 0.704 | bench z -0.1 p 0.878) | max|SMD| 0.94->0.13
+  control rew_vs_wait_early          n  46 valid  46 matched  29 | naive -0.006 matched +0.004 (shift z -0.0 p 0.997 | bench z +0.4 p 0.780) | max|SMD| 1.01->0.11
+  control pre_rew_vs_wait_early      n  46 valid  46 matched  32 | naive -0.039 matched +0.004 (shift z +0.3 p 0.824 | bench z +0.4 p 0.829) | max|SMD| 1.25->0.07
+  control rew_vs_ant_to              n  46 valid  46 matched  14 | naive +0.005 matched -0.004 (shift z -0.3 p 0.631 | bench z -0.0 p 0.902) | max|SMD| 0.87->0.17
+  control pre_rew_vs_ant_to          n  46 valid  46 matched  14 | naive -0.028 matched -0.006 (shift z -0.5 p 0.671 | bench z -0.1 p 1.000) | max|SMD| 1.28->0.06
+  control post_a_vs_wait_early       n 104 valid 104 matched  66 | naive -0.009 matched +0.011 (shift z +0.9 p 0.385 | bench z +1.5 p 0.171) | max|SMD| 1.19->0.13
+  control pre_post_a_vs_wait_early   n 104 valid 104 matched  68 | naive -0.009 matched -0.010 (shift z -1.1 p 0.282 | bench z -0.1 p 0.976) | max|SMD| 0.25->0.13
+  control post_b_vs_wait_early       n 178 valid 178 matched 130 | naive +0.001 matched +0.003 (shift z +0.3 p 0.794 | bench z +1.0 p 0.366) | max|SMD| 0.80->0.11
+  control pre_post_b_vs_wait_early   n 178 valid 178 matched 122 | naive -0.004 matched -0.009 (shift z -1.1 p 0.279 | bench z -0.4 p 0.659) | max|SMD| 0.28->0.11
+  control post_a_vs_rew              n 104 valid 104 matched  25 | naive -0.003 matched +0.002 (shift z +0.1 p 0.914 | bench z +0.0 p 1.000) | max|SMD| 1.70->0.06
+  control pre_post_a_vs_rew          n 104 valid 104 matched  14 | naive +0.030 matched +0.009 (shift z +0.6 p 0.625 | bench z +0.6 p 0.488) | max|SMD| 1.17->0.12
+  control ant_sq_vs_early_sq         n  55 valid  55 matched  31 | naive -0.014 matched +0.001 (shift z -0.1 p 0.967 | bench z +0.3 p 0.829) | max|SMD| 0.28->0.03
+  control pre_ant_sq_vs_early_sq     n  55 valid  55 matched  34 | naive -0.014 matched +0.012 (shift z +0.6 p 0.528 | bench z +0.4 p 0.683) | max|SMD| 1.11->0.04
+  control ant_to_vs_early_to         n  83 valid  83 matched  49 | naive -0.004 matched +0.011 (shift z +0.9 p 0.429 | bench z +0.8 p 0.512) | max|SMD| 0.58->0.05
+  control pre_ant_to_vs_early_to     n  83 valid  79 matched  51 | naive -0.011 matched -0.023 (shift z -1.8 p 0.037 | bench z -1.9 p 0.073) | max|SMD| 0.45->0.05
+  control hit_vs_miss_pre            n  75 valid  75 matched   6 | naive -0.023 matched -0.021 (shift z -0.6 p 0.612 | bench z -0.6 p 0.512) | max|SMD| 0.58->0.12
+  control hit_vs_miss_early          n  40 valid  40 matched   6 | naive -0.013 matched -0.012 (shift z -0.4 p 0.702 | bench z -0.3 p 0.756) | max|SMD| 0.84->0.26
+  control hit_vs_miss_late           n  75 valid  75 matched   3 | naive +0.022 matched -0.008 (shift z -0.1 p 0.875 | bench z +0.1 p 0.902) | max|SMD| 1.10->0.21
+  control timeout_post               n  84 valid  84 matched  81 | naive -0.010 matched -0.005 (shift z -1.3 p 0.193 | bench z -0.7 p 0.439) | max|SMD| 0.18->0.02
+  control timeout_pre                n  84 valid  79 matched  75 | naive -0.013 matched -0.000 (shift z -0.1 p 0.877 | bench z -0.1 p 0.951) | max|SMD| 0.29->0.03
+  21 s
+MATCHED_DONE

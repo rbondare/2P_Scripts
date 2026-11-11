@@ -142,7 +142,8 @@ class Session:
                 return bin_rows(tc, v, self.edges)[0]
             bad = np.asarray(X.get('PupilBad', []), float)
             pm = (bad > 0) if bad.size == tc.size else None
-            for nm, key, log, mk in (('pupil', 'PupilArea', False, pm), ('face', 'FacePadME', True, None), ('whisk', 'WhiskIndex', True, None), ('eyelid', 'EyeLidOpening', False, None)):
+            for nm, key, log, mk in (('pupil', 'PupilArea', False, pm), ('face', 'FacePadME', True, None), ('whisk', 'WhiskIndex', True, None), ('eyelid', 'EyeLidOpening', False, None),
+                                     ('jaw', 'JawME', True, None)):      # jaw: only in xs files exported after 2026-11-10 (task_deep_dive), absent -> skipped
                 v = g(key, log, mk)
                 if v is not None and np.isfinite(v).mean() > 0.3: self.beh[nm] = v
             # saccade-free pupil dilation rate: derivative of the 1 s smoothed pupil

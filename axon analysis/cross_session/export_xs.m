@@ -24,7 +24,7 @@ if isfield(D, 'BestDFF'); X.has_bestdff = 1; else; X.has_bestdff = 0; end
 
 %% camera behaviour
 X.has_behav = 0;  X.tcam = [];
-bf = {'PupilArea', 'PupilBad', 'FacePadME', 'WhiskIndex', 'WhiskAmp', 'WhiskOn', 'EyeLidOpening'};
+bf = {'PupilArea', 'PupilBad', 'FacePadME', 'WhiskIndex', 'WhiskAmp', 'WhiskOn', 'EyeLidOpening', 'JawME'};   % JawME (jaw / chin / tongue motion energy, new whisker data of 2026-11-10) is NaN in files without it
 if isfield(D, 'Behav') && isfield(D, 'Triggers') && isfield(D.Triggers, 'TimeCamera')
     tcam = double(D.Triggers.TimeCamera(:))';  X.tcam = tcam;  X.has_behav = 1;
     for q = 1:numel(bf)

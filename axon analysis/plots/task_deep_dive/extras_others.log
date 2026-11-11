@@ -1,0 +1,55 @@
+AnimalRB24_261105_1423
+  signal |z|>3 fraction per class: wait_early 0.00 ant_to 0.04 ant_sq 0.00 win 0.04 post_a 0.02 post_b 0.28   SD of z: 1.2 1.2 1.2 1.2 1.5 1.9
+  noise  |z|>3 fraction per class: wait_early 0.00 ant_to 0.12 ant_sq 0.00 win 0.06 post_a 0.06 post_b 0.12   SD of z: 1.1 1.4 1.0 1.2 1.3 1.9
+  E2 P       per subsession: +0.0015 [-0.0017,+0.0047] | +0.0047 [-0.0006,+0.0108] | -0.0010 [-0.0061,+0.0023]
+  E2 g1      per subsession: +0.0050 [+0.0000,+0.0097] | +0.0085 [-0.0006,+0.0171] | +0.0008 [-0.0059,+0.0054]
+  E2 g2      per subsession: -0.0041 [-0.0060,-0.0025] | +0.0005 [-0.0040,+0.0037] | -0.0018 [-0.0068,+0.0007]
+  E2 g3      per subsession: +0.0050 [+0.0023,+0.0087] | +0.0057 [+0.0019,+0.0102] | -0.0012 [-0.0080,+0.0083]
+  E2 g4      per subsession: -0.0029 [-0.0054,+0.0005] | -0.0005 [-0.0044,+0.0042] | -0.0053 [-0.0113,-0.0022]
+  E2 control per subsession: +0.0006 [-0.0014,+0.0030] | +0.0012 [-0.0014,+0.0035] | -0.0010 [-0.0038,+0.0010]
+  11 s
+AnimalRB24_261105_1520
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\cross_session\xs_common.py:188: RuntimeWarning: Mean of empty slice
+  return np.nanmean(D[m], axis=0)
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_extras.py:27: RuntimeWarning: Mean of empty slice
+  for gi, g in enumerate(groups): outcomes['g%d' % (gi + 1)] = hp(np.nanmean(S.dff[g], 0))
+  signal |z|>3 fraction per class: wait_early 0.00 ant_to 0.05 ant_sq 0.00 win 0.05 post_a 0.00 post_b 0.00   SD of z: 0.7 1.2 0.9 1.1 0.5 1.2
+  noise  |z|>3 fraction per class: wait_early 0.00 ant_to 0.05 ant_sq 0.00 win 0.00 post_a 0.00 post_b 0.00   SD of z: 1.3 1.4 1.3 1.2 0.9 1.3
+  E2 P       per subsession: -0.0053 [-0.0092,+0.0010] | -0.0019 [-0.0074,+0.0044]
+  E2 g1      per subsession: -0.0025 [-0.0078,+0.0023] | +0.0031 [-0.0076,+0.0144]
+  E2 g2      per subsession: -0.0069 [-0.0114,-0.0008] | -0.0058 [-0.0119,+0.0017]
+  E2 g3      per subsession: -0.0143 [-0.0250,+0.0034] | -0.0092 [-0.0176,+0.0019]
+  E2 g4      per subsession: +0.0014 [-0.0011,+0.0032] | -0.0050 [-0.0066,-0.0018]
+  E2 control per subsession: -0.0007 [-0.0023,+0.0011] | -0.0016 [-0.0030,+0.0013]
+  7 s
+AnimalRB24_261030_1744
+  signal |z|>3 fraction per class: wait_early 0.00 ant_to 0.00 ant_sq 0.00 win 0.00 post_a 0.12 post_b 0.50   SD of z: 0.8 0.3 0.7 1.2 1.8 1.5
+  noise  |z|>3 fraction per class: wait_early 0.00 ant_to 0.00 ant_sq 0.00 win 0.67 post_a 0.67 post_b 0.67   SD of z: 1.2 0.3 0.4 2.9 3.7 3.2
+  E2 P       per subsession: +0.0057 [+0.0015,+0.0092] | +0.0034 [-0.0008,+0.0076] | +0.0076 [+0.0040,+0.0104]
+  E2 g1      per subsession: +0.0108 [+0.0052,+0.0145] | +0.0086 [+0.0033,+0.0141] | +0.0133 [+0.0081,+0.0175]
+  E2 g2      per subsession: -0.0002 [-0.0040,+0.0031] | -0.0013 [-0.0059,+0.0031] | +0.0008 [-0.0023,+0.0037]
+  E2 g3      per subsession: +0.0006 [-0.0026,+0.0031] | -0.0014 [-0.0045,+0.0002] | +0.0023 [-0.0025,+0.0068]
+  E2 g4      per subsession: +0.0020 [-0.0035,+0.0082] | -0.0031 [-0.0102,+0.0015] | +0.0038 [-0.0020,+0.0097]
+  E2 control per subsession: -0.0006 [-0.0021,+0.0011] | -0.0008 [-0.0023,+0.0008] | -0.0003 [-0.0014,+0.0005]
+  3 s
+AnimalRB24_261106_1317
+  signal |z|>3 fraction per class: wait_early 0.29 ant_to 0.00 ant_sq 0.06 win 0.00 post_a 0.03 post_b 0.00   SD of z: 1.3 0.6 1.5 0.6 1.0 0.8
+  noise  |z|>3 fraction per class: wait_early 0.23 ant_to 0.01 ant_sq 0.08 win 0.00 post_a 0.05 post_b 0.01   SD of z: 2.4 1.1 1.4 1.0 1.4 1.2
+  E2 P       per subsession: -0.0034 [-0.0056,-0.0008] | -0.0036 [-0.0060,-0.0001] | -0.0085 [-0.0128,-0.0009] | -0.0057 [-0.0111,+0.0009]
+  E2 g1      per subsession: -0.0026 [-0.0059,+0.0005] | -0.0032 [-0.0065,+0.0014] | -0.0134 [-0.0198,-0.0038] | -0.0086 [-0.0181,+0.0012]
+  E2 g2      per subsession: -0.0074 [-0.0112,-0.0035] | -0.0083 [-0.0134,-0.0024] | -0.0038 [-0.0107,+0.0034] | -0.0003 [-0.0111,+0.0111]
+  E2 g3      per subsession: -0.0007 [-0.0046,+0.0035] | +0.0023 [-0.0017,+0.0070] | +0.0071 [-0.0003,+0.0181] | -0.0048 [-0.0147,+0.0043]
+  E2 g4      per subsession: -0.0061 [-0.0118,-0.0007] | -0.0048 [-0.0099,+0.0002] | -0.0010 [-0.0093,+0.0081] | +0.0074 [-0.0103,+0.0308]
+  E2 control per subsession: -0.0003 [-0.0010,+0.0005] | -0.0001 [-0.0007,+0.0008] | -0.0008 [-0.0018,+0.0007] | -0.0004 [-0.0015,+0.0013]
+  37 s
+AnimalRB24_261029_1752
+  signal |z|>3 fraction per class: wait_early 0.00 ant_to 0.00 ant_sq 0.00 win 0.00 post_a 0.00 post_b 0.00   SD of z: 0.4 0.0 0.4 0.4 0.4 0.6
+  noise  |z|>3 fraction per class: wait_early 0.00 ant_to 0.00 ant_sq 0.00 win 0.00 post_a 0.00 post_b 0.00   SD of z: 0.4 0.0 1.1 0.6 0.3 0.9
+  E2 P       per subsession: +0.0011 [-0.0010,+0.0028] | +0.0014 [-0.0025,+0.0065] | +0.0031 [+0.0000,+0.0072] | -0.0003 [-0.0028,+0.0027]
+  E2 g1      per subsession: +0.0019 [-0.0020,+0.0044] | +0.0023 [-0.0040,+0.0086] | +0.0047 [-0.0006,+0.0102] | +0.0003 [-0.0041,+0.0046]
+  E2 g2      per subsession: -0.0011 [-0.0021,+0.0002] | -0.0004 [-0.0021,+0.0011] | -0.0014 [-0.0028,-0.0001] | -0.0009 [-0.0033,+0.0007]
+  E2 g3      per subsession: -0.0010 [-0.0023,+0.0007] | +0.0014 [+0.0001,+0.0031] | +0.0013 [-0.0006,+0.0033] | -0.0037 [-0.0063,-0.0014]
+  E2 g4      per subsession: +0.0015 [-0.0022,+0.0058] | -0.0011 [-0.0042,+0.0027] | +0.0014 [-0.0012,+0.0052] | +0.0004 [-0.0010,+0.0027]
+  E2 control per subsession: -0.0000 [-0.0012,+0.0013] | +0.0005 [-0.0005,+0.0014] | +0.0001 [-0.0009,+0.0014] | -0.0009 [-0.0028,+0.0015]
+  4 s
+EXTRAS_DONE

@@ -1,0 +1,13 @@
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\cross_session\xs_common.py:188: RuntimeWarning: Mean of empty slice
+  return np.nanmean(D[m], axis=0)
+C:\Users\rbondarenko\projects\2P_Scripts\axon analysis\task_deep_dive\dd_fir.py:117: RuntimeWarning: Mean of empty slice
+  for gi, g in enumerate(groups): outcomes['g%d' % (gi + 1)] = hp(np.nanmean(S.dff[g], 0))
+AnimalRB24_261029_1752: design 14878 x 315 (jaw,face,whisk,pupil,shift), lambda 1e-01, held-out R2 P 0.555
+   P       wait_early -0.0006 ant_to +0.0000 ant_sq -0.0004 win -0.0006 post_a -0.0001 post_b -0.0002 sq +0.0000 sq_hit -0.0008 pump_free +0.0000 pump_lick +0.0000
+   g1      wait_early -0.0009 ant_to +0.0000 ant_sq -0.0006 win -0.0007 post_a +0.0001 post_b -0.0000 sq -0.0002 sq_hit -0.0010 pump_free +0.0000 pump_lick +0.0000
+   g2      wait_early -0.0001 ant_to +0.0000 ant_sq -0.0003 win -0.0008 post_a -0.0005 post_b -0.0008 sq +0.0003 sq_hit -0.0001 pump_free +0.0000 pump_lick +0.0000
+   g3      wait_early -0.0001 ant_to +0.0000 ant_sq +0.0001 win -0.0001 post_a -0.0008 post_b -0.0003 sq -0.0004 sq_hit -0.0004 pump_free +0.0000 pump_lick +0.0000
+   g4      wait_early -0.0001 ant_to +0.0000 ant_sq -0.0003 win -0.0000 post_a +0.0001 post_b -0.0004 sq +0.0012 sq_hit -0.0006 pump_free +0.0000 pump_lick +0.0000
+   control wait_early +0.0007 ant_to +0.0000 ant_sq +0.0003 win +0.0000 post_a -0.0005 post_b -0.0008 sq -0.0001 sq_hit -0.0003 pump_free +0.0000 pump_lick +0.0000
+  84 s
+FIR_DONE

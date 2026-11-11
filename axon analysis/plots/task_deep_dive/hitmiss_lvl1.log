@@ -1,0 +1,23 @@
+AnimalRB24_261029_1752: 120 trials (80 hit), P windows (hit - miss, 95% CI): pre +0.014 [-0.058,+0.084] early -0.041 [-0.149,+0.069] mid +0.142 [+0.064,+0.222] late +0.133 [+0.077,+0.196]
+   predict hit from pre state: AUC behaviour 0.52, M0 0.57, axon only 0.40, M1 0.56, dAUC -0.013 (p 0.462, n 119)
+   ROI scan pre   raw signal-like p<0.05  0/ 8 (0%)  noise-like  0/ 4 (0%)
+   ROI scan pre   adj signal-like p<0.05  0/ 8 (0%)  noise-like  0/ 4 (0%)
+   ROI scan early raw signal-like p<0.05  0/ 8 (0%)  noise-like  0/ 4 (0%)
+   ROI scan early adj signal-like p<0.05  2/ 8 (25%)  noise-like  0/ 4 (0%)
+   ROI scan mid   raw signal-like p<0.05  6/ 8 (75%)  noise-like  3/ 4 (75%)
+   ROI scan mid   adj signal-like p<0.05  0/ 8 (0%)  noise-like  0/ 4 (0%)
+   ROI scan late  raw signal-like p<0.05  7/ 8 (88%)  noise-like  2/ 4 (50%)
+   ROI scan late  adj signal-like p<0.05  4/ 8 (50%)  noise-like  0/ 4 (0%)
+  11 s
+AnimalRB23_261029_1704: 75 trials (32 hit), P windows (hit - miss, 95% CI): pre -0.011 [-0.038,+0.015] early +0.018 [-0.037,+0.078] mid +0.078 [+0.044,+0.115] late -0.009 [-0.038,+0.020]
+   predict hit from pre state: AUC behaviour 0.47, M0 0.46, axon only 0.51, M1 0.44, dAUC -0.018 (p 0.575, n 73)
+   ROI scan pre   raw signal-like p<0.05  0/ 3 (0%)  noise-like 11/95 (12%)
+   ROI scan pre   adj signal-like p<0.05  0/ 3 (0%)  noise-like 10/95 (11%)
+   ROI scan early raw signal-like p<0.05  0/ 3 (0%)  noise-like  2/95 (2%)
+   ROI scan early adj signal-like p<0.05  0/ 3 (0%)  noise-like  3/95 (3%)
+   ROI scan mid   raw signal-like p<0.05  3/ 3 (100%)  noise-like 48/95 (51%)
+   ROI scan mid   adj signal-like p<0.05  1/ 3 (33%)  noise-like  6/95 (6%)
+   ROI scan late  raw signal-like p<0.05  0/ 3 (0%)  noise-like  6/95 (6%)
+   ROI scan late  adj signal-like p<0.05  0/ 3 (0%)  noise-like  4/95 (4%)
+  14 s
+HITMISS_DONE
