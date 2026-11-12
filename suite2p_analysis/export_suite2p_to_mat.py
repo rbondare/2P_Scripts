@@ -3,10 +3,10 @@
 Export suite2p .npy outputs to a clean Fall.mat for MATLAB analysis.
 
 Usage:
-    python export_suite2p_to_mat.py <plane_dir>
+    python export_suite2p_to_mat.py <plane_dir> [<plane_dir> ...]
 
-Example:
-    python export_suite2p_to_mat.py "Z:\...\AnimalRB6_250302_1711\suite2p\plane0"
+Example (one or several recordings; a failure in one does not stop the rest):
+    python export_suite2p_to_mat.py "Z:\...\AnimalRB6_250302_1711\suite2p\plane0" "Z:\...\AnimalRB6_250302_1730\suite2p\plane0"
 
 The script loads stat.npy, F.npy, Fneu.npy, spks.npy, iscell.npy from the
 given plane directory and writes Fall.mat in the same directory.
@@ -146,17 +146,31 @@ def export_plane(plane_dir):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python export_suite2p_to_mat.py <plane_dir>")
+    dirs = sys.argv[1:]
+    if not dirs:
+        print("Usage: python export_suite2p_to_mat.py <plane_dir> [<plane_dir> ...]")
         print("  plane_dir: path to suite2p planeX folder containing .npy files")
         sys.exit(1)
 
-    plane_dir = sys.argv[1]
-    if not os.path.isdir(plane_dir):
-        print(f"Error: directory not found: {plane_dir}")
-        sys.exit(1)
+    failed = []
+    for i, plane_dir in enumerate(dirs, 1):
+        print(f"\n=== [{i}/{len(dirs)}] {plane_dir} ===")
+        if not os.path.isdir(plane_dir):
+            print(f"Error: directory not found: {plane_dir}")
+            failed.append(plane_dir)
+            continue
+        try:
+            export_plane(plane_dir)
+        except Exception as e:
+            print(f"FAILED: {e}")
+            failed.append(plane_dir)
 
-    export_plane(plane_dir)
+    if failed:
+        print(f"\n{len(failed)} of {len(dirs)} failed:")
+        for d in failed:
+            print(f"  {d}")
+        sys.exit(1)
+    print(f"\nAll {len(dirs)} exported.")
 
 
 if __name__ == "__main__":
