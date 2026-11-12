@@ -90,19 +90,19 @@ def fig_report(name, level='pc1'):
         if not rows: continue
         ax.plot([d['hi'] for d in rows], [d['med_r'] for d in rows], '-o', color=c, lw=1.2, ms=3.5, label=lab + ' (median)'); ax.plot([d['hi'] for d in rows], [d['p95_r'] for d in rows], '--', color=c, lw=0.8)
     ax.axhline(0, color=INK2, lw=0.6); ax.axhline(ag.R_MIN, color=MUTED, lw=0.6, ls=':'); ax.text(ax.get_xlim()[1], ag.R_MIN, ' r_min', va='bottom', ha='right', fontsize=7, color=MUTED)
-    ax.set_xscale('symlog', linthresh=2); ax.set_xlabel('footprint gap, upper edge of bin (um)'); ax.set_ylabel('residual r (after %s removal)' % level); ax.set_title('a  correlation vs distance (dashed = 95th percentile)'); ax.legend(fontsize=7)
+    ax.set_xscale('symlog', linthresh=2); ax.set_xlim(0, 65); ax.set_xlabel('footprint gap, upper edge of bin (um)'); ax.set_ylabel('residual r (after %s removal)' % level); ax.set_title('a  correlation vs distance (dashed = 95th percentile)'); ax.legend(fontsize=7)
     # (b) held-out SNR gain
     ax = axs[0, 1]; rows = [r for ho in V['held_out'] for r in ho['units']]
     if rows:
         x = np.arange(len(rows)); ax.bar(x, [r['gain'] for r in rows], color=SERIES[0], width=0.55, label='unit mean vs members (held-out half)')
         ax.plot(x, [r['ctrl_gain_median'] for r in rows], 'o', color=SERIES[1], ms=4, label='control: n near ungrouped ROIs'); ax.plot(x, [r['ideal'] for r in rows], '_', color=INK, ms=10, mew=1.2, label='ideal sqrt(n)')
         ax.set_xticks(x); ax.set_xticklabels(['n=%d\n%s' % (r['n'], r['tier']) for r in rows], fontsize=6)
-    ax.set_ylabel('SNR gain'); ax.set_title('b  what averaging buys (groups from one half, SNR on the other)'); ax.legend(fontsize=7)
+    ax.set_ylim(0, 2.9); ax.set_ylabel('SNR gain'); ax.set_title('b  what averaging buys (groups from one half, SNR on the other)'); ax.legend(fontsize=7, ncol=3, loc='upper center')
     # (c) simulation operating curve
     ax = axs[1, 0]; H = V['hetero']; mixes = sorted(set(h['mix'] for h in H))
     for n, mx in enumerate(mixes):
         rr = [h for h in H if h['mix'] == mx]; ax.plot([h['rho'] for h in rr], [h['false_merge'] for h in rr], '-o', color=SERIES[n], lw=1.2, ms=3.5, label='%s fragments: merged' % mx)
-        ax.plot([h['rho'] for h in rr], [h['flagged'] for h in rr], '--s', color=SERIES[n], lw=0.9, ms=3, mfc='none', label='%s: flagged heterogeneous' % mx)
+        if np.isfinite([h['flagged'] for h in rr]).any(): ax.plot([h['rho'] for h in rr], [h['flagged'] for h in rr], '--s', color=SERIES[n], lw=0.9, ms=3, mfc='none', label='%s: flagged heterogeneous (>= 4 members only)' % mx)
     ax.set_xlabel('true correlation of the two axons\' signals (simulated, real noise)'); ax.set_ylabel('fraction of runs'); ax.set_ylim(-0.03, 1.05); ax.invert_xaxis(); ax.set_title('c  do two DIFFERENT axons get merged, and caught?'); ax.legend(fontsize=6.5, ncol=1)
     # (d) inflation
     ax = axs[1, 1]; I = [ho['inflation'] for ho in V['held_out']]

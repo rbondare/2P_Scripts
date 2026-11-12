@@ -48,9 +48,52 @@ Universe cache `<session>_U.pkl` (loading from Z: takes 25-60 s); delete it or p
 ## CSV columns (`<session>_roi_groups.csv`, one row per ROI)
 `suite2p_idx, source (accepted|rejected|constituent), v3_class, unit_id, unit_size, cluster_id, tier, tier_why, attach_unit, attach_conf, attach_r, attach_q, attach_gap_um, orphan, noise_ref_top20, merged_parent_idx`
 
-## Report card (what the pilot shows) - see the sections added after the pilot runs
+## Pilot results (2026-11-11, level `pc1`, 5 sessions; `python ag_summary.py` reprints them)
 
-RESULTS_PLACEHOLDER
+Sessions: RB24 1630 (27 accepted ROIs), RB22 1138 (33), RB23 1642 (56), RB24 1423 (63), RB24 1520 (85; 1423 and 1520 share a field of view).
+
+| session | units / multi-member | sizes of multi-member units | tier A | rejected ROIs attached high / med / low / none | orphans | noise pool (match F0, npix, Fneu/F) |
+|---|---|---|---|---|---|---|
+| 1630 | 14 / 7 | 5 4 3 2 2 2 2 | 0 | 10 / 46 / 79 / 183 | 65 | 66 (0.11, 0.07, -0.02) |
+| 1138 | 27 / 3 | 4 3 2 | 0 | 13 / 116 / 90 / 121 | 16 | 55 (-0.49, 0.06, -0.43) |
+| 1642 | 14 / 7 | 14 10 9 8 3 3 2 | 0 | 26 / 52 / 60 / 248 | 58 | 115 (-0.42, -0.29, -0.49) |
+| 1423 | 20 / 9 | 13 11 6 6 6 3 3 2 2 | 1 | 39 / 188 / 62 / 104 | 41 | 21 (-1.35, 0.77, -1.66) |
+| 1520 | 25 / 7 | 18 16 11 9 9 2 2 | 0 | 63 / 238 / 84 / 50 | 12 | 19 (-0.88, 0.23, -0.97) |
+
+**1. Does the method create groups out of nothing?** No. Independent circular shifts or planted common mode: 0-1 edges among 160-941 candidate pairs (1520: 4-5 of 1568, 2 spurious pairs of units
+in that session); real data 15-403 edges.
+
+**2. Can it tell two different axons from fragments of one?** Not by correlation. Simulation (noisy fragments carrying the session's real noise, SNR 0.7-3): two axons whose true signal
+correlation is >= 0.5 are joined in ~100 % of runs (only 0.3 separates them). A one-factor model is exactly identified for 2-3 members, so **pairs and triples can never be certified
+homogeneous**. The rank-1 test (>= 4 members) flags mixed units at true correlation 0.95: 10-47 %, 0.9: 23-97 %, <= 0.8: 87-100 % (per session), at a 5 % false-flag rate. Only 1 of 33 multi-ROI units
+(1423) passed it, so only one unit is tier A; 16 are `heterogeneous`, the rest `untestable`.
+
+**3. Does grouping manufacture homogeneity?** Not measurably. PC1 share of the unit means is at or below the ROI-level share in the same half (ratios 0.73-1.08, in-sample and held-out alike), and the mean pair
+correlation among units is at or below that among ROIs (within 0.02; e.g. 1630 0.48-0.53 vs 0.61) and below that of random merges of the same sizes (1630 0.69-0.72). Units stay coherent in the held-out half
+(residual r among members median 0.27-0.64, above the near-ROI control's 95th percentile in 50-72 % of units).
+
+**4. Does it improve the signal?** Little beyond averaging. Held-out SNR gain median 1.3-1.4 (ideal sqrt(n) 1.4-2.2) and above the control "mean of n near ungrouped ROIs" in only 1-5 units per
+session (p95) because the shared state signal (PC1 share 0.3-0.8) is in every accepted ROI. The gain that grouping adds is in the residual (non-shared) signal, which is what held-out residual r shows.
+
+**5. Do members of a unit differ?** Yes, in behaviour coupling, reproducibly across session halves (Spearman rho of member-minus-unit coupling half 1 vs half 2: face -0.5 (1642) to 0.8, whisking 0.3-0.9,
+pupil 0.3-0.9, ball 0.4-0.7; SD of the member deviation 0.05-0.09 (1630, 1642), 0.07-0.16 (1423, 1520), 0.2-0.3 (1138)). Part of it follows member SNR (rho 0.1-0.55 in 1630 / 1642 / 1423), in 1138 and 1520 it does not (rho <= 0).
+The unit mean hides this difference; per-ROI results stay the primary level.
+
+**6. Attachments replicate only at high confidence** (1423 <-> 1520 through the fov_matching master axons; pairs of ROIs both accepted in both sessions within 30 µm): pairs sharing a unit in A share
+one in B in 95 % (1423 -> 1520) and 60 % (reverse) vs 16 % / 1 % for pairs in different units. Rejected ROIs attached `high` to a unit end up with the same unit in B in 8 of 8 and 8 of 16 cases;
+`medium` in 3 of 14 and 3 of 10 (about a quarter, so `medium` is weak evidence); n is small and the sessions are same-day, so this shows stable structure, not axon identity.
+
+**7. Units vs the matched noise blobs** (mean of n blobs for a unit of n): unit |r| with behaviour above the 95th percentile of noise draws in 6 of 7 (1630), 0 of 3 (1138), 2 of 7 (1642), 4 of 9 (1423),
+5 of 7 (1520) units; SNR and event rate above the noise almost everywhere. **The noise reference is only brightness-matched in 1630** (standardised difference <= 0.11): in the other sessions the strict pool
+(rejected, inactive, not attached) holds only 19-115 blobs and they are dimmer / have a higher neuropil share than the axons (differences 0.4-1.7 SD), and in 1423 the pool is 21 blobs, so top-20 is essentially all of them.
+Treat units-vs-noise differences in those sessions as confounded with brightness.
+
+Parameter sweep (`validation_pc1.pkl`, `sweep`): without PC removal everything within 10 µm merges into one unit (1630: 24 of 27 ROIs); with PC1 removed the count of multi-member units is stable
+(1630: 5-7 for d_frag 3-10 µm at r_min 0.3, 3-4 at 0.5); removing 2 PCs or behaviour changes it by 0-3 units.
+
+**What this means for use.** Per-ROI analyses stay the default. Unit means are justified only for tier A (here 1 unit). Pair / triple units are co-activity annotations (`cluster_id`, `unit_id`) that
+tell you which ROIs share non-state signal; averaging them is an assumption whose cost is quantified by the simulation (axons that share >= 50 % of their signal look the same to this test).
+High-confidence attachments and orphans are candidates for the existing curation workflow (review_queue.py / apply_curation.py), not accepted ROIs.
 
 ## Caveats
 * A unit is a co-active set, not proven to be one neuron: branches of one neuron correlate when apart, and two neurons driven by the same events can look alike.
