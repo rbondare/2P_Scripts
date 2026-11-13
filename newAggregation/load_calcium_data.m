@@ -139,11 +139,7 @@ combined_fall = combined && exist([suite2p_dir 'combined' filesep 'Fall.mat'], '
 proj          = exist([suite2p_dir 'proj'],     'dir') == 7;
 
 % Determine if multicolor from SI_Info
-if ~isempty(SI_Info) && isfield(SI_Info, 'hChannels') && isfield(SI_Info.hChannels, 'channelsActive')
-    multicolor = numel(SI_Info.hChannels.channelsActive) > 1;
-else
-    multicolor = false;
-end
+multicolor = is_multicolor(SI_Info);   % channels saved to the TIFFs, not channelsActive (see is_multicolor.m)
 
 fprintf('Loading suite2p data from %s\n', suite2p_dir);
 fprintf('  Planes: %d, Combined Fall.mat: %d, Projection: %d, Multicolor: %d\n', ...

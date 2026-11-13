@@ -242,8 +242,24 @@ if process_behavior
         fprintf('Loading DLC behavioral data\n');
         load(dlc_file, 'DLCSupporting', 'Behav', 'VideoParams', 'VideoFrameTimes');
 
+        % Dropped camera frames: if the video and the 2P camera trigger log differ by more than one frame, pairing
+        % frame i with trigger i (below) times every frame after a drop too early and cuts off the trigger tail.
+        % The camera's hardware time stamps (frames.csv) then tell which trigger each saved frame belongs to.
+        ticks_used = false;
+        if isfield(Triggers, 'TimeCamera') && ~isempty(Triggers.TimeCamera) && ...
+                abs(numel(Triggers.TimeCamera) - numel(Behav.FrameNum)) > 1
+            [ticks_used, Triggers, selected_frameIdx] = match_video_frames_by_ticks(...
+                Triggers, Behav, config, AnimalName, RecordingName);
+            if ticks_used
+                Data.Triggers = Triggers;
+                VideoParams.selected_frameIdx = selected_frameIdx;
+            end
+        end
+
         % Correct video frame timing
-        if isfield(VideoParams, 'selected_frameIdx')
+        if ticks_used
+            % selected_frameIdx and Triggers.TimeCamera were set from the camera time stamps above
+        elseif isfield(VideoParams, 'selected_frameIdx')
             selected_frameIdx = VideoParams.selected_frameIdx;
         else
             if exist('Triggers', 'var') && isfield(Triggers, 'TimeCamera')
@@ -319,12 +335,8 @@ if ~exist(IntermediateFilename, 'file') || overwrite_intermediate
     SI_Info = Headers(k1).SI;
     SI_Info.Clockstart = datetime(Headers(k1).epoch{1});
 
-    % Determine multicolor
-    if numel(SI_Info.hChannels.channelsActive) > 1
-        multicolor = true;
-    else
-        multicolor = false;
-    end
+    % Determine multicolor (channels saved to the TIFFs, not channelsActive - see is_multicolor.m)
+    multicolor = is_multicolor(SI_Info);
 
     % Load calcium data
     [Fall, S2Pdirs, ~] = load_calcium_data(basedir, 'format', ca_format, 'SI_Info', SI_Info);
@@ -341,11 +353,7 @@ else
     SI_Info = Headers(k1).SI;
     SI_Info.Clockstart = datetime(Headers(k1).epoch{1});
 
-    if numel(SI_Info.hChannels.channelsActive) > 1
-        multicolor = true;
-    else
-        multicolor = false;
-    end
+    multicolor = is_multicolor(SI_Info);
 end
 
 % Fix numFramesPerVolume if missing
@@ -794,6 +802,96 @@ end
 
 Headers = rmfield(Headers, {'frameNumbers'; 'frameTimestamps_sec'});
 
+end
+
+
+function [used, Triggers, selected_frameIdx] = match_video_frames_by_ticks(Triggers, Behav, config, AnimalName, RecordingName)
+%MATCH_VIDEO_FRAMES_BY_TICKS Time the saved video frames with the camera hardware time stamps (frames.csv)
+%   used = false (Triggers unchanged, a warning says why) when there is no usable frames.csv or the match fails
+%   its checks; then the caller falls back to pairing frame i with trigger i.
+%   used = true: Triggers.TimeCamera holds the trigger time of every video frame (frame k <-> element k) and
+%   Triggers.CameraMatch documents the match (dropped frames, residuals); see match_camera_ticks_to_triggers.
+
+used = false;
+selected_frameIdx = [];
+nB = numel(Behav.FrameNum);
+nT = numel(Triggers.TimeCamera);
+csvf = find_camera_frames_csv(config, AnimalName, RecordingName);
+if isempty(csvf)
+    warning('save_preprocessed:CameraFrameCount', ...
+        ['The video has %d frames but the 2P logged %d camera triggers, and no frames.csv with the camera time stamps ' ...
+        'was found for %s (Camera or preCamera folder): frame i is paired with trigger i, so frames after a dropped ' ...
+        'frame are timed too early.'], nB, nT, RecordingName);
+    return
+end
+Tb = readtable(csvf);
+if height(Tb) ~= nB || ~ismember('camera_timestamp_ticks', Tb.Properties.VariableNames)
+    warning('save_preprocessed:CameraFrameCount', ...
+        '%s has %d rows (video: %d frames) or no camera_timestamp_ticks column: not used for the frame timing.', ...
+        csvf, height(Tb), nB);
+    return
+end
+ticks = double(Tb.camera_timestamp_ticks - Tb.camera_timestamp_ticks(1)) * 1e-9;
+trig = double(Triggers.TimeCamera(:));
+[t, info] = match_camera_ticks_to_triggers(trig, ticks);
+if ~info.ok
+    warning('save_preprocessed:CameraTickMatch', ...
+        ['Matching the video frames to the camera triggers with the time stamps of %s failed its checks (re-anchored %d x, ' ...
+        '%d frames more than a quarter period from their trigger, %d frames after the last trigger): ' ...
+        'falling back to pairing frame i with trigger i.'], csvf, info.n_reanchor, info.n_bad, info.n_untimed_tail);
+    return
+end
+
+CM = struct();
+CM.method = 'camera hardware time stamps (frames.csv) matched to the 2P camera triggers';
+[~, nm, ext] = fileparts(csvf);
+CM.frames_csv = [nm ext];
+CM.n_frames = nB;
+CM.n_triggers_raw = nT;
+CM.n_dropped = info.n_dropped;
+CM.dropped_time_s = trig(info.dropped_idx)';
+CM.n_before_first = info.n_before_first;
+CM.n_after_last = info.n_after_last;
+CM.n_untimed_tail = info.n_untimed_tail;
+CM.residual_sd_ms = info.residual_sd_ms;
+CM.max_abs_residual_ms = info.max_abs_residual_ms;
+CM.drift_ppm = info.drift_ppm;
+CM.period_s = info.period_s;
+Triggers.CameraMatch = CM;
+Triggers.TimeCamera = t(:)';
+selected_frameIdx = info.frame_idx(:)';
+used = true;
+fprintf(['  Camera frame drops: %d of %d camera triggers (%.2f %%) have no video frame; every video frame is matched to its ' ...
+    'own trigger with the camera time stamps (residual SD %.3f ms, clock drift %.1f ppm)\n'], ...
+    info.n_dropped, nT, 100 * info.n_dropped / nT, info.residual_sd_ms, info.drift_ppm);
+if info.n_untimed_tail > 0 || info.n_before_first > 0 || info.n_after_last > 0
+    fprintf('  Camera frames: %d video frames after the last trigger left out; %d triggers before the first / %d after the last video frame\n', ...
+        info.n_untimed_tail, info.n_before_first, info.n_after_last);
+end
+end
+
+
+function csvf = find_camera_frames_csv(config, AnimalName, RecordingName)
+%FIND_CAMERA_FRAMES_CSV <recording>'s *_frames.csv (camera time stamps) in the Camera folder or its preCamera archive
+csvf = '';
+if ~isfield(config, 'CameraDir') || isempty(config.CameraDir)
+    return
+end
+cam = regexprep(config.CameraDir, '[\\/]+$', '');
+parent = fileparts(cam);
+cand = {fullfile(cam, RecordingName), ...
+        fullfile(parent, 'preCamera', AnimalName, RecordingName), ...
+        fullfile(parent, 'preCamera', RecordingName)};
+for k = 1:numel(cand)
+    L = dir(fullfile(cand{k}, '*_frames.csv'));
+    if numel(L) == 1
+        csvf = fullfile(L(1).folder, L(1).name);
+        return
+    elseif numel(L) > 1
+        warning('save_preprocessed:CameraFrameCount', '%d *_frames.csv files in %s: not used', numel(L), cand{k});
+        return
+    end
+end
 end
 
 

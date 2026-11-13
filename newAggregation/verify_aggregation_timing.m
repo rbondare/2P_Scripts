@@ -129,7 +129,12 @@ if ~isempty(csvf) && exist(csvf, 'file')
         numel(host), median(diff(host)), nnz(diff(host) > 0.025), max(diff(host)), round(100 * mean(T.queued == 1)));
     hw_dt = diff(ticks) * 1e-9;
     fprintf('     hardware ticks (ns): interval median %.5f s, max %.4f s\n', median(hw_dt), max(hw_dt));
-    add_status(abs(numel(host) - numel(tc)) <= 1, 'frames.csv vs triggers', sprintf('%d camera frames vs %d triggers', numel(host), numel(tc)));
+    n_tail = 0;       % frames after the last trigger that match_camera_ticks_to_triggers left out
+    if isfield(Triggers, 'CameraMatch'); n_tail = Triggers.CameraMatch.n_untimed_tail; end
+    tail_note = '';
+    if n_tail > 0; tail_note = sprintf(' (+ %d frames after the last trigger, left out)', n_tail); end
+    add_status(abs(numel(host) - numel(tc) - n_tail) <= 1, 'frames.csv vs triggers', ...
+        sprintf('%d camera frames vs %d triggers%s', numel(host), numel(tc), tail_note));
     if ismember('VideoParams', vars)
         VP = m.VideoParams;
         if isfield(VP, 'selected_frameIdx') && ~isempty(VP.selected_frameIdx)
@@ -152,10 +157,33 @@ if ~isempty(csvf) && exist(csvf, 'file')
     t_s = tc(1:n);
     pf = polyfit(t_s, off, 1);
     res = off - polyval(pf, t_s);
-    add_status(max(abs(off - median(off))) < 0.05, 'camera clock agreement', ...
-        sprintf('offset stays within %.1f ms of its median over %.1f min (drift %.2f ms/min, residual SD %.2f ms)', ...
-        1e3 * max(abs(off - median(off))), (t_s(end) - t_s(1)) / 60, 1e3 * pf(1) * 60, 1e3 * std(res)));
+    host_ok = max(abs(off - median(off))) < 0.05;
+    host_msg = sprintf('offset stays within %.1f ms of its median over %.1f min (drift %.2f ms/min, residual SD %.2f ms)', ...
+        1e3 * max(abs(off - median(off))), (t_s(end) - t_s(1)) / 60, 1e3 * pf(1) * 60, 1e3 * std(res));
+    if ~host_ok && isfield(Triggers, 'CameraMatch') && Triggers.CameraMatch.n_dropped > 0
+        % the host time of a frame is taken when it leaves the camera queue and lags after dropped frames
+        add('WARN', 'camera clock agreement', [host_msg '; host clock lags after dropped frames, see the hardware ticks check']);
+    else
+        add_status(host_ok, 'camera clock agreement', host_msg);
+    end
     R.camera_offset_s = off;
+
+    % The host clock above is read when a frame leaves the camera queue, so it lags when frames are dropped; the
+    % hardware ticks are the camera's own clock: each video frame must sit at its own trigger (frame k <-> element k).
+    n2 = min(numel(sel), numel(tc));
+    tk2 = (ticks(sel(1:n2)) - ticks(sel(1))) * 1e-9;
+    dd = tk2 - (tc(1:n2) - tc(1));
+    pf2 = polyfit(tk2, dd, 1);
+    r2 = dd - polyval(pf2, tk2);
+    msg = sprintf('video frame vs its own trigger: residual SD %.3f ms, max %.2f ms, drift %.1f ppm', ...
+        1e3 * std(r2), 1e3 * max(abs(r2)), 1e6 * pf2(1));
+    if isfield(Triggers, 'CameraMatch')
+        CMm = Triggers.CameraMatch;
+        msg = sprintf('%s; %d dropped frames (%.2f %% of the triggers) matched with the camera time stamps', ...
+            msg, CMm.n_dropped, 100 * CMm.n_dropped / CMm.n_triggers_raw);
+    end
+    add_status(std(r2) < 0.005 && max(abs(r2)) < 0.02, 'camera hardware ticks vs triggers', msg);
+    R.camera_tick_residual_s = r2;
 end
 
 %% 4 stimulus

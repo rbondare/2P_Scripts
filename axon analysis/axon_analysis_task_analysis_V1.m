@@ -57,6 +57,9 @@
 %     column are left out of the whole analysis (section 2, check 'licks: lick log covers all trials'): they would read as "no lick" = a false miss without reward.
 %   - WhiskOn is 1 in every frame (the mouse runs most of the session): no whisking bouts; WhiskIndex is used as a continuous measure.
 %   - dF/F is the V3 definition (Fc - p8) ./ movmedian(Fc - p8, +-15 s) - 1, not (F - F0)/F0; do not judge ROI quality from std(dFF) (section 5).
+%   - PARTIAL sessions (RB24_261112_1408, RB23_261112_1746: the water in the objective ran out, suite2p was run on the first TIFFs only and padded with NaN by
+%     suite2p_analysis/pad_suite2p_for_aggregation.py): set crop_to_valid = true. The traces are then cropped to the frames with a finite dF/F in all ROIs (the last dff_window_s
+%     before the padding are NaN too) and only the trials completely inside are analysed. With crop_to_valid = false a dF/F with NaN stops the script (section 1).
 
 %% 0. Settings (edit only this block)
 session   = 'AnimalRB24_261030_1744';
@@ -69,6 +72,12 @@ fig_dir   = fullfile(repo_root, 'axon analysis', 'plots', 'task_V1', session);
 roi_sel       = 'signal'; % ROIs used for the figures and tables of part B: 'all' | 'signal' (signal-like) | 'good' (signal-like and not motion-coupled) | a list, e.g. [3 5 8]
 extra_figs    = true;     % true: also draw the diagnostic figures of part C
 explore_stats = true;     % true: part D (encoding model, permutation tests; about 1-2 min, 2 figures)
+crop_to_valid = false;    % PARTIAL sessions only: suite2p was run on the first TIFFs only (e.g. the water in the objective ran out) and the traces were NaN-padded by
+                          % suite2p_analysis/pad_suite2p_for_aggregation.py, so dF/F is NaN from ~15 s before the last processed frame (the +-15 s baseline window) to the end.
+                          % true  = crop everything (dF/F, F, time base, motion samples) to the frames where dF/F is finite for every ROI, and use only the leading trials whose
+                          %          whole window (-ev_pre_s ... +ev_post_s, grey period, licks) lies inside them; the rest of the session is left out (printed as 'partial session: cropped').
+                          % false = sessions with all TIFFs usable (default): nothing is cropped. A dF/F with NaN then STOPS the script, because every quality metric
+                          %          (slow_ratio, std, events) would be NaN and every ROI would silently count as noise-like (this happened on RB23_261112_1746).
 
 % task analysis
 ev_pre_s   = 5;          % aligned windows: from -ev_pre_s to +ev_post_s around the square onset (the next wait is >= 8 s, the previous trial ended > 8 s earlier)
@@ -173,6 +182,23 @@ ca   = data.CaData(ca_type);
 dFF  = ca.Ca_dFF;  F = ca.Ca_F;  Fneu = ca.Ca_F_neuropil;  F0 = ca.Ca_baseline;
 [nROI, nT] = size(dFF);
 tCa  = double(data.TimeCa(1, :));
+% partial session (crop_to_valid): keep only the frames where dF/F is finite for every ROI. They are the first frames of the session: the padded part of the traces is NaN, and so
+% is the dF/F of the last dff_window_s before it (movmedian over +-dff_window_s runs into the padding).
+crop_info = struct('applied', false, 'n_total', nT, 'n_valid', nT);
+if crop_to_valid
+    ok_fr   = all(isfinite(dFF), 1);
+    n_valid = find(~ok_fr, 1) - 1;  if isempty(n_valid); n_valid = nT; end
+    assert(n_valid >= 1000 && tCa(n_valid) - tCa(1) >= 300, 'crop_to_valid: only %d frames have a finite dF/F in all ROIs', n_valid);
+    assert(~any(ok_fr(n_valid + 1:end)), 'crop_to_valid: the non-finite dF/F values are not one block at the end of the session (finite again at frame %d): not a padded partial session', n_valid + find(ok_fr(n_valid + 1:end), 1));
+    if n_valid < nT
+        crop_info = struct('applied', true, 'n_total', nT, 'n_valid', n_valid, 'nan_frac', mean(~isfinite(dFF(:))), 't_total', tCa(end) - tCa(1), 't_valid', tCa(n_valid) - tCa(1));
+        for fn_ = {'Ca_dFF', 'Ca_F', 'Ca_F_neuropil', 'Ca_baseline', 'Ca_deconvolved'}
+            if isfield(ca, fn_{1}) && size(ca.(fn_{1}), 2) == nT; ca.(fn_{1}) = ca.(fn_{1})(:, 1:n_valid); end
+        end
+        dFF = ca.Ca_dFF;  F = ca.Ca_F;  Fneu = ca.Ca_F_neuropil;  F0 = ca.Ca_baseline;
+        tCa = tCa(1:n_valid);  nT = n_valid;
+    end
+end
 cent = ca.Ca_centroid_voxel;                        % [row col plane], suite2p 'med', full-frame pixels
 planes = unique(cent(:, 3));
 chk = addchk(chk, 'CaData: populated entry', grade(numel(nz) == 1, 1), sprintf('CaData(%d) has traces, %d of %d entries populated', ca_type, numel(nz), numel(data.CaData)));
@@ -181,7 +207,9 @@ chk = addchk(chk, 'Ca arrays: same size', grade(sz_ok, 2), sprintf('dFF/F/Fneu/b
 chk = addchk(chk, 'TimeCa: matches frames', grade(numel(tCa) == nT, 2), sprintf('%d time stamps, %d frames', numel(tCa), nT));
 chk = addchk(chk, 'ROI bookkeeping', grade(size(cent, 1) == nROI && numel(ca.Ca_cellstats) == nROI, 2), sprintf('%d centroids, %d cellstats', size(cent, 1), numel(ca.Ca_cellstats)));
 nonfin = mean(~isfinite(dFF(:)));
-chk = addchk(chk, 'dFF: finite', grade(nonfin == 0, 2), sprintf('%.4f%% NaN/Inf', 100*nonfin));
+chk = addchk(chk, 'dFF: finite', grade(nonfin == 0, 2), sprintf('%.4f%% NaN/Inf%s', 100*nonfin, iff(crop_info.applied, sprintf(' (after the crop to the first %d of %d frames, crop_to_valid)', crop_info.n_valid, crop_info.n_total), '')));
+assert(nonfin == 0, ['dF/F has %.2f%% NaN/Inf values. If this is a PARTIAL session (suite2p run on the first TIFFs only, traces NaN-padded by pad_suite2p_for_aggregation.py), set crop_to_valid = true in section 0 ' ...
+    'to analyse the first %d frames that have a dF/F. Otherwise the file is damaged. Not continuing: with NaN every quality metric is NaN and all ROIs would silently count as noise-like.'], 100 * nonfin, find(any(~isfinite(dFF), 1), 1) - 1);
 chk = addchk(chk, 'planes', grade(numel(planes) == 1, 1), sprintf('%d plane(s); TimeCa has %d row(s); row 1 is used as common time base', numel(planes), size(data.TimeCa, 1)));
 
 if has_beh
@@ -256,6 +284,18 @@ for t = 1:nTr
     n_stfr(t) = numel(js);  n_w2fr(t) = numel(jw);
 end
 assert(~any(isnan(on_t)), 'trials %s have no valid stimulus frames', lst(find(isnan(on_t))'));
+% partial session (crop_to_valid): only the leading trials that lie completely inside the cropped imaging record are analysed (window -ev_pre_s ... +ev_post_s around the onset, and the whole trial incl. the
+% grey period). Everything below works on trials 1..nTr (licks, levels, waits, sync, blocks), like the trials without a lick column above.
+if crop_info.applied
+    ok_tr  = max(on_t + ev_post_s, tr_t1) <= tCa(end);
+    n_keep = find(~ok_tr, 1) - 1;  if isempty(n_keep); n_keep = nTr; end
+    assert(n_keep >= 5, 'crop_to_valid: only %d trial(s) lie completely inside the %.0f s with a finite dF/F', n_keep, tCa(end) - tCa(1));
+    chk = addchk(chk, 'partial session: cropped', grade(false, 1), sprintf(['crop_to_valid: the traces are NaN-padded (%.1f%% of the frames; dF/F finite only up to %.0f s). Analysed: frames 1-%d of %d (%.0f of %.0f s) and trials 1-%d of %d ' ...
+        '(trials %d-%d do not lie completely inside, their licks, windows and the rest of the session are LEFT OUT). Results describe the first %.0f min only'], ...
+        100 * crop_info.nan_frac, crop_info.t_valid, crop_info.n_valid, crop_info.n_total, crop_info.t_valid, crop_info.t_total, n_keep, nTr, n_keep + 1, nTr, crop_info.t_valid / 60));
+    nTr = n_keep;
+    sub_of = sub_of(1:nTr);  tr_t0 = tr_t0(1:nTr);  on_t = on_t(1:nTr);  st_end = st_end(1:nTr);  tr_t1 = tr_t1(1:nTr);  n_stfr = n_stfr(1:nTr);  n_w2fr = n_w2fr(1:nTr);  fr_dt = fr_dt(1:nTr);
+end
 st_dur = st_end - on_t;  w1_dur = on_t - tr_t0;  w2_dur = tr_t1 - st_end;
 wait_s = sum(S.waitTimes(1:nTr, :), 2);                                    % total wait before the square (time-outs add waits)
 n_to   = S.timeoutHistory(:);  n_to = n_to(1:nTr);
@@ -575,6 +615,7 @@ switch dff_source
     case 'best'
         assert(isfield(data, 'BestDFF'), 'dff_source = best needs the BestDFF variable in %s (appended by the best-dF/F step)', data_file);
         bd = data.BestDFF;
+        if crop_info.applied && size(bd.dFF, 2) == crop_info.n_total; bd.dFF = bd.dFF(:, 1:crop_info.n_valid); end     % same crop as the pipeline dF/F (crop_to_valid)
         assert(isequal(size(bd.dFF), size(dFF)), 'BestDFF.dFF is %s, CaData dFF is %s', mat2str(size(bd.dFF)), mat2str(size(dFF)));
         dFF = bd.dFF;
         dsm = movmean(dFF, w_sm, 2);
@@ -648,7 +689,11 @@ for r = 1:nROI
     on_r = tCa(diff([0 up(r, :)]) == 1);
     if ~isempty(on_r) && ~isempty(g_t); ev_in_glob(r) = mean(min(abs(on_r(:) - g_t(:)'), [], 2) <= 1); elseif ~isempty(on_r); ev_in_glob(r) = 0; end
 end
-chk = addchk(chk, 'population: events during FOV-wide events', grade(~(median(ev_in_glob(signal_like), 'omitnan') > 0.3), 1), sprintf('median %.0f%% of signal-like ROI events fall within 1 s of a FOV-wide event', 100*median(ev_in_glob(signal_like), 'omitnan')));
+if any(signal_like)
+    chk = addchk(chk, 'population: events during FOV-wide events', grade(~(median(ev_in_glob(signal_like), 'omitnan') > 0.3), 1), sprintf('median %.0f%% of signal-like ROI events fall within 1 s of a FOV-wide event', 100*median(ev_in_glob(signal_like), 'omitnan')));
+else
+    chk = addchk(chk, 'population: events during FOV-wide events', grade(false, 1), 'no signal-like ROI: not evaluated');
+end
 
 % correlation between ROIs (smoothed dFF): ROIs on the same axon share their events (r close to 1) and are NOT independent samples
 ids = sl;  if numel(ids) < 3; ids = 1:min(nROI, 300); end
@@ -657,7 +702,9 @@ Cm = corrcoef(double(dsm(ids, :))');
 px_um = NaN;  if has_si; px_um = abs(diff(data.SI_Info.hRoiManager.imagingFovUm([1 2]))) / data.SI_Info.hRoiManager.pixelsPerLine; end
 [pa, pb] = find(triu(Cm > 0.8, 1));
 pair_d = hypot(cent(ids(pa), 1) - cent(ids(pb), 1), cent(ids(pa), 2) - cent(ids(pb), 2));
-chk = addchk(chk, 'ROIs: strongly correlated pairs', grade(isempty(pa), 1), sprintf('%d of %d pairs among the %d signal-like ROIs have r > 0.8 (same axon / shared signal, not independent); median centroid distance %.0f px = %.0f um', numel(pa), numel(ids)*(numel(ids)-1)/2, numel(ids), median(pair_d), median(pair_d) * px_um));
+ids_lab = 'signal-like ROIs';
+if sum(signal_like) < 3; ids_lab = sprintf('ROIs (only %d signal-like: the first %d ROIs are used instead, they are NOT signal-like)', sum(signal_like), numel(ids)); end
+chk = addchk(chk, 'ROIs: strongly correlated pairs', grade(isempty(pa), 1), sprintf('%d of %d pairs among the %d %s have r > 0.8 (same axon / shared signal, not independent); median centroid distance %.0f px = %.0f um', numel(pa), numel(ids)*(numel(ids)-1)/2, numel(ids), ids_lab, median(pair_d), median(pair_d) * px_um));
 if ~isempty(pa)
     pr = Cm(sub2ind(size(Cm), pa, pb));  [~, po] = sort(pr, 'descend');  po = po(1:min(10, numel(po)));
     disp(table(ids(pa(po))', ids(pb(po))', pr(po), pair_d(po), 'VariableNames', {'roiA','roiB','r','dist_px'}));
@@ -677,8 +724,15 @@ fall_file = fullfile(s2p_dir, 'Fall.mat');
 if isfile(fall_file)
     o   = load(fall_file, 'ops');  ops = o.ops;
     xo  = double(ops.xoff(:))';  yo = double(ops.yoff(:))';
+    n_xo = numel(xo);
+    if crop_info.applied && n_xo >= nT
+        % suite2p ran on the first TIFFs only: ops hold one sample per processed frame (stub TIFFs included, so sample i = session frame i); the traces were cropped to the first nT frames (crop_to_valid)
+        xo = xo(1:nT);  yo = yo(1:nT);
+        if size(ops.xoff1, 1) >= nT; ops.xoff1 = ops.xoff1(1:nT, :);  ops.yoff1 = ops.yoff1(1:nT, :); end
+        if isfield(ops, 'badframes') && numel(ops.badframes) >= nT; ops.badframes = ops.badframes(1:nT); end
+    end
     len_ok = numel(xo) == nT;
-    chk = addchk(chk, 'motion: ops length', grade(len_ok, 1), sprintf('%d motion samples vs %d frames', numel(xo), nT));
+    chk = addchk(chk, 'motion: ops length', grade(len_ok, 1), sprintf('%d motion samples vs %d frames%s', n_xo, nT, iff(crop_info.applied && len_ok, ' (first frames used, crop_to_valid)', '')));
     if len_ok
         have_motion = true;
         rigid = hypot(xo - median(xo), yo - median(yo));

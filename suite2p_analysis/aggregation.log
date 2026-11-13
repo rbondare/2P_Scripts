@@ -1,0 +1,9 @@
+=== Aggregating 1 recording(s) ===
+
+=== Summary ===
+  failed   AnimalRB24_261112_1408           no stim*.mat in Z:\Group Members\Rima\Stimulus_Axons\AnimalRB24\AnimalRB24_261112_1408
+Done: 0, skipped: 0, failed: 1
+{Error using run_aggregation_batch (line 132)
+1 of 1 recording(s) failed, see the summary above
+} 
+ERROR: MATLAB error Exit Status: 0x00000001

@@ -35,12 +35,21 @@ Changes from V1
    written as BigTIFF stacks of about REG_VIDEO_PIECE_GB each (equal consecutive pieces) to plane0/reg_tif/,
    e.g. registered_part03of13_f009230-013844.tif, for opening in Fiji (File > Import > Bio-Formats).
 
+6. LAST_TIF: optional cut-off for recordings that are only usable up to some point (e.g. the water in the
+   objective ran out). suite2p is given an explicit list of the TIFFs 1..LAST_TIF (db['file_list']), so the
+   reference image, registration, ROI detection and extraction all see only the good part; the raw TIFFs on Z:
+   are not moved or deleted. The 1-frame stub TIFFs inside the range are kept, so column i of F is still frame i
+   of the session (the aggregation relies on this). None = process every TIFF, as before.
+   Aggregation note: newAggregation/save_preprocessed.m cuts F with F(:, 1:<volumes of ALL tifs>), which fails when
+   F is shorter, so F/Fneu/spks (and Fall.mat) must be padded with NaN up to the full frame count before aggregating.
+
 Everything else (paths, diameter, detection, classification, db) is unchanged.
 After curating iscell in the GUI, merge axon segments with merge_suite2p_rois.py.
 """
 
 import numpy as np
 import os
+import re
 import tifffile
 import torch
 from pathlib import PureWindowsPath
@@ -93,7 +102,18 @@ def resolve_runtime_path(path_str):
 # Load ops from the previously SUCCESSFUL axon detection run (AnimalRB6_250302_1656)
 # These settings are known to detect axons well — use as base, only override paths
 settings_file = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P_OTHER\AnimalRB6\AnimalRB6_250302_1656\suite2p\combined\ops.npy")
-data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB24_261111_1626")
+data_path = resolve_runtime_path(r"Z:\Group Members\Rima\DATA_2P\AnimalRB23_261112_1746")
+
+# Process only the first part of the recording: the number of the LAST TIFF to use (the 5-digit number at the end of
+# the file name), or None for all TIFFs. Count in acquisition order, stubs included.
+# RB24_261112_1408 (water in the objective ran out around trial 50): 93 TIFFs, 1-frame stubs = 1, 32, 63; TIFF 2-31 =
+# trials 1-30, TIFF 33-62 = trials 31-60, so trial 50 ends in TIFF 52. 57 = trial 55: a 5-trial margin, because the
+# image degrades gradually (no step in brightness / sharpness / FOV correlation), and the analysis can cut at 50 later
+# for free whereas more frames cannot be added without re-running. Use 52 to stop exactly after trial 50.
+# RB23_261112_1746 (same water problem): 63 TIFFs, stubs = 1, 22, 43. Mean brightness of the raw TIFFs is stable at ~22
+# up to TIFF 47, then falls 20.7 (48), 18.3 (50), 16.0 (53), 13.9 (54), 8.7 (56), 4.0 (59), 0.7 (63). 53 = last TIFF
+# before the steep fall (73 % of the stable level), 92,898 frames = 51.6 min. No stim log on Z: yet.
+LAST_TIF = 53
 # Single-plane, no-flyback recording: 512 x 1024 int16 at 30 Hz (~1 GB of data.bin per 1000 frames).
 # Everything is written next to the raw data, <data_path>\suite2p\plane0\..., like all previous recordings.
 # (Running from Z: reads and writes the ~63 GB binary over the network; set save_path0 to a local folder
@@ -338,6 +358,29 @@ if os.path.exists(suite2p_path):
         ops['fast_disk'] = suite2p_path
     else:
         print("  Some binaries missing — will convert from TIFFs.")
+
+# Only the first part of the recording: hand suite2p an explicit list of TIFF names (relative to data_path).
+# Only used when suite2p converts TIFFs to data.bin (an existing data.bin is simply reused as it is).
+if LAST_TIF is not None and not binary_exists:
+    def _tif_number(name):
+        m = re.search(r'_(\d+)\.tiff?$', name, re.IGNORECASE)
+        return int(m.group(1)) if m else None
+
+    all_tifs = sorted(f for f in os.listdir(data_path) if f.lower().endswith(('.tif', '.tiff')))
+    tif_numbers = [_tif_number(f) for f in all_tifs]
+    if None in tif_numbers or len(set(tif_numbers)) != len(tif_numbers):
+        raise RuntimeError("TIFF names do not end in a unique _<number>.tif - cannot apply LAST_TIF")
+    if tif_numbers != list(range(tif_numbers[0], tif_numbers[0] + len(tif_numbers))):
+        raise RuntimeError(f"TIFF numbers are not consecutive ({tif_numbers[0]}..{tif_numbers[-1]}, {len(tif_numbers)} files) "
+                           "- a missing file would shift the frame numbering, check the folder")
+    db['file_list'] = [f for f, n in zip(all_tifs, tif_numbers) if n <= LAST_TIF]
+    print("\n" + "="*70)
+    print(f"LAST_TIF = {LAST_TIF}: processing {len(db['file_list'])} of {len(all_tifs)} TIFFs")
+    print(f"  first: {db['file_list'][0]}")
+    print(f"  last:  {db['file_list'][-1]}")
+    print(f"  not processed: {len(all_tifs) - len(db['file_list'])} TIFFs ({all_tifs[len(db['file_list'])] if len(db['file_list']) < len(all_tifs) else '-'} onwards)")
+    print("  (suite2p F will have fewer columns than the session has frames - see the aggregation note in the script header)")
+    print("="*70)
 
 # ============================================================================
 # RUN SUITE2P
